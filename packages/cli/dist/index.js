@@ -2,7 +2,6 @@
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@mashiro39/ai-inspect-protocol';
 import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@mashiro39/ai-inspect-server';
 import { runMcpStdio } from './mcp.js';
-import { runWatch } from './watch.js';
 ensureLocalNoProxy();
 const args = process.argv.slice(2);
 const command = args[0] ?? 'help';
@@ -14,14 +13,6 @@ try {
     }
     else if (command === 'mcp') {
         await runMcpStdio({ daemonUrl: daemonUrl() });
-    }
-    else if (command === 'watch') {
-        await runWatch({
-            daemonUrl: daemonUrl(),
-            project: stringFlag('--project') ?? process.cwd(),
-            agent: stringFlag('--agent') ?? 'codex',
-            intervalMs: numberFlag('--interval') ?? 1000,
-        });
     }
     else if (command === 'status') {
         const health = await fetchHealth(daemonUrl());
@@ -78,7 +69,7 @@ try {
         printHelp();
         process.exit(command === 'help' || command === '--help' || command === '-h' ? 0 : 2);
     }
-    if (!['daemon', 'mcp', 'watch'].includes(command))
+    if (!['daemon', 'mcp'].includes(command))
         process.exit(0);
 }
 catch (err) {
@@ -111,7 +102,6 @@ function printHelp() {
     process.stdout.write(`Usage:
   ai-inspect daemon [--host 127.0.0.1] [--port 17321]
   ai-inspect mcp [--daemon-url <url>]
-  ai-inspect watch [--agent codex] [--project <dir>] [--interval 1000] [--daemon-url <url>]
   ai-inspect status [--daemon-url <url>]
   ai-inspect selection [--json] [--daemon-url <url>]
   ai-inspect sessions [--daemon-url <url>]

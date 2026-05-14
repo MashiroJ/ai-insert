@@ -4,9 +4,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR=""
 MODE=""
-AGENT="auto"
 SOURCE="npm"
-CLAUDE_SCOPE="user"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -18,34 +16,24 @@ while [[ $# -gt 0 ]]; do
       MODE="$2"
       shift 2
       ;;
-    --agent)
-      AGENT="$2"
-      shift 2
-      ;;
     --source)
       SOURCE="$2"
       shift 2
       ;;
-    --claude-scope)
-      CLAUDE_SCOPE="$2"
-      shift 2
-      ;;
     -h|--help)
       cat <<'HELP'
-用法: ./install.sh [--mode mcp|vite|all] [--agent auto|codex|claude|none] [--source npm|local] [--claude-scope user|local|project] [--project /path/to/vite-project]
+用法: ./install.sh [--mode mcp|vite|all] [--source npm|local] [--project /path/to/vite-project]
 
 模式:
-  mcp   安装 MCP 命令并配置 Codex / Claude
+  mcp   安装 MCP 命令并输出通用 MCP 配置片段
   vite  给某个 Vue/Vite 项目安装网页调试插件
   all   配置 MCP，并安装 Vue/Vite 插件
 
 示例:
   ./install.sh
-  ./install.sh --mode mcp --agent codex
-  ./install.sh --mode mcp --agent claude
-  ./install.sh --mode mcp --agent claude --claude-scope local
+  ./install.sh --mode mcp
   ./install.sh --mode vite --project /path/to/vite-vue-project
-  ./install.sh --source local --mode all --agent codex --project /path/to/vite-vue-project
+  ./install.sh --source local --mode all --project /path/to/vite-vue-project
 HELP
       exit 0
       ;;
@@ -66,14 +54,9 @@ if [[ "$SOURCE" != "npm" && "$SOURCE" != "local" ]]; then
   exit 2
 fi
 
-if [[ "$CLAUDE_SCOPE" != "user" && "$CLAUDE_SCOPE" != "local" && "$CLAUDE_SCOPE" != "project" ]]; then
-  echo "未知 Claude MCP scope: $CLAUDE_SCOPE。可选值：user、local、project。" >&2
-  exit 2
-fi
-
 if [[ -z "$MODE" ]]; then
   echo "请选择要安装/配置的内容："
-  echo "  1) 配置 MCP：接入 Codex / Claude（会自动安装 MCP 命令）"
+  echo "  1) 配置 MCP：安装命令并输出通用 MCP 配置片段"
       echo "  2) 安装 Vue/Vite 插件：让目标网页出现右下角「AI 调试」按钮和调试面板"
   echo "  3) 全部安装：MCP + Vue/Vite 插件"
   read -r -p "请输入选项 [1/2/3]（默认 1）: " choice
@@ -95,8 +78,8 @@ install_mcp_command() {
 
 configure_mcp() {
   install_mcp_command
-  echo "正在配置 MCP..."
-  node "$DIR/configure-mcp.mjs" --agent "$AGENT" --claude-scope "$CLAUDE_SCOPE"
+  echo "正在输出通用 MCP 配置..."
+  node "$DIR/configure-mcp.mjs"
 }
 
 install_vite_plugin() {
@@ -164,5 +147,4 @@ esac
 
 echo "安装完成。"
 echo "MCP 启动命令: ai-inspect mcp"
-echo "自动监听浏览器请求: ai-inspect watch --project /path/to/project"
-echo "Codex 默认使用 HTTP/SSE 传输以避免代理环境下的 WebSocket 重连。"
+echo "请把上面的 MCP 配置片段添加到你使用的 agent/client。"

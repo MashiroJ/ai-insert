@@ -245,7 +245,7 @@ export function clientSource(options: ClientSourceOptions): string {
     if (!resp.ok) throw new Error(await resp.text());
     activeSessionId = payload.sessionId;
     localStorage.setItem(LAST_SESSION_KEY, activeSessionId);
-    ensureToggle().textContent = '已发送给 AI';
+    ensureToggle().textContent = '已记录到 MCP 会话';
     startSessionStream(payload.sessionId);
     renderSession(payload.sessionId).catch(() => {});
   }
@@ -294,7 +294,7 @@ export function clientSource(options: ClientSourceOptions): string {
       '<div class="ai-inspect-head"><div class="ai-inspect-title">AI 调试</div><button type="button" class="ai-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ai-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeSelection(selected)) + '</div>',
       '<div class="ai-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ai-inspect-instruction" placeholder="描述你想调整什么，回车发送，Shift+回车换行"></textarea>',
+      '<textarea id="ai-inspect-instruction" placeholder="描述你想调整什么，发送后可由 MCP agent 读取"></textarea>',
       '<div class="ai-inspect-actions">',
       '<div class="ai-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
       '<div class="ai-inspect-actions-right"><button type="button" data-action="select">选择</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
@@ -506,7 +506,7 @@ export function clientSource(options: ClientSourceOptions): string {
     if (!messagesEl) return;
     messagesEl.innerHTML = session.messages.map((message) => (
       '<div class="ai-inspect-msg" data-role="' + escapeHtml(message.role) + '">' +
-      '<span class="ai-inspect-msg-role">' + (message.role === 'assistant' ? 'AI' : '你') + '</span>' +
+      '<span class="ai-inspect-msg-role">' + (message.role === 'assistant' ? '助手' : '你') + '</span>' +
       escapeHtml(message.content) +
       '</div>'
     )).join('');
@@ -529,7 +529,7 @@ export function clientSource(options: ClientSourceOptions): string {
       } catch {}
     });
     sessionEvents.onerror = () => {
-      ensureToggle().textContent = 'AI 连接重试中';
+      ensureToggle().textContent = '会话连接重试中';
     };
   }
 

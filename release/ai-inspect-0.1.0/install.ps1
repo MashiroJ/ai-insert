@@ -1,12 +1,8 @@
 param(
   [ValidateSet("", "mcp", "vite", "all")]
   [string]$Mode = "",
-  [ValidateSet("auto", "codex", "claude", "none")]
-  [string]$Agent = "auto",
   [ValidateSet("npm", "local")]
   [string]$Source = "npm",
-  [ValidateSet("user", "local", "project")]
-  [string]$ClaudeScope = "user",
   [string]$Project = ""
 )
 
@@ -19,7 +15,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 
 if ($Mode -eq "") {
   Write-Host "请选择要安装/配置的内容："
-  Write-Host "  1) 配置 MCP：接入 Codex / Claude（会自动安装 MCP 命令）"
+  Write-Host "  1) 配置 MCP：安装命令并输出通用 MCP 配置片段"
   Write-Host "  2) 安装 Vue/Vite 插件：让目标网页出现右下角「AI 调试」按钮和调试面板"
   Write-Host "  3) 全部安装：MCP + Vue/Vite 插件"
   $choice = Read-Host "请输入选项 [1/2/3]（默认 1）"
@@ -39,8 +35,8 @@ function Install-McpCommand {
 
 function Configure-Mcp {
   Install-McpCommand
-  Write-Host "正在配置 MCP..."
-  node "$Dir\configure-mcp.mjs" --agent $Agent --claude-scope $ClaudeScope
+  Write-Host "正在输出通用 MCP 配置..."
+  node "$Dir\configure-mcp.mjs"
 }
 
 function Install-VitePlugin {
@@ -103,5 +99,4 @@ switch ($Mode) {
 
 Write-Host "安装完成。"
 Write-Host "MCP 启动命令: ai-inspect mcp"
-Write-Host "自动监听浏览器请求: ai-inspect watch --project /path/to/project"
-Write-Host "Codex 默认使用 HTTP/SSE 传输以避免代理环境下的 WebSocket 重连。"
+Write-Host "请把上面的 MCP 配置片段添加到你使用的 agent/client。"

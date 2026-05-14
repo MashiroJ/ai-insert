@@ -1,8 +1,6 @@
 import { DEFAULT_DAEMON_PORT } from '@mashiro39/ai-inspect-protocol';
 import { fetchHealth } from '@mashiro39/ai-inspect-server';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 const CONSECUTIVE_HEALTH_CHECKS = 2;
 const HEALTH_CHECK_INTERVAL_MS = 100;
@@ -11,12 +9,6 @@ export interface EnsureDaemonOptions {
   daemonUrl: string;
   project?: string;
   timeoutMs?: number;
-}
-
-export interface EnsureWatcherOptions {
-  daemonUrl: string;
-  project?: string;
-  agent?: string;
 }
 
 export async function ensureDaemon({ daemonUrl, project, timeoutMs = 2500 }: EnsureDaemonOptions): Promise<void> {
@@ -85,34 +77,4 @@ function parseLocalDaemonUrl(daemonUrl: string): { host: string; port: number } 
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function startWatcher({ daemonUrl, project = process.cwd(), agent = 'codex' }: EnsureWatcherOptions): void {
-  if (watcherIsAlreadyRunning(project, daemonUrl)) return;
-  const entry = process.argv[1];
-  spawn(process.execPath, [entry, 'watch', '--daemon-url', daemonUrl, '--project', project, '--agent', agent], {
-    detached: true,
-    stdio: 'ignore',
-    env: {
-      ...process.env,
-      AI_INSPECT_WATCHER: '1',
-    },
-  }).unref();
-}
-
-function watcherIsAlreadyRunning(project: string, daemonUrl: string): boolean {
-  const file = join(project, '.ai-insert', `watcher-${safeName(daemonUrl)}.pid`);
-  if (!existsSync(file)) return false;
-  const pid = Number(readFileSync(file, 'utf8').trim());
-  if (!Number.isFinite(pid)) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function safeName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_.-]+/g, '_');
 }

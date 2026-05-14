@@ -10,7 +10,6 @@ import {
   startServer,
 } from '@mashiro39/ai-inspect-server';
 import { runMcpStdio } from './mcp.js';
-import { runWatch } from './watch.js';
 
 ensureLocalNoProxy();
 
@@ -24,13 +23,6 @@ try {
     await startServer({ host, port });
   } else if (command === 'mcp') {
     await runMcpStdio({ daemonUrl: daemonUrl() });
-  } else if (command === 'watch') {
-    await runWatch({
-      daemonUrl: daemonUrl(),
-      project: stringFlag('--project') ?? process.cwd(),
-      agent: stringFlag('--agent') ?? 'codex',
-      intervalMs: numberFlag('--interval') ?? 1000,
-    });
   } else if (command === 'status') {
     const health = await fetchHealth(daemonUrl());
     process.stdout.write(`${JSON.stringify(health, null, 2)}\n`);
@@ -76,7 +68,7 @@ try {
     printHelp();
     process.exit(command === 'help' || command === '--help' || command === '-h' ? 0 : 2);
   }
-  if (!['daemon', 'mcp', 'watch'].includes(command)) process.exit(0);
+  if (!['daemon', 'mcp'].includes(command)) process.exit(0);
 } catch (err) {
   process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
   process.exit(1);
@@ -109,7 +101,6 @@ function printHelp(): void {
   process.stdout.write(`Usage:
   ai-inspect daemon [--host 127.0.0.1] [--port 17321]
   ai-inspect mcp [--daemon-url <url>]
-  ai-inspect watch [--agent codex] [--project <dir>] [--interval 1000] [--daemon-url <url>]
   ai-inspect status [--daemon-url <url>]
   ai-inspect selection [--json] [--daemon-url <url>]
   ai-inspect sessions [--daemon-url <url>]
