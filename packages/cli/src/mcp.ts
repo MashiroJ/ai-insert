@@ -16,7 +16,7 @@ import {
 } from '@mashiro39/ai-inspect-server';
 
 const SERVER_NAME = 'ai-inspect';
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = '0.2.0';
 
 interface RunMcpOptions {
   daemonUrl: string;

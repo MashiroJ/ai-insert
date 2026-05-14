@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const version = '0.1.0';
+const version = '0.2.0';
 const outDir = join(root, 'release', `ai-inspect-${version}`);
 const packages = [
   '@mashiro39/ai-inspect-protocol',

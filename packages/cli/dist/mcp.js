@@ -6,7 +6,7 @@ import { ensureProjectDevServer } from './project-dev.js';
 import { ensureProjectIntegration } from './project-setup.js';
 import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@mashiro39/ai-inspect-server';
 const SERVER_NAME = 'ai-inspect';
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = '0.2.0';
 const TOOL_DEFS = [
     {
         name: 'start_ai_inspect',

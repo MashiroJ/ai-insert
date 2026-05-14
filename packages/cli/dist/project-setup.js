@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 const require = createRequire(import.meta.url);
 const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'];
-const PACKAGE_VERSION = '0.1.0';
+const PACKAGE_VERSION = '0.2.0';
 const VITE_PLUGIN_SPEC = `@mashiro39/ai-inspect-vite-plugin@${PACKAGE_VERSION}`;
 export function ensureProjectIntegration({ project }) {
     const result = {

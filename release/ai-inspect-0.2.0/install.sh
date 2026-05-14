@@ -70,9 +70,9 @@ fi
 install_mcp_command() {
   echo "正在安装 ai-inspect MCP 命令..."
   if [[ "$SOURCE" == "local" ]]; then
-    npm install -g --force "$DIR"/mashiro39-ai-inspect-protocol-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-server-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-cli-0.1.0.tgz
+    npm install -g --force "$DIR"/mashiro39-ai-inspect-protocol-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-server-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-cli-0.2.0.tgz
   else
-    npm install -g --force @mashiro39/ai-inspect-cli@0.1.0
+    npm install -g --force @mashiro39/ai-inspect-cli@0.2.0
   fi
 }
 
@@ -95,21 +95,21 @@ install_vite_plugin() {
   echo "项目包管理器: $package_manager"
   if [[ "$package_manager" == "pnpm" ]]; then
     if [[ "$SOURCE" == "local" ]]; then
-      (cd "$PROJECT_DIR" && pnpm add -D "$DIR"/mashiro39-ai-inspect-protocol-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.1.0.tgz)
+      (cd "$PROJECT_DIR" && pnpm add -D "$DIR"/mashiro39-ai-inspect-protocol-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.2.0.tgz)
     else
-      (cd "$PROJECT_DIR" && pnpm add -D @mashiro39/ai-inspect-vite-plugin@0.1.0)
+      (cd "$PROJECT_DIR" && pnpm add -D @mashiro39/ai-inspect-vite-plugin@0.2.0)
     fi
   elif [[ "$package_manager" == "yarn" ]]; then
     if [[ "$SOURCE" == "local" ]]; then
-      (cd "$PROJECT_DIR" && COREPACK_ENABLE_STRICT=0 yarn add -D "$DIR"/mashiro39-ai-inspect-protocol-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.1.0.tgz)
+      (cd "$PROJECT_DIR" && COREPACK_ENABLE_STRICT=0 yarn add -D "$DIR"/mashiro39-ai-inspect-protocol-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.2.0.tgz)
     else
-      (cd "$PROJECT_DIR" && COREPACK_ENABLE_STRICT=0 yarn add -D @mashiro39/ai-inspect-vite-plugin@0.1.0 --registry https://registry.npmjs.org)
+      (cd "$PROJECT_DIR" && COREPACK_ENABLE_STRICT=0 yarn add -D @mashiro39/ai-inspect-vite-plugin@0.2.0 --registry https://registry.npmjs.org)
     fi
   else
     if [[ "$SOURCE" == "local" ]]; then
-      npm install --save-dev --prefix "$PROJECT_DIR" "$DIR"/mashiro39-ai-inspect-protocol-0.1.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.1.0.tgz
+      npm install --save-dev --prefix "$PROJECT_DIR" "$DIR"/mashiro39-ai-inspect-protocol-0.2.0.tgz "$DIR"/mashiro39-ai-inspect-vite-plugin-0.2.0.tgz
     else
-      npm install --save-dev --prefix "$PROJECT_DIR" @mashiro39/ai-inspect-vite-plugin@0.1.0
+      npm install --save-dev --prefix "$PROJECT_DIR" @mashiro39/ai-inspect-vite-plugin@0.2.0
     fi
   fi
   node "$DIR/patch-vite-config.mjs" --project "$PROJECT_DIR"
