@@ -11,5 +11,6 @@ export declare function postMessage(content: string, role?: AiInspectMessageRole
 }): Promise<AiInspectMessage>;
 export declare function clearSelection(daemonUrl?: string): Promise<void>;
 export declare function fetchHealth(daemonUrl?: string): Promise<AiInspectHealthResponse>;
+export declare function shutdownDaemon(daemonUrl?: string): Promise<void>;
 export declare function readSelectionSource(selection: AiInspectSelection, contextLines: number): Promise<AiInspectSourceResponse>;
 export { delay } from './utils.js';

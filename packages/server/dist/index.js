@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isRecord, numberOr, stringOr, trimUrl } from './utils.js';
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;
@@ -22,9 +22,10 @@ class ServerState {
         this.startCleanupInterval();
     }
     startCleanupInterval() {
-        setInterval(() => {
+        const timer = setInterval(() => {
             this.cleanupDeadStreams();
         }, CLEANUP_INTERVAL_MS);
+        timer.unref?.();
     }
     cleanupDeadStreams() {
         for (const [sessionId, streams] of this.sessionStreams.entries()) {
@@ -95,9 +96,18 @@ const state = new ServerState();
 export async function startServer(options = {}) {
     const host = options.host ?? '127.0.0.1';
     const port = options.port ?? DEFAULT_DAEMON_PORT;
-    const server = createServer(async (req, res) => {
+    let closing = false;
+    let server;
+    const close = () => {
+        if (closing)
+            return;
+        closing = true;
+        server.close(() => resolveClose());
+    };
+    let resolveClose = () => { };
+    server = createServer(async (req, res) => {
         try {
-            await route(req, res);
+            await route(req, res, close);
         }
         catch (err) {
             sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
@@ -109,13 +119,7 @@ export async function startServer(options = {}) {
     });
     process.stdout.write(`ai-inspect daemon listening at http://${host}:${port}\n`);
     await new Promise((resolve) => {
-        let closing = false;
-        const close = () => {
-            if (closing)
-                return;
-            closing = true;
-            server.close(() => resolve());
-        };
+        resolveClose = resolve;
         process.once('SIGINT', close);
         process.once('SIGTERM', close);
     });
@@ -159,6 +163,12 @@ export async function fetchHealth(daemonUrl = DEFAULT_DAEMON_URL) {
         throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
     return (await resp.json());
 }
+export async function shutdownDaemon(daemonUrl = DEFAULT_DAEMON_URL) {
+    const parsed = parseDaemonUrl(daemonUrl);
+    const resp = await fetch(`${parsed}/shutdown`, { method: 'POST' });
+    if (!resp.ok)
+        throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+}
 export async function readSelectionSource(selection, contextLines) {
     const root = selection.source.root;
     const file = selection.source.file;
@@ -196,7 +206,7 @@ export async function readSelectionSource(selection, contextLines) {
         content,
     };
 }
-async function route(req, res) {
+async function route(req, res, closeServer) {
     if (req.method === 'OPTIONS') {
         applyCors(req, res);
         res.writeHead(204);
@@ -207,6 +217,18 @@ async function route(req, res) {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true, name: 'ai-inspect', version: VERSION });
+        return;
+    }
+    if (req.method === 'POST' && url.pathname === '/shutdown') {
+        if (!isLocalOrigin(req.headers.origin)) {
+            sendJson(res, 403, { error: 'origin rejected' });
+            return;
+        }
+        sendJson(res, 200, { ok: true });
+        setTimeout(() => {
+            closeServer();
+            process.exit(0);
+        }, 50).unref?.();
         return;
     }
     if (req.method === 'GET' && url.pathname === '/selection') {
@@ -478,17 +500,28 @@ function applyCors(req, res) {
     }
     res.setHeader('access-control-allow-methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('access-control-allow-headers', 'content-type');
+    res.setHeader('access-control-allow-private-network', 'true');
 }
 function isLocalOrigin(origin) {
     if (!origin)
         return true;
     try {
         const url = new URL(origin);
-        return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+        return isLocalHostname(url.hostname);
     }
     catch {
         return false;
     }
+}
+function isLocalHostname(hostname) {
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1')
+        return true;
+    const parts = hostname.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return false;
+    }
+    const [first, second] = parts;
+    return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
 }
 function parseDaemonUrl(daemonUrl) {
     const parsed = trimUrl(daemonUrl);
