@@ -13,6 +13,7 @@ export function clientSource(options: ClientSourceOptions): string {
   const MENU_ID = 'ui-inspect-menu';
   const PANEL_ID = 'ui-inspect-panel';
   const TOAST_ID = 'ui-inspect-toast';
+  const BATCH_BAR_ID = 'ui-inspect-batch-bar';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
   let enabled = false;
@@ -37,6 +38,8 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;width:82px;height:92px;border:0;background:transparent;color:white;padding:0;cursor:pointer;filter:drop-shadow(0 14px 24px rgba(15,23,42,.4));transform-origin:50% 100%}',
       '#ui-inspect-toggle:hover{transform:translateY(-2px)}',
       '#ui-inspect-toggle[data-active="true"]{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 14px 30px rgba(37,99,235,.45))}',
+      '#ui-inspect-toggle[data-compact="true"] .ui-inspect-diana-label{display:none}',
+      '#ui-inspect-toggle[data-compact="true"]{width:72px;height:82px}',
       '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:5px;bottom:8px;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:ui-diana-idle 1400ms steps(8) infinite}',
       '#ui-inspect-toggle .ui-inspect-diana-label{position:absolute;right:0;bottom:0;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(96,165,250,.42);border-radius:999px;background:rgba(15,23,42,.88);color:#dbeafe;padding:2px 7px;font:10px/1.3 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:900}',
       '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 900ms steps(8) infinite}',
@@ -61,6 +64,10 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-menu .ui-inspect-menu-desc{display:block;margin-top:2px;color:#cbd5e1;font-size:11px;font-weight:500}',
       '#ui-inspect-menu .ui-inspect-menu-secondary{margin-top:8px;border-style:dashed;color:#cbd5e1}',
       '#ui-inspect-toast{position:fixed;z-index:2147483647;right:22px;bottom:112px;max-width:min(300px,calc(100vw - 44px));border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 10px;font:12px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
+      '#ui-inspect-batch-bar{position:fixed;z-index:2147483647;right:18px;bottom:110px;max-width:min(360px,calc(100vw - 36px));display:flex;align-items:center;gap:8px;border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 9px;font:12px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
+      '#ui-inspect-batch-bar .ui-inspect-batch-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:900}',
+      '#ui-inspect-batch-bar button{border:1px solid #475569;border-radius:6px;background:#1e293b;color:white;padding:6px 8px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}',
+      '#ui-inspect-batch-bar button[data-primary="true"]{border-color:#2563eb;background:#2563eb}',
       '#ui-inspect-panel{position:fixed;z-index:2147483647;right:16px;bottom:54px;width:min(420px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:12px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-panel,#ui-inspect-panel *{cursor:auto!important}',
       '#ui-inspect-panel .ui-inspect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}',
@@ -71,6 +78,7 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-panel .ui-inspect-target[data-empty="true"]{color:#94a3b8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-panel .ui-inspect-status{display:inline-flex;margin:0 0 8px;padding:3px 7px;border:1px solid rgba(96,165,250,.35);border-radius:999px;color:#bfdbfe;background:rgba(30,64,175,.24);font-size:11px;font-weight:800}',
       '#ui-inspect-panel .ui-inspect-target-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;margin:0 0 10px}',
+      '#ui-inspect-panel .ui-inspect-field-label{display:block;margin:6px 0 6px;color:#cbd5e1;font-size:12px;font-weight:900}',
       '#ui-inspect-panel .ui-inspect-target-card{border:1px solid rgba(148,163,184,.28);border-radius:7px;background:rgba(15,23,42,.72);padding:8px}',
       '#ui-inspect-panel .ui-inspect-target-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;margin-bottom:7px}',
       '#ui-inspect-panel .ui-inspect-target-id{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:22px;border-radius:999px;background:rgba(37,99,235,.22);border:1px solid rgba(96,165,250,.38);color:#bfdbfe;font-size:11px;font-weight:900}',
@@ -169,7 +177,7 @@ export function clientSource(options: ClientSourceOptions): string {
   }
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_BAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_BAR_ID))));
   }
 
   function updateHover(el) {
@@ -379,12 +387,26 @@ export function clientSource(options: ClientSourceOptions): string {
     }, 2200);
   }
 
+  function friendlyError(error, action) {
+    const message = error && error.message ? error.message : String(error || '');
+    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+      return 'UI Inspect 本地服务未连接。请先在 AI 对话里执行：启用 ui-inspect。';
+    }
+    if (action === 'source') return '打开源码失败：' + message;
+    if (action === 'history') return '暂时无法读取历史会话，本地服务可能还没启动。';
+    return '发送失败：' + message;
+  }
+
   function removePanel() {
     closeSessionStream();
     const menu = document.getElementById(MENU_ID);
     if (menu) menu.remove();
     const existing = document.getElementById(PANEL_ID);
     if (existing) existing.remove();
+    const bar = document.getElementById(BATCH_BAR_ID);
+    if (bar) bar.remove();
+    const toggle = document.getElementById(TOGGLE_ID);
+    if (toggle) toggle.dataset.compact = 'false';
   }
 
   function closeDebugPanel() {
@@ -438,6 +460,12 @@ export function clientSource(options: ClientSourceOptions): string {
       selectedTargets = [];
     }
     setEnabled(true);
+    if (mode === 'source') showToast('点击页面元素，Diana 会帮你打开源码。');
+    if (mode === 'single') showToast('点击一个需要交给 AI 修改的元素。');
+    if (mode === 'batch') {
+      showToast('连续点击多个元素，完成后点“完成标注”。');
+      renderBatchBar();
+    }
   }
 
   function describeSelection(selection) {
@@ -466,6 +494,8 @@ export function clientSource(options: ClientSourceOptions): string {
 
   function selectionTitle(selection) {
     if (!selection) return '未选择元素';
+    const readable = readableDomTitle(selection);
+    if (readable) return readable;
     if (selection.vue?.componentName) return selection.vue.componentName;
     if (selection.source?.file) return basename(selection.source.file);
     if (selection.dom?.tagName) {
@@ -474,6 +504,65 @@ export function clientSource(options: ClientSourceOptions): string {
       return selection.dom.tagName + id + text;
     }
     return '已选择 DOM 元素';
+  }
+
+  function readableDomTitle(selection) {
+    const dom = selection?.dom || {};
+    const tag = String(dom.tagName || '').toLowerCase();
+    const html = String(dom.outerHtml || '');
+    const attrs = attrsFromHtml(html);
+    const text = cleanText(dom.text);
+    const placeholder = cleanText(attrs.placeholder || attrValueFromHtml(html, 'placeholder'));
+    const aria = cleanText(attrs['aria-label'] || attrValueFromHtml(html, 'aria-label'));
+    const title = cleanText(attrs.title);
+    const name = cleanText(attrs.name);
+    const label = placeholder || aria || title || name;
+    if (['input','textarea','select'].includes(tag)) {
+      const kind = tag === 'textarea' ? '文本域' : (tag === 'select' ? '选择框' : '输入框');
+      return label ? kind + ' · ' + label : kind;
+    }
+    if (tag === 'button' || attrs.role === 'button') return text ? '按钮 · ' + text.slice(0, 28) : '按钮';
+    if (tag === 'a') return text ? '链接 · ' + text.slice(0, 28) : '链接';
+    if (label) return tagNameText(tag) + ' · ' + label;
+    if (text && text.length <= 40) return tagNameText(tag) + ' · ' + text;
+    return '';
+  }
+
+  function attrsFromHtml(html) {
+    const attrs = {};
+    const match = html.match(/^<[^\\s/>]+\\s+([^>]*)>/);
+    if (!match) return attrs;
+    const source = match[1] || '';
+    source.replace(/([:@\\w-]+)(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+)))?/g, (_all, key, a, b, c) => {
+      attrs[String(key).toLowerCase()] = a || b || c || '';
+      return '';
+    });
+    return attrs;
+  }
+
+  function attrValueFromHtml(html, name) {
+    const safeName = name.replace(/[-/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&');
+    const pattern = new RegExp('\\\\s' + safeName + '\\\\s*=\\\\s*(?:"([^"]*)"|\\'([^\\']*)\\'|([^\\\\s"\\'=<>]+))', 'i');
+    const match = String(html || '').match(pattern);
+    return match ? (match[1] || match[2] || match[3] || '') : '';
+  }
+
+  function cleanText(value) {
+    return String(value || '').replace(/\\s+/g, ' ').trim();
+  }
+
+  function tagNameText(tag) {
+    return ({
+      div: '区域',
+      section: '区域',
+      header: '头部',
+      main: '主体',
+      footer: '底部',
+      form: '表单',
+      img: '图片',
+      span: '文本',
+      p: '文本'
+    })[tag] || (tag || '元素');
   }
 
   function targetFromSelection(selection, note) {
@@ -491,7 +580,8 @@ export function clientSource(options: ClientSourceOptions): string {
 
   function describeTargets() {
     if (!selectedTargets.length) return '未选择元素，点击“选择”后在页面上框选。';
-    return taskModeTitle() + ' · 已选择 ' + selectedTargets.length + ' 个目标';
+    if (activeTaskMode === 'single') return '目标';
+    return '已选择 ' + selectedTargets.length + ' 个目标';
   }
 
   function taskModeTitle() {
@@ -500,8 +590,43 @@ export function clientSource(options: ClientSourceOptions): string {
 
   function targetNotePlaceholder() {
     return activeTaskMode === 'single'
-      ? '这个元素要怎么改，例如：按钮更醒目'
+      ? ''
       : '针对这个目标的要求（可选），例如：标题小一点';
+  }
+
+  function renderBatchBar() {
+    if (selectionMode !== 'batch') return;
+    let bar = document.getElementById(BATCH_BAR_ID);
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = BATCH_BAR_ID;
+      bar.innerHTML = [
+        '<span class="ui-inspect-batch-text"></span>',
+        '<button type="button" data-action="undo">撤销</button>',
+        '<button type="button" data-primary="true" data-action="finish">完成标注</button>'
+      ].join('');
+      document.body.appendChild(bar);
+      ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+        bar.addEventListener(type, (event) => event.stopPropagation());
+      });
+      bar.querySelector('[data-action="undo"]').addEventListener('click', () => {
+        selectedTargets.pop();
+        renderBatchBar();
+      });
+      bar.querySelector('[data-action="finish"]').addEventListener('click', () => {
+        if (!selectedTargets.length) {
+          showToast('请先点击页面上的目标元素。', 'failed');
+          return;
+        }
+        openDebugPanel({ sessionId: activePanelSessionId || undefined });
+      });
+    }
+    const text = bar.querySelector('.ui-inspect-batch-text');
+    if (text) text.textContent = selectedTargets.length
+      ? '批量标注中 · 已选择 ' + selectedTargets.length + ' 个'
+      : '批量标注中 · 点击页面元素';
+    const undo = bar.querySelector('[data-action="undo"]');
+    if (undo) undo.disabled = selectedTargets.length === 0;
   }
 
   function renderTargets(panel) {
@@ -528,7 +653,7 @@ export function clientSource(options: ClientSourceOptions): string {
             '<button type="button" data-action="remove-target">移除</button>' +
           '</div>' +
         '</div>' +
-        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="' + escapeHtml(targetNotePlaceholder()) + '" />' +
+        (activeTaskMode === 'batch' ? '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="' + escapeHtml(targetNotePlaceholder()) + '" />' : '') +
       '</div>';
     }).join('');
     Array.from(list.querySelectorAll('[data-target-note]')).forEach((input) => {
@@ -550,7 +675,7 @@ export function clientSource(options: ClientSourceOptions): string {
       button.addEventListener('click', () => {
         const row = button.closest('[data-target-index]');
         const index = Number(row?.getAttribute('data-target-index'));
-        openSource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '打开失败'; });
+        openSource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '打开失败'; showToast('编辑器未响应，请复制路径手动打开。', 'failed'); });
       });
     });
     Array.from(list.querySelectorAll('[data-action="copy-source"]')).forEach((button) => {
@@ -560,6 +685,19 @@ export function clientSource(options: ClientSourceOptions): string {
         copySource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '复制失败'; });
       });
     });
+  }
+
+  function placePanel(panel) {
+    if (!panel || !activeElement) return;
+    const rect = activeElement.getBoundingClientRect();
+    panel.style.left = '';
+    panel.style.right = '16px';
+    panel.style.bottom = window.innerWidth <= 520 ? '72px' : '54px';
+    if (window.innerWidth <= 720) return;
+    if (rect.left > window.innerWidth / 2) {
+      panel.style.left = '16px';
+      panel.style.right = 'auto';
+    }
   }
 
   function openDebugPanel(options) {
@@ -593,13 +731,17 @@ export function clientSource(options: ClientSourceOptions): string {
       '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeTargets()) + '</div>',
       '<div class="ui-inspect-target-list"></div>',
       '<div class="ui-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ui-inspect-instruction" placeholder="' + (activeTaskMode === 'single' ? '描述这个元素要怎么改，发送后 AI 会继续处理' : '整体需求（可选），例如：这组卡片间距太大，改得更像后台管理系统') + '"></textarea>',
+      '<label class="ui-inspect-field-label" for="ui-inspect-instruction">' + (activeTaskMode === 'single' ? '你想怎么改？' : '整体需求，可选') + '</label>',
+      '<textarea id="ui-inspect-instruction" placeholder="' + (activeTaskMode === 'single' ? '例如：把这个输入框宽一点，和下面输入框对齐' : '例如：这组输入框更紧凑，风格统一') + '"></textarea>',
       '<div class="ui-inspect-actions">',
       '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
       '<div class="ui-inspect-actions-right"><button type="button" data-action="select">' + (activeTaskMode === 'single' ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
       '</div>'
     ].join('');
     document.body.appendChild(panel);
+    const toggle = document.getElementById(TOGGLE_ID);
+    if (toggle) toggle.dataset.compact = 'true';
+    placePanel(panel);
     ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
       panel.addEventListener(type, (event) => {
         event.stopPropagation();
@@ -620,6 +762,7 @@ export function clientSource(options: ClientSourceOptions): string {
       removePanel();
       selectionMode = activeTaskMode === 'single' ? 'single' : 'batch';
       setEnabled(true);
+      if (selectionMode === 'batch') renderBatchBar();
     });
     close.addEventListener('click', () => closeDebugPanel());
     history.addEventListener('click', () => openHistoryPanel());
@@ -632,7 +775,7 @@ export function clientSource(options: ClientSourceOptions): string {
       }
       const hasTargetNote = selectedTargets.some((item) => (item.note || '').trim());
       if (!instruction && !hasTargetNote) {
-        panel.querySelector('.ui-inspect-target').textContent = '请填写整体需求，或给至少一个目标写要求。';
+        panel.querySelector('.ui-inspect-target').textContent = activeTaskMode === 'single' ? '请描述你想怎么改这个元素。' : '请填写整体需求，或给至少一个目标写要求。';
         panel.querySelector('.ui-inspect-target').dataset.empty = 'true';
         return;
       }
@@ -657,7 +800,7 @@ export function clientSource(options: ClientSourceOptions): string {
         setEnabled(false);
       }).catch((err) => {
         setDianaState('failed', 2200);
-        panel.querySelector('.ui-inspect-target').textContent = '发送失败：' + (err && err.message ? err.message : String(err));
+        panel.querySelector('.ui-inspect-target').textContent = friendlyError(err, 'send');
       });
     });
     textarea.addEventListener('keydown', (event) => {
@@ -763,7 +906,7 @@ export function clientSource(options: ClientSourceOptions): string {
             const next = sessions.filter((item) => item.id !== sessionId);
             renderHistoryList(next);
           }).catch((err) => {
-            target.textContent = '删除失败：' + (err && err.message ? err.message : String(err));
+            target.textContent = friendlyError(err, 'history');
             button.textContent = '删除';
           });
         });
@@ -772,7 +915,7 @@ export function clientSource(options: ClientSourceOptions): string {
     fetchSessions().then((sessions) => {
       renderHistoryList(sessions);
     }).catch((err) => {
-      panel.querySelector('.ui-inspect-target').textContent = '读取失败：' + (err && err.message ? err.message : String(err));
+      panel.querySelector('.ui-inspect-target').textContent = friendlyError(err, 'history');
     });
   }
 
@@ -795,7 +938,8 @@ export function clientSource(options: ClientSourceOptions): string {
   }, true);
 
   document.addEventListener('click', (event) => {
-    const el = hovered || event.target;
+    if (isOwnNode(event.target)) return;
+    const el = hovered && !isOwnNode(hovered) ? hovered : event.target;
     if (event.altKey && !isOwnNode(el)) {
       const selection = selectionPayloadFor(el, '', activePanelSessionId || undefined);
       event.preventDefault();
@@ -806,9 +950,9 @@ export function clientSource(options: ClientSourceOptions): string {
       }
       setDianaState('working');
       openSource(selection).then(() => {
-        showToast('Diana 已打开源码', 'done');
-      }).catch(() => {
-        showToast('打开源码失败', 'failed');
+        showToast('已尝试打开源码：' + sourceLabel(selection), 'done');
+      }).catch((err) => {
+        showToast(friendlyError(err, 'source'), 'failed');
       });
       return;
     }
@@ -827,10 +971,19 @@ export function clientSource(options: ClientSourceOptions): string {
       }
       setDianaState('working');
       openSource(selection).then(() => {
-        showToast('Diana 已打开源码', 'done');
-      }).catch(() => {
-        showToast('打开源码失败', 'failed');
+        showToast('已尝试打开源码：' + sourceLabel(selection), 'done');
+      }).catch((err) => {
+        showToast(friendlyError(err, 'source'), 'failed');
       });
+      return;
+    }
+    if (selectionMode === 'batch') {
+      const selection = selectionPayloadFor(el, '', sessionId || activePanelSessionId || undefined);
+      activeElement = el;
+      selectedTargets.push(targetFromSelection(selection, ''));
+      highlightElement(el);
+      setEnabled(true);
+      renderBatchBar();
       return;
     }
     openDebugPanel({ element: el, sessionId: sessionId || activePanelSessionId || undefined });
