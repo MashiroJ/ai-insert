@@ -15,6 +15,7 @@ export function clientSource(options: ClientSourceOptions): string {
   const TOAST_ID = 'ui-inspect-toast';
   const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
+  const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
   const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
   let enabled = false;
   let hovered = null;
@@ -28,6 +29,10 @@ export function clientSource(options: ClientSourceOptions): string {
   let selectionMode = 'batch';
   let activeTaskMode = 'batch';
   let dianaResetTimer = null;
+  let menuHideTimer = null;
+  let dianaDrag = null;
+  let suppressDianaClick = false;
+  let batchSidebarCollapsed = false;
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -35,34 +40,43 @@ export function clientSource(options: ClientSourceOptions): string {
     style.id = STYLE_ID;
     style.textContent = [
       '#ui-inspect-box{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #1d4ed8;background:rgba(29,78,216,.08);box-shadow:0 0 0 99999px rgba(15,23,42,.08);display:none}',
-      '#ui-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;width:82px;height:92px;border:0;background:transparent;color:white;padding:0;cursor:pointer;filter:drop-shadow(0 14px 24px rgba(15,23,42,.4));transform-origin:50% 100%}',
+      '#ui-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;width:72px;height:78px;border:0;background:transparent;color:white;padding:0;cursor:grab;touch-action:none;user-select:none;filter:drop-shadow(0 14px 24px rgba(15,23,42,.4));transform-origin:50% 100%;outline:none}',
+      '#ui-inspect-toggle[data-dragging="true"]{cursor:grabbing}',
+      '#ui-inspect-toggle:focus{outline:none}',
+      '#ui-inspect-toggle:focus-visible{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 0 16px rgba(96,165,250,.55))}',
       '#ui-inspect-toggle:hover{transform:translateY(-2px)}',
       '#ui-inspect-toggle[data-active="true"]{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 14px 30px rgba(37,99,235,.45))}',
-      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:5px;bottom:8px;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:ui-diana-idle 5200ms steps(8) infinite}',
-      '#ui-inspect-toggle .ui-inspect-diana-label{position:absolute;right:0;bottom:0;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(96,165,250,.42);border-radius:999px;background:rgba(15,23,42,.88);color:#dbeafe;padding:2px 7px;font:10px/1.3 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:900}',
-      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 1800ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 2000ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 1200ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1800ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 2200ms steps(8) infinite}',
-      '@keyframes ui-diana-idle{from{background-position:0 0}to{background-position:-576px 0}}',
-      '@keyframes ui-diana-run{from{background-position:0 -78px}to{background-position:-576px -78px}}',
-      '@keyframes ui-diana-wave{from{background-position:0 -234px}to{background-position:-576px -234px}}',
-      '@keyframes ui-diana-happy{from{background-position:0 -312px}to{background-position:-576px -312px}}',
-      '@keyframes ui-diana-sad{from{background-position:0 -390px}to{background-position:-576px -390px}}',
-      '#ui-inspect-menu{position:fixed;z-index:2147483647;right:20px;bottom:110px;width:min(290px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:10px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
-      '#ui-inspect-menu,#ui-inspect-menu *{cursor:auto!important}',
-      '#ui-inspect-menu .ui-inspect-menu-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}',
-      '#ui-inspect-menu .ui-inspect-menu-title{color:#e2e8f0;font-weight:900}',
-      '#ui-inspect-menu .ui-inspect-menu-close{width:26px;height:26px;padding:0;border-radius:999px!important;text-align:center!important;line-height:1;font-size:16px}',
-      '#ui-inspect-menu .ui-inspect-menu-actions{display:flex;flex-direction:column;gap:7px}',
-      '#ui-inspect-menu button{width:100%;text-align:left;border:1px solid rgba(71,85,105,.9);border-radius:7px;background:#1e293b;color:white;padding:8px 9px;font-weight:800;cursor:pointer}',
-      '#ui-inspect-menu .ui-inspect-menu-close{width:26px;height:26px;padding:0;text-align:center!important;flex:none}',
-      '#ui-inspect-menu button:hover{border-color:#60a5fa;background:#1d4ed8}',
-      '#ui-inspect-menu .ui-inspect-menu-desc{display:block;margin-top:2px;color:#cbd5e1;font-size:11px;font-weight:500}',
-      '#ui-inspect-menu .ui-inspect-menu-secondary{margin-top:8px;border-style:dashed;color:#cbd5e1}',
+      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:0;bottom:0;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:none}',
+      '#ui-inspect-toggle .ui-inspect-diana-label{display:none}',
+      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 1800ms steps(7) infinite}',
+      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 2000ms steps(7) infinite}',
+      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 1200ms steps(7) infinite}',
+      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1800ms steps(7) infinite}',
+      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 2200ms steps(7) infinite}',
+      '@keyframes ui-diana-idle{from{background-position:0 0}to{background-position:-504px 0}}',
+      '@keyframes ui-diana-run{from{background-position:0 -78px}to{background-position:-504px -78px}}',
+      '@keyframes ui-diana-wave{from{background-position:0 -234px}to{background-position:-504px -234px}}',
+      '@keyframes ui-diana-happy{from{background-position:0 -312px}to{background-position:-504px -312px}}',
+      '@keyframes ui-diana-sad{from{background-position:0 -390px}to{background-position:-504px -390px}}',
+      '#ui-inspect-menu{position:fixed;z-index:2147483647;right:22px;bottom:102px;width:48px;background:rgba(15,23,42,.78);color:white;border:1px solid rgba(148,163,184,.18);border-radius:999px;box-shadow:0 14px 34px rgba(15,23,42,.38);padding:7px 0;font:12px/1 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backdrop-filter:blur(10px)}',
+      '#ui-inspect-menu{cursor:auto}',
+      '#ui-inspect-menu .ui-inspect-menu-head{display:none}',
+      '#ui-inspect-menu .ui-inspect-menu-actions{display:flex;flex-direction:column;align-items:center;gap:5px}',
+      '#ui-inspect-menu button{position:relative;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:999px;background:transparent;color:#f8fafc;padding:0;cursor:pointer;outline:none}',
+      '#ui-inspect-menu button svg{width:21px;height:21px;display:block;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}',
+      '#ui-inspect-menu button:focus{outline:none}',
+      '#ui-inspect-menu button:focus-visible,#ui-inspect-menu button:hover{background:rgba(96,165,250,.18);color:white}',
+      '#ui-inspect-menu .ui-inspect-menu-divider{width:24px;height:1px;background:rgba(226,232,240,.28);margin:2px 0}',
+      '#ui-inspect-menu .ui-inspect-menu-desc{position:absolute;right:46px;top:50%;transform:translateY(-50%);display:none;white-space:nowrap;border-radius:8px;background:rgba(71,85,105,.92);color:#f8fafc;padding:9px 11px;font-size:14px;line-height:1;font-weight:800;box-shadow:0 10px 26px rgba(15,23,42,.28);pointer-events:none}',
+      '#ui-inspect-menu button:hover .ui-inspect-menu-desc,#ui-inspect-menu button:focus-visible .ui-inspect-menu-desc{display:block}',
+      '#ui-inspect-menu[data-side="right"] .ui-inspect-menu-desc{left:46px;right:auto}',
+      '#ui-inspect-menu .ui-inspect-menu-secondary{color:#cbd5e1}',
       '#ui-inspect-toast{position:fixed;z-index:2147483647;right:22px;bottom:112px;max-width:min(300px,calc(100vw - 44px));border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 10px;font:12px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
       '#ui-inspect-batch-sidebar{position:fixed;z-index:2147483647;right:16px;top:16px;bottom:108px;width:min(400px,calc(100vw - 32px));display:flex;flex-direction:column;background:#0b1220;color:white;border:1px solid rgba(148,163,184,.34);border-radius:8px;box-shadow:0 20px 54px rgba(0,0,0,.38);padding:0;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}',
+      '#ui-inspect-batch-sidebar[data-collapsed="true"]{top:auto;left:16px;right:auto;bottom:18px;width:auto;min-width:156px;height:auto;padding:0;border-radius:999px}',
+      '#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-sidebar-list,#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-messages,#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-sidebar-footer,#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-sidebar-close{display:none}',
+      '#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-sidebar-head{display:none}',
+      '#ui-inspect-batch-sidebar[data-collapsed="true"] .ui-inspect-sidebar-status{margin:0;padding:9px 12px;border-radius:999px;cursor:pointer}',
       '#ui-inspect-batch-sidebar,#ui-inspect-batch-sidebar *{cursor:auto!important}',
       '#ui-inspect-batch-sidebar .ui-inspect-sidebar-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:13px 12px 11px;border-bottom:1px solid rgba(148,163,184,.16);background:#111827}',
       '#ui-inspect-batch-sidebar .ui-inspect-sidebar-title{color:#f8fafc;font-size:14px;font-weight:900}',
@@ -80,6 +94,7 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-batch-sidebar button:disabled{opacity:.55;cursor:default}',
       '#ui-inspect-batch-sidebar button[data-primary="true"]{border-color:#2563eb;background:#2563eb;color:white}',
       '#ui-inspect-batch-sidebar button[data-primary="true"]:hover{border-color:#1d4ed8;background:#1d4ed8}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-collapse{position:absolute;right:46px;top:13px;width:28px;height:28px;padding:0;border-radius:7px!important;line-height:1;font-size:16px;background:#1f2937;border-color:#334155;color:#e2e8f0}',
       '#ui-inspect-batch-sidebar .ui-inspect-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px}',
       '#ui-inspect-batch-sidebar .ui-inspect-actions-right{display:flex;gap:8px;margin-left:auto}',
       '#ui-inspect-batch-sidebar .ui-inspect-target-card{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:#111827;padding:9px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}',
@@ -146,14 +161,134 @@ export function clientSource(options: ClientSourceOptions): string {
       button = document.createElement('button');
       button.id = TOGGLE_ID;
       button.type = 'button';
-      button.innerHTML = '<span class="ui-inspect-diana" aria-hidden="true"></span><span class="ui-inspect-diana-label">Diana</span>';
-      button.addEventListener('click', () => openModeMenu());
+      button.innerHTML = '<span class="ui-inspect-diana" aria-hidden="true"></span><span class="ui-inspect-diana-label" aria-hidden="true">Diana</span>';
+      button.addEventListener('pointerdown', (event) => beginDianaDrag(event, button));
+      button.addEventListener('click', (event) => {
+        if (suppressDianaClick) {
+          suppressDianaClick = false;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        openModeMenu();
+      });
+      button.addEventListener('mouseenter', () => openModeMenu());
+      button.addEventListener('mouseleave', () => scheduleModeMenuClose());
+      button.addEventListener('focus', () => openModeMenu());
+      button.addEventListener('blur', () => scheduleModeMenuClose());
       document.body.appendChild(button);
+      applyDianaPosition(button);
     }
     button.dataset.active = enabled ? 'true' : 'false';
     if (!button.dataset.state) button.dataset.state = 'idle';
-    button.title = enabled ? 'Diana 正在等你选择元素' : 'Diana';
+    button.setAttribute('aria-label', enabled ? 'Diana 正在等你选择元素' : 'Diana');
+    button.removeAttribute('title');
     return button;
+  }
+
+  function readDianaPosition() {
+    try {
+      const value = JSON.parse(localStorage.getItem(DIANA_POSITION_KEY) || 'null');
+      if (!value || typeof value.x !== 'number' || typeof value.y !== 'number') return null;
+      return clampDianaPosition(value.x, value.y);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveDianaPosition(x, y) {
+    const next = clampDianaPosition(x, y);
+    localStorage.setItem(DIANA_POSITION_KEY, JSON.stringify(next));
+    return next;
+  }
+
+  function clampDianaPosition(x, y) {
+    const margin = 8;
+    const width = 72;
+    const height = 78;
+    const maxX = Math.max(margin, window.innerWidth - width - margin);
+    const maxY = Math.max(margin, window.innerHeight - height - margin);
+    return {
+      x: Math.min(Math.max(margin, x), maxX),
+      y: Math.min(Math.max(margin, y), maxY)
+    };
+  }
+
+  function applyDianaPosition(button, position) {
+    const next = position || readDianaPosition();
+    if (!next) return;
+    button.style.left = next.x + 'px';
+    button.style.top = next.y + 'px';
+    button.style.right = 'auto';
+    button.style.bottom = 'auto';
+  }
+
+  function beginDianaDrag(event, button) {
+    if (event.button != null && event.button !== 0) return;
+    const rect = button.getBoundingClientRect();
+    dianaDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      moved: false
+    };
+    button.dataset.dragging = 'true';
+    cancelModeMenuClose();
+    const menu = document.getElementById(MENU_ID);
+    if (menu) menu.remove();
+    try { button.setPointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
+  }
+
+  function moveDiana(event) {
+    if (!dianaDrag || event.pointerId !== dianaDrag.pointerId) return;
+    const distance = Math.hypot(event.clientX - dianaDrag.startX, event.clientY - dianaDrag.startY);
+    if (distance > 4) dianaDrag.moved = true;
+    const button = document.getElementById(TOGGLE_ID);
+    if (!button) return;
+    const next = clampDianaPosition(event.clientX - dianaDrag.offsetX, event.clientY - dianaDrag.offsetY);
+    applyDianaPosition(button, next);
+    event.preventDefault();
+  }
+
+  function endDianaDrag(event) {
+    if (!dianaDrag || event.pointerId !== dianaDrag.pointerId) return;
+    const button = document.getElementById(TOGGLE_ID);
+    if (button) {
+      delete button.dataset.dragging;
+      const rect = button.getBoundingClientRect();
+      saveDianaPosition(rect.left, rect.top);
+      try { button.releasePointerCapture(event.pointerId); } catch {}
+    }
+    suppressDianaClick = !!dianaDrag.moved;
+    dianaDrag = null;
+    event.preventDefault();
+  }
+
+  function refreshDianaPosition() {
+    const button = document.getElementById(TOGGLE_ID);
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const next = saveDianaPosition(rect.left, rect.top);
+    applyDianaPosition(button, next);
+    const menu = document.getElementById(MENU_ID);
+    if (menu) positionModeMenu(menu);
+  }
+
+  function cancelModeMenuClose() {
+    if (menuHideTimer) clearTimeout(menuHideTimer);
+    menuHideTimer = null;
+  }
+
+  function scheduleModeMenuClose() {
+    cancelModeMenuClose();
+    menuHideTimer = setTimeout(() => {
+      menuHideTimer = null;
+      const menu = document.getElementById(MENU_ID);
+      if (menu) menu.remove();
+    }, 320);
   }
 
   function setDianaState(state, temporary) {
@@ -162,7 +297,8 @@ export function clientSource(options: ClientSourceOptions): string {
     button.dataset.state = normalized;
     const label = button.querySelector('.ui-inspect-diana-label');
     if (label) label.textContent = 'Diana';
-    button.title = 'Diana · ' + dianaStateText(normalized);
+    button.setAttribute('aria-label', normalized === 'idle' ? 'Diana' : 'Diana · ' + dianaStateText(normalized));
+    button.removeAttribute('title');
     if (dianaResetTimer) clearTimeout(dianaResetTimer);
     if (temporary) {
       dianaResetTimer = setTimeout(() => {
@@ -426,6 +562,7 @@ export function clientSource(options: ClientSourceOptions): string {
 
   function removePanel() {
     closeSessionStream();
+    cancelModeMenuClose();
     const menu = document.getElementById(MENU_ID);
     if (menu) menu.remove();
     const existing = document.getElementById(PANEL_ID);
@@ -443,25 +580,36 @@ export function clientSource(options: ClientSourceOptions): string {
     selectedTargets = [];
     selectionMode = 'batch';
     activeTaskMode = 'batch';
+    batchSidebarCollapsed = false;
     setDianaState('idle');
     clearHighlight();
   }
 
   function openModeMenu() {
-    removePanel();
+    if (enabled) return;
+    cancelModeMenuClose();
+    const existingMenu = document.getElementById(MENU_ID);
+    if (existingMenu) return;
+    const existingPanel = document.getElementById(PANEL_ID);
+    const existingSidebar = document.getElementById(BATCH_SIDEBAR_ID);
+    if (existingPanel || existingSidebar) return;
     setEnabled(false);
     const menu = document.createElement('div');
     menu.id = MENU_ID;
     menu.innerHTML = [
       '<div class="ui-inspect-menu-head"><div class="ui-inspect-menu-title">Diana</div><button type="button" class="ui-inspect-menu-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-menu-actions">',
-      '<button type="button" data-mode="source">定位源码<span class="ui-inspect-menu-desc">点选元素后直接打开对应文件</span></button>',
-      '<button type="button" data-mode="single">单点修改<span class="ui-inspect-menu-desc">选择一个元素，交给 AI 修改</span></button>',
-      '<button type="button" data-mode="batch">批量标注<span class="ui-inspect-menu-desc">连续选择多个目标，再统一发送</span></button>',
+      '<button type="button" data-mode="source" aria-label="定位源码">' + sourceIcon() + '<span class="ui-inspect-menu-desc">定位源码</span></button>',
+      '<button type="button" data-mode="single" aria-label="单点修改">' + editIcon() + '<span class="ui-inspect-menu-desc">单点修改</span></button>',
+      '<button type="button" data-mode="batch" aria-label="批量标注">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量标注</span></button>',
+      '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
+      '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="历史会话">' + historyIcon() + '<span class="ui-inspect-menu-desc">历史会话</span></button>',
       '</div>',
-      '<button type="button" class="ui-inspect-menu-secondary" data-action="history">历史会话</button>'
     ].join('');
     document.body.appendChild(menu);
+    positionModeMenu(menu);
+    menu.addEventListener('mouseenter', () => cancelModeMenuClose());
+    menu.addEventListener('mouseleave', () => scheduleModeMenuClose());
     ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
       menu.addEventListener(type, (event) => event.stopPropagation());
     });
@@ -471,8 +619,43 @@ export function clientSource(options: ClientSourceOptions): string {
         beginSelectionMode(mode);
       });
     });
-    menu.querySelector('[data-action="close"]').addEventListener('click', () => removePanel());
     menu.querySelector('[data-action="history"]').addEventListener('click', () => openHistoryPanel());
+  }
+
+  function positionModeMenu(menu) {
+    const button = document.getElementById(TOGGLE_ID);
+    if (!button || !menu) return;
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 48;
+    const menuHeight = menu.offsetHeight || 190;
+    const margin = 8;
+    const x = Math.min(Math.max(margin, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - margin);
+    const preferredY = rect.top - menuHeight - 8;
+    const fallbackY = rect.bottom + 8;
+    const y = preferredY >= margin
+      ? preferredY
+      : Math.min(Math.max(margin, fallbackY), window.innerHeight - menuHeight - margin);
+    menu.style.left = Math.round(x) + 'px';
+    menu.style.top = Math.round(y) + 'px';
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.dataset.side = x < 100 ? 'right' : 'left';
+  }
+
+  function sourceIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="m9 9-3 3 3 3"/><path d="m15 9 3 3-3 3"/><path d="m13 8-2 8"/></svg>';
+  }
+
+  function editIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/><path d="m14 6 4 4"/></svg>';
+  }
+
+  function batchIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="5" rx="1"/><rect x="4" y="15" width="16" height="5" rx="1"/><path d="M7 9v6"/><path d="M17 9v6"/></svg>';
+  }
+
+  function historyIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>';
   }
 
   function beginSelectionMode(mode) {
@@ -488,6 +671,7 @@ export function clientSource(options: ClientSourceOptions): string {
     if (mode === 'source') showToast('点击页面元素，Diana 会帮你打开源码。');
     if (mode === 'single') showToast('点击一个需要交给 AI 修改的元素。');
     if (mode === 'batch') {
+      batchSidebarCollapsed = window.innerWidth <= 520;
       showToast('批注侧栏已打开，连续点击页面元素即可添加目标。');
       openBatchSidebar();
     }
@@ -639,6 +823,7 @@ export function clientSource(options: ClientSourceOptions): string {
     sidebar.innerHTML = [
       '<div class="ui-inspect-sidebar-head">',
         '<div><div class="ui-inspect-sidebar-title">批量标注</div><div class="ui-inspect-sidebar-subtitle">Diana 工作台</div></div>',
+        '<button type="button" class="ui-inspect-sidebar-collapse" data-action="collapse" aria-label="收起">−</button>',
         '<button type="button" class="ui-inspect-sidebar-close" data-action="close" aria-label="关闭">×</button>',
       '</div>',
       '<div class="ui-inspect-sidebar-status">' + escapeHtml(status + ' · ' + selectedTargets.length + ' 个目标') + '</div>',
@@ -657,6 +842,7 @@ export function clientSource(options: ClientSourceOptions): string {
         '</div>',
       '</div>'
     ].join('');
+    sidebar.dataset.collapsed = batchSidebarCollapsed ? 'true' : 'false';
     const list = sidebar.querySelector('.ui-inspect-sidebar-list');
     if (list) {
       if (!selectedTargets.length) {
@@ -667,15 +853,28 @@ export function clientSource(options: ClientSourceOptions): string {
     }
     wireTargetCards(sidebar, () => renderBatchSidebar());
     renderSidebarMessages(sidebar);
+    sidebar.querySelector('.ui-inspect-sidebar-status').addEventListener('click', () => {
+      if (!batchSidebarCollapsed) return;
+      batchSidebarCollapsed = false;
+      renderBatchSidebar();
+    });
+    sidebar.querySelector('[data-action="collapse"]').addEventListener('click', () => {
+      batchSidebarCollapsed = true;
+      renderBatchSidebar();
+    });
     sidebar.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
     sidebar.querySelector('[data-action="history"]').addEventListener('click', () => openHistoryPanel());
     sidebar.querySelector('[data-action="undo"]').addEventListener('click', () => {
+      if (!selectedTargets.length) return;
       selectedTargets.pop();
       renderBatchSidebar();
     });
+    const undoButton = sidebar.querySelector('[data-action="undo"]');
+    if (undoButton) undoButton.disabled = selectedTargets.length === 0;
     sidebar.querySelector('[data-action="select"]').addEventListener('click', () => {
       selectionMode = 'batch';
       setEnabled(true);
+      batchSidebarCollapsed = window.innerWidth <= 520;
       renderBatchSidebar();
     });
     sidebar.querySelector('[data-action="send"]').addEventListener('click', () => sendCurrentTask(sidebar, sidebar.querySelector('#ui-inspect-batch-instruction')));
@@ -987,6 +1186,20 @@ export function clientSource(options: ClientSourceOptions): string {
   function openSessionPanel(session) {
     activeElement = null;
     selectedTargets = targetsFromSession(session);
+    activeSessionData = session;
+    activePanelSessionId = session.id;
+    activeSessionId = session.id;
+    localStorage.setItem(LAST_SESSION_KEY, activeSessionId);
+    if (selectedTargets.length > 1 || Array.isArray(session?.targets)) {
+      removePanel();
+      activeTaskMode = 'batch';
+      selectionMode = 'done';
+      batchSidebarCollapsed = false;
+      renderBatchSidebar();
+      startSessionStream(session.id);
+      return;
+    }
+    activeTaskMode = 'single';
     openDebugPanel({ session, sessionId: session.id });
   }
 
@@ -1126,5 +1339,9 @@ export function clientSource(options: ClientSourceOptions): string {
 
   installStyle();
   ensureToggle();
+  document.addEventListener('pointermove', moveDiana, true);
+  document.addEventListener('pointerup', endDianaDrag, true);
+  document.addEventListener('pointercancel', endDianaDrag, true);
+  window.addEventListener('resize', refreshDianaPosition);
 })();`;
 }
