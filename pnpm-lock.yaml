@@ -35,6 +35,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.24.0
+        version: 1.29.0(zod@4.4.3)
       '@ui-inspect/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -44,9 +47,6 @@ importers:
       '@ui-inspect/vite-plugin':
         specifier: workspace:*
         version: link:../vite-plugin
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.24.0
-        version: 1.29.0(zod@4.4.3)
 
   packages/protocol: {}
 

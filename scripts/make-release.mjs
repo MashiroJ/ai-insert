@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const version = '0.1.0';
+const version = '0.1.1';
 const outDir = join(root, 'release', `ui-inspect-${version}`);
 const packages = [
   '@ui-inspect/protocol',
@@ -123,7 +123,7 @@ npm install -D ./ui-inspect-protocol-${version}.tgz ./ui-inspect-vite-plugin-${v
 
 agent 应调用 \`start_ui_inspect\`，再调用 \`wait_for_frontend_request\` 等待用户在浏览器面板里选择元素并点击发送。
 
-## 0.1.0 能力
+## 0.1.1 能力
 
 - 浏览器面板支持多选元素。
 - 每个元素可以填写单独备注。
