@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@mashiro39/ui-inspect-protocol';
-import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@mashiro39/ui-inspect-server';
+import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@ui-inspect/protocol';
+import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@ui-inspect/server';
 import { runMcpStdio } from './mcp.js';
 ensureLocalNoProxy();
 const args = process.argv.slice(2);

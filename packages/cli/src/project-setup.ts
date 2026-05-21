@@ -20,8 +20,8 @@ export interface EnsureProjectIntegrationResult {
 
 const require = createRequire(import.meta.url);
 const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'];
-const PACKAGE_VERSION = '0.3.2';
-const VITE_PLUGIN_SPEC = `@mashiro39/ui-inspect-vite-plugin@${PACKAGE_VERSION}`;
+const PACKAGE_VERSION = '0.1.0';
+const VITE_PLUGIN_SPEC = `@ui-inspect/vite-plugin@${PACKAGE_VERSION}`;
 
 export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOptions): EnsureProjectIntegrationResult {
   const result: EnsureProjectIntegrationResult = {
@@ -43,10 +43,10 @@ export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOp
   const configFile = findViteConfig(project);
   result.viteConfig = configFile;
   if (!configFile) {
-    if (!hasProjectDependency(project, '@mashiro39/ui-inspect-vite-plugin')) {
+    if (!hasProjectDependency(project, '@ui-inspect/vite-plugin')) {
       const installed = installProjectPackages(project);
       result.installed = installed;
-      if (!installed) result.warnings.push('failed to install @mashiro39/ui-inspect-vite-plugin into the project');
+      if (!installed) result.warnings.push('failed to install @ui-inspect/vite-plugin into the project');
     }
     result.warnings.push('vite.config.ts/js/mts/mjs not found; add uiInspect() manually');
     return result;
@@ -57,10 +57,10 @@ export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOp
   result.alreadyConfigured = patch.alreadyConfigured;
   if (patch.warning) result.warnings.push(patch.warning);
 
-  if (!result.alreadyConfigured && !hasProjectDependency(project, '@mashiro39/ui-inspect-vite-plugin')) {
+  if (!result.alreadyConfigured && !hasProjectDependency(project, '@ui-inspect/vite-plugin')) {
     const installed = installProjectPackages(project);
     result.installed = installed;
-    if (!installed) result.warnings.push('failed to install @mashiro39/ui-inspect-vite-plugin into the project');
+    if (!installed) result.warnings.push('failed to install @ui-inspect/vite-plugin into the project');
   }
   return result;
 }
@@ -79,7 +79,7 @@ function hasProjectDependency(project: string, name: string): boolean {
 
 function installProjectPackages(project: string): boolean {
   const pluginSpec = process.env.UI_INSPECT_PROJECT_INSTALL_SOURCE === 'local'
-    ? packageRoot('@mashiro39/ui-inspect-vite-plugin')
+    ? packageRoot('@ui-inspect/vite-plugin')
     : VITE_PLUGIN_SPEC;
   if (!pluginSpec) return false;
   const manager = detectPackageManager(project);
@@ -157,12 +157,12 @@ function findViteConfig(project: string): string | null {
 function patchViteConfigFile(file: string): { patched: boolean; alreadyConfigured: boolean; warning?: string } {
   let content = readFileSync(file, 'utf8');
   content = content.replace(/^import\s+\{\s*uiInspect\s*\}\s+from\s+['"]@ui-inspect\/vite-plugin['"];\s*\n?/gm, '');
-  const hadImport = content.includes('@mashiro39/ui-inspect-vite-plugin');
+  const hadImport = content.includes('@ui-inspect/vite-plugin');
   const hadCall = /\buiInspect\s*\(/.test(content);
   if (hadImport && hadCall) return { patched: false, alreadyConfigured: true };
 
   if (!hadImport) {
-    const importLine = "import { uiInspect } from '@mashiro39/ui-inspect-vite-plugin';\n";
+    const importLine = "import { uiInspect } from '@ui-inspect/vite-plugin';\n";
     const imports = [...content.matchAll(/^import\s.+?;\s*$/gm)];
     if (imports.length > 0) {
       const last = imports[imports.length - 1];

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@mashiro39/ui-inspect-protocol';
+import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@ui-inspect/protocol';
 import {
   clearSelection,
   fetchHealth,
@@ -8,7 +8,7 @@ import {
   postMessage,
   readSelectionSource,
   startServer,
-} from '@mashiro39/ui-inspect-server';
+} from '@ui-inspect/server';
 import { runMcpStdio } from './mcp.js';
 
 ensureLocalNoProxy();

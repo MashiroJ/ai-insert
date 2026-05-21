@@ -11,7 +11,7 @@ import {
   type UiInspectSourceResponse,
   type UiInspectTarget,
   type UiInspectTaskStatus,
-} from '@mashiro39/ui-inspect-protocol';
+} from '@ui-inspect/protocol';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -20,7 +20,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { delay, isRecord, numberOr, stringOr, trimUrl } from './utils.js';
 
-const VERSION = '0.3.2';
+const VERSION = '0.1.0';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;

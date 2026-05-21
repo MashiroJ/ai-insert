@@ -1,5 +1,5 @@
-import { DEFAULT_DAEMON_PORT } from '@mashiro39/ui-inspect-protocol';
-import { fetchHealth } from '@mashiro39/ui-inspect-server';
+import { DEFAULT_DAEMON_PORT } from '@ui-inspect/protocol';
+import { fetchHealth } from '@ui-inspect/server';
 import { spawn } from 'node:child_process';
 const CONSECUTIVE_HEALTH_CHECKS = 2;
 const HEALTH_CHECK_INTERVAL_MS = 100;

@@ -13,10 +13,10 @@ const registry = valueAfter('--registry') || 'https://registry.npmjs.org';
 const tag = valueAfter('--tag') || 'latest';
 
 const packages = [
-  '@mashiro39/ui-inspect-protocol',
-  '@mashiro39/ui-inspect-server',
-  '@mashiro39/ui-inspect-vite-plugin',
-  '@mashiro39/ui-inspect-cli',
+  '@ui-inspect/protocol',
+  '@ui-inspect/server',
+  '@ui-inspect/vite-plugin',
+  '@ui-inspect/cli',
 ];
 
 if (args.has('--help') || args.has('-h')) {

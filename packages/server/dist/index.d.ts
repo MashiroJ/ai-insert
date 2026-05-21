@@ -1,4 +1,4 @@
-import { type UiInspectHealthResponse, type UiInspectMessage, type UiInspectMessageRole, type UiInspectSelection, type UiInspectSelectionResponse, type UiInspectSessionsResponse, type UiInspectSourceResponse } from '@mashiro39/ui-inspect-protocol';
+import { type UiInspectHealthResponse, type UiInspectMessage, type UiInspectMessageRole, type UiInspectSelection, type UiInspectSelectionResponse, type UiInspectSessionsResponse, type UiInspectSourceResponse } from '@ui-inspect/protocol';
 export interface StartServerOptions {
     host?: string;
     port?: number;

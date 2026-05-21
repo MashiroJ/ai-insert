@@ -12,17 +12,17 @@ import {
   type UiInspectMessage,
   type UiInspectSession,
   type UiInspectSelection,
-} from '@mashiro39/ui-inspect-protocol';
+} from '@ui-inspect/protocol';
 import {
   fetchHealth,
   fetchSelection,
   fetchSessions,
   postMessage,
   readSelectionSource,
-} from '@mashiro39/ui-inspect-server';
+} from '@ui-inspect/server';
 
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.3.2';
+const SERVER_VERSION = '0.1.0';
 
 interface RunMcpOptions {
   daemonUrl: string;
@@ -45,7 +45,7 @@ const WAIT_POLL_INTERVAL_MS = 1000;
 const TOOL_DEFS = [
   {
     name: 'start_ui_inspect',
-    description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @mashiro39/ui-inspect-vite-plugin is installed and uiInspect() is mounted in vite.config, starts or reuses the project dev server, and returns the detected browser URL without opening or refreshing it.',
+    description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @ui-inspect/vite-plugin is installed and uiInspect() is mounted in vite.config, starts or reuses the project dev server, and returns the detected browser URL without opening or refreshing it.',
     inputSchema: {
       type: 'object',
       properties: {

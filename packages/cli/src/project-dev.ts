@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { delay } from '@mashiro39/ui-inspect-server';
+import { delay } from '@ui-inspect/server';
 
 export interface EnsureProjectDevServerOptions {
   project: string;

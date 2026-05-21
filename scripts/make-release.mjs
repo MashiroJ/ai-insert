@@ -4,13 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const version = '0.3.2';
+const version = '0.1.0';
 const outDir = join(root, 'release', `ui-inspect-${version}`);
 const packages = [
-  '@mashiro39/ui-inspect-protocol',
-  '@mashiro39/ui-inspect-server',
-  '@mashiro39/ui-inspect-cli',
-  '@mashiro39/ui-inspect-vite-plugin',
+  '@ui-inspect/protocol',
+  '@ui-inspect/server',
+  '@ui-inspect/cli',
+  '@ui-inspect/vite-plugin',
 ];
 
 run('pnpm', ['build'], root);
@@ -52,7 +52,7 @@ ui-inspect 是一个通用 MCP 前端检查上下文服务。
   "mcpServers": {
     "ui-inspect": {
       "command": "npx",
-      "args": ["-y", "@mashiro39/ui-inspect-cli@latest", "mcp"]
+      "args": ["-y", "@ui-inspect/cli@latest", "mcp"]
     }
   }
 }
@@ -64,13 +64,13 @@ TOML：
 [mcp_servers.ui-inspect]
 type = "stdio"
 command = "npx"
-args = ["-y", "@mashiro39/ui-inspect-cli@latest", "mcp"]
+args = ["-y", "@ui-inspect/cli@latest", "mcp"]
 \`\`\`
 
 也可以全局安装：
 
 \`\`\`bash
-npm install -g @mashiro39/ui-inspect-cli@latest
+npm install -g @ui-inspect/cli@latest
 \`\`\`
 
 然后配置：
@@ -89,13 +89,13 @@ npm install -g @mashiro39/ui-inspect-cli@latest
 ### Vite / Vue 项目接入
 
 \`\`\`bash
-npm install -D @mashiro39/ui-inspect-vite-plugin@latest
+npm install -D @ui-inspect/vite-plugin@latest
 \`\`\`
 
 \`\`\`ts
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { uiInspect } from '@mashiro39/ui-inspect-vite-plugin';
+import { uiInspect } from '@ui-inspect/vite-plugin';
 
 export default defineConfig({
   plugins: [vue(), uiInspect()],
@@ -107,8 +107,8 @@ export default defineConfig({
 如果你需要使用当前 release 目录里的 tgz 包：
 
 \`\`\`bash
-npm install -g ./mashiro39-ui-inspect-protocol-${version}.tgz ./mashiro39-ui-inspect-server-${version}.tgz ./mashiro39-ui-inspect-cli-${version}.tgz
-npm install -D ./mashiro39-ui-inspect-protocol-${version}.tgz ./mashiro39-ui-inspect-vite-plugin-${version}.tgz
+npm install -g ./ui-inspect-protocol-${version}.tgz ./ui-inspect-server-${version}.tgz ./ui-inspect-cli-${version}.tgz
+npm install -D ./ui-inspect-protocol-${version}.tgz ./ui-inspect-vite-plugin-${version}.tgz
 \`\`\`
 
 第一条命令用于安装 MCP CLI；第二条命令需要在目标 Vite 项目目录里执行。
@@ -123,7 +123,7 @@ npm install -D ./mashiro39-ui-inspect-protocol-${version}.tgz ./mashiro39-ui-ins
 
 agent 应调用 \`start_ui_inspect\`，再调用 \`wait_for_frontend_request\` 等待用户在浏览器面板里选择元素并点击发送。
 
-## 0.3.2 能力
+## 0.1.0 能力
 
 - 浏览器面板支持多选元素。
 - 每个元素可以填写单独备注。
