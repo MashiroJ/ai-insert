@@ -1,115 +1,48 @@
 # ai-inspect
 
-ai-inspect 是一个给前端项目使用的通用 MCP 上下文服务。
+ai-inspect 是一个面向前端项目的通用 MCP 上下文服务。
 
-它让用户在本地浏览器里框选页面元素，采集 DOM、样式、Vue 组件和源码线索，再通过 MCP tools 交给任意支持 MCP 的 AI coding agent。它不绑定某一家 agent，也不会在浏览器里直接改代码。
+它让用户在本地浏览器里框选页面元素，采集 DOM、样式、Vue 组件和源码线索，再通过 MCP tools 交给任意支持 MCP 的 AI coding agent。它不绑定 Claude、Codex、Cursor 或任何特定 agent，也不会在浏览器里直接改代码。
 
 当前重点支持：Vite + Vue 3。
 
-## 给 AI 的说明
+## 适合谁用
 
-如果用户把这个仓库地址发给你，并要求接入 ai-inspect，请按下面流程执行：
+- 你正在开发一个 Vite / Vue 前端项目。
+- 你使用的 AI coding 工具支持 MCP。
+- 你希望在浏览器里选中一个真实页面元素，然后让 AI 直接拿到对应的 DOM、样式、组件和源码上下文。
 
-1. 在用户机器上安装全局 MCP 命令：
+## 安装
 
-```bash
-npm install -g @mashiro39/ai-inspect-cli
-```
+### 1. 配置 MCP server
 
-2. 在用户的前端项目中安装 Vite 插件：
-
-```bash
-npm install -D @mashiro39/ai-inspect-vite-plugin
-```
-
-如果项目使用 pnpm 或 yarn，请使用对应包管理器：
-
-```bash
-pnpm add -D @mashiro39/ai-inspect-vite-plugin
-yarn add -D @mashiro39/ai-inspect-vite-plugin
-```
-
-3. 修改用户项目的 `vite.config.ts` 或 `vite.config.js`：
-
-```ts
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-import { aiInspect } from '@mashiro39/ai-inspect-vite-plugin';
-
-export default defineConfig({
-  plugins: [vue(), aiInspect()],
-});
-```
-
-如果项目已有 `plugins` 数组，只需要加入 `aiInspect()`。
-
-4. 给用户的 MCP client 添加 ai-inspect server：
+推荐在 MCP client 里直接使用 npm 最新版：
 
 ```json
 {
   "mcpServers": {
     "ai-inspect": {
-      "command": "ai-inspect",
-      "args": ["mcp"]
+      "command": "npx",
+      "args": ["-y", "@mashiro39/ai-inspect-cli@latest", "mcp"]
     }
   }
 }
 ```
 
-TOML 风格配置：
+如果你的 MCP client 使用 TOML：
 
 ```toml
 [mcp_servers.ai-inspect]
 type = "stdio"
-command = "ai-inspect"
-args = ["mcp"]
+command = "npx"
+args = ["-y", "@mashiro39/ai-inspect-cli@latest", "mcp"]
 ```
 
-5. 配置完成后，当用户说：
-
-```text
-启用 ai-insert
-```
-
-你应该直接调用 MCP tool `start_ai_inspect`，然后调用 `wait_for_frontend_request` 等待用户在浏览器里选择元素并点击发送。不要先去项目里搜索 `ai-insert` 功能。
-
-6. `start_ai_inspect` 会：
-
-- 启动或复用本地 daemon。
-- 检查 Vite 插件是否接入。
-- 启动或复用项目 dev server。
-- 返回本地页面 URL。
-- 不打开浏览器。
-- 不启动任何固定 agent。
-
-7. `wait_for_frontend_request` 会等待最多 10 分钟。用户在浏览器里点击右下角 `AI 调试`，选择元素并发送需求后，这个 tool 会返回：
-
-- 用户需求
-- 当前 selection
-- 当前 session
-- 相关源码上下文
-
-然后根据用户需求修改代码。修改完成后，可调用 `reply_to_user` 把简短结果回写到浏览器面板。
-
-如果 10 分钟内用户没有点击发送，本次等待会超时，并关闭本次 ai-inspect daemon / MCP 进程。
-
-## 用户快速开始
-
-### 1. 安装 MCP 命令
+也可以全局安装后再配置：
 
 ```bash
-npm install -g @mashiro39/ai-inspect-cli
+npm install -g @mashiro39/ai-inspect-cli@latest
 ```
-
-确认命令可用：
-
-```bash
-ai-inspect --help
-```
-
-### 2. 配置 MCP
-
-把下面配置加到你的 MCP client / AI agent：
 
 ```json
 {
@@ -122,33 +55,29 @@ ai-inspect --help
 }
 ```
 
-不同工具的 MCP 配置位置不同。核心信息只有三项：
+### 2. 给前端项目安装 Vite 插件
 
-- server name: `ai-inspect`
-- command: `ai-inspect`
-- args: `["mcp"]`
-
-### 3. 给 Vite 项目安装插件
-
-在你的前端项目目录执行：
+在你的 Vite / Vue 项目目录执行：
 
 ```bash
-npm install -D @mashiro39/ai-inspect-vite-plugin
+npm install -D @mashiro39/ai-inspect-vite-plugin@latest
 ```
 
 pnpm：
 
 ```bash
-pnpm add -D @mashiro39/ai-inspect-vite-plugin
+pnpm add -D @mashiro39/ai-inspect-vite-plugin@latest
 ```
 
 yarn：
 
 ```bash
-yarn add -D @mashiro39/ai-inspect-vite-plugin
+yarn add -D @mashiro39/ai-inspect-vite-plugin@latest
 ```
 
-### 4. 修改 Vite 配置
+### 3. 修改 Vite 配置
+
+在 `vite.config.ts` 或 `vite.config.js` 中加入 `aiInspect()`：
 
 ```ts
 import { defineConfig } from 'vite';
@@ -160,7 +89,7 @@ export default defineConfig({
 });
 ```
 
-如果已经有插件：
+如果项目已有插件，只需要把 `aiInspect()` 加进 `plugins` 数组：
 
 ```ts
 export default defineConfig({
@@ -168,7 +97,7 @@ export default defineConfig({
 });
 ```
 
-### 5. 启动项目
+### 4. 启动你的前端项目
 
 ```bash
 npm run dev
@@ -181,38 +110,44 @@ pnpm dev
 yarn dev
 ```
 
-然后对你的 AI agent 说：
+## 使用方式
+
+在你的 AI coding agent 对话里输入：
 
 ```text
 启用 ai-insert
 ```
 
-agent 会通过 MCP 调用 `start_ai_inspect`，启动 ai-inspect daemon，并返回本地页面地址。
-随后 agent 会调用 `wait_for_frontend_request` 等待你在浏览器里发送需求。
+agent 应该调用 MCP tool `start_ai_inspect`，然后调用 `wait_for_frontend_request` 等待你在浏览器里选择元素并发送需求。
 
-## 浏览器里怎么用
-
-页面右下角会出现 `AI 调试` 按钮。
-
-常用流程：
+页面右下角会出现 `AI 调试` 按钮：
 
 1. 点击 `AI 调试`。
 2. 点击 `选择`。
 3. 在页面上点选要修改的元素。
 4. 输入需求，例如“把这个按钮改成红色，并加一点 hover 效果”。
 5. 点击 `发送`。
-6. 如果 AI agent 正在等待 `wait_for_frontend_request`，它会自动拿到 selection/source/session 并继续修改代码。
+6. AI 会通过 `wait_for_frontend_request` 收到 selection、session 和源码上下文，然后继续改代码。
 
-快捷键：
+如果 10 分钟内没有点击发送，本次等待会超时，并关闭本次 ai-inspect daemon / MCP 进程。
 
-- `Enter`：发送
-- `Shift+Enter`：换行
-- `Esc`：关闭面板
-- `Alt+Shift+I`：打开调试面板
+## 给 AI agent 的接入说明
+
+如果用户把这个仓库地址发给你，并要求接入 ai-inspect，请按下面流程执行：
+
+1. 检查用户项目是否是 Vite / Vue 项目。
+2. 安装 `@mashiro39/ai-inspect-vite-plugin@latest`。
+3. 在 Vite 配置中加入 `aiInspect()`。
+4. 指导用户把 `ai-inspect` 加入 MCP client 配置。
+5. 当用户说 `启用 ai-insert` 时，直接调用 `start_ai_inspect`。
+6. `start_ai_inspect` 返回页面 URL 后，提示用户在浏览器里打开或继续使用该页面。
+7. 立即调用 `wait_for_frontend_request`，等待用户在浏览器面板中选择元素并点击发送。
+8. 收到结果后，根据用户需求修改代码。
+9. 修改完成后，可以调用 `reply_to_user` 把简短结果回写到浏览器面板。
+
+不要查找项目里是否有名为 `ai-insert` 的业务功能；`启用 ai-insert` 是固定触发语。
 
 ## MCP Tools
-
-ai-inspect 暴露这些 MCP tools：
 
 ### `start_ai_inspect`
 
@@ -220,10 +155,12 @@ ai-inspect 暴露这些 MCP tools：
 
 主要行为：
 
-- 启动本地 daemon。
+- 启动或复用本地 daemon。
 - 检查当前项目是否接入 Vite 插件。
 - 启动或复用 dev server。
 - 返回状态和本地 URL。
+- 不打开浏览器。
+- 不启动任何固定 agent。
 
 ### `wait_for_frontend_request`
 
@@ -283,8 +220,21 @@ ai-inspect 暴露这些 MCP tools：
 
 ## CLI 命令
 
+平时用户只需要通过 MCP client 启动：
+
+```bash
+npx -y @mashiro39/ai-inspect-cli@latest mcp
+```
+
+全局安装后也可以：
+
 ```bash
 ai-inspect mcp
+```
+
+其他命令主要用于调试：
+
+```bash
 ai-inspect daemon
 ai-inspect status
 ai-inspect selection --json
@@ -293,8 +243,6 @@ ai-inspect sessions
 ai-inspect reply --content "已完成"
 ai-inspect clear
 ```
-
-平时用户只需要配置 `ai-inspect mcp`。其他命令主要用于调试。
 
 ## 工作原理
 
@@ -317,6 +265,12 @@ ai-inspect 有四层：
 
 `.ai-insert/` 是本地调试状态目录，通常不需要提交到 git。
 
+建议加入 `.gitignore`：
+
+```gitignore
+.ai-insert/
+```
+
 ## 常见问题
 
 ### 页面没有出现 `AI 调试` 按钮
@@ -331,16 +285,9 @@ ai-inspect 有四层：
 
 检查：
 
-- 是否全局安装了 `@mashiro39/ai-inspect-cli`。
-- 终端里 `ai-inspect mcp` 是否能启动。
-- MCP 配置里的 `command` 是否是 `ai-inspect`。
-- 如果 agent 运行环境找不到全局命令，可以把 `command` 改成 `ai-inspect` 的绝对路径。
-
-查找路径：
-
-```bash
-which ai-inspect
-```
+- MCP 配置是否使用了 `npx -y @mashiro39/ai-inspect-cli@latest mcp`。
+- 如果使用全局安装，终端里 `ai-inspect mcp` 是否能启动。
+- MCP client 是否已经重启或重新加载配置。
 
 ### `start_ai_inspect` 没有打开浏览器
 
@@ -356,7 +303,34 @@ which ai-inspect
 
 AI agent 需要先调用 `start_ai_inspect` 和 `wait_for_frontend_request`。如果没有处于等待状态，浏览器发送只会保存 session，不会主动唤醒任意 MCP client。
 
+### 如何更新到最新版
+
+如果 MCP 配置使用 `@latest`：
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@mashiro39/ai-inspect-cli@latest", "mcp"]
+}
+```
+
+通常会使用 npm 上的最新版本。
+
+如果你全局安装过：
+
+```bash
+npm install -g @mashiro39/ai-inspect-cli@latest
+```
+
+前端项目里的 Vite 插件也可以更新：
+
+```bash
+npm install -D @mashiro39/ai-inspect-vite-plugin@latest
+```
+
 ## 本地开发
+
+这些命令只给 ai-inspect 项目维护者使用，普通用户不需要执行：
 
 ```bash
 pnpm install
