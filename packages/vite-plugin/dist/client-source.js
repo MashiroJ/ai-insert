@@ -31,13 +31,17 @@ export function clientSource(options) {
       '#ui-inspect-panel .ui-inspect-title{color:#e2e8f0;font-weight:900}',
       '#ui-inspect-panel .ui-inspect-close{width:28px;height:28px;padding:0;border-radius:999px!important;line-height:1;font-size:18px}',
       '#ui-inspect-panel label{display:block;margin:0 0 8px;color:#cbd5e1;font-weight:700}',
-      '#ui-inspect-panel .ui-inspect-target{margin:0 0 8px;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
+      '#ui-inspect-panel .ui-inspect-target{margin:0 0 8px;color:#bfdbfe;font-size:12px;font-weight:800}',
       '#ui-inspect-panel .ui-inspect-target[data-empty="true"]{color:#94a3b8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-panel .ui-inspect-status{display:inline-flex;margin:0 0 8px;padding:3px 7px;border:1px solid rgba(96,165,250,.35);border-radius:999px;color:#bfdbfe;background:rgba(30,64,175,.24);font-size:11px;font-weight:800}',
       '#ui-inspect-panel .ui-inspect-target-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;margin:0 0 10px}',
       '#ui-inspect-panel .ui-inspect-target-card{border:1px solid rgba(148,163,184,.28);border-radius:7px;background:rgba(15,23,42,.72);padding:8px}',
-      '#ui-inspect-panel .ui-inspect-target-top{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-bottom:6px}',
-      '#ui-inspect-panel .ui-inspect-target-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}',
+      '#ui-inspect-panel .ui-inspect-target-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;margin-bottom:7px}',
+      '#ui-inspect-panel .ui-inspect-target-id{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:22px;border-radius:999px;background:rgba(37,99,235,.22);border:1px solid rgba(96,165,250,.38);color:#bfdbfe;font-size:11px;font-weight:900}',
+      '#ui-inspect-panel .ui-inspect-target-info{min-width:0;display:flex;gap:7px;align-items:flex-start}',
+      '#ui-inspect-panel .ui-inspect-target-main{min-width:0;display:flex;flex-direction:column;gap:2px}',
+      '#ui-inspect-panel .ui-inspect-target-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0;font-size:12px;font-weight:900}',
+      '#ui-inspect-panel .ui-inspect-target-meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#93c5fd;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}',
       '#ui-inspect-panel .ui-inspect-target-tools{display:flex;gap:5px;flex:none}',
       '#ui-inspect-panel .ui-inspect-target-tools button{padding:4px 7px;font-size:11px}',
       '#ui-inspect-panel .ui-inspect-target-card input{box-sizing:border-box;width:100%;border:1px solid #334155;border-radius:5px;background:#020617;color:white;padding:7px;font:12px/1.35 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
@@ -313,7 +317,38 @@ export function clientSource(options) {
 
   function describeSelection(selection) {
     if (!selection) return '未选择元素，点击“选择”后在页面上框选。';
-    return selection.source?.file || selection.vue?.componentName || selection.dom?.selector || '已选择 DOM 元素';
+    return selectionTitle(selection);
+  }
+
+  function basename(value) {
+    return String(value || '').split(/[\\\\/]/).filter(Boolean).pop() || '';
+  }
+
+  function relativePath(value) {
+    const file = String(value || '');
+    const root = String(PROJECT_ROOT || '').replace(/[\\\\/]$/, '');
+    if (root && file.startsWith(root + '/')) return file.slice(root.length + 1);
+    if (root && file.startsWith(root + '\\\\')) return file.slice(root.length + 1);
+    return file;
+  }
+
+  function sourceLabel(selection) {
+    const source = selection?.source;
+    if (!source?.file) return '';
+    const suffix = source.line ? ':' + source.line + (source.column ? ':' + source.column : '') : '';
+    return relativePath(source.file) + suffix;
+  }
+
+  function selectionTitle(selection) {
+    if (!selection) return '未选择元素';
+    if (selection.vue?.componentName) return selection.vue.componentName;
+    if (selection.source?.file) return basename(selection.source.file);
+    if (selection.dom?.tagName) {
+      const id = selection.dom.id ? '#' + selection.dom.id : '';
+      const text = selection.dom.text ? ' · ' + selection.dom.text.slice(0, 28) : '';
+      return selection.dom.tagName + id + text;
+    }
+    return '已选择 DOM 元素';
   }
 
   function targetFromSelection(selection, note) {
@@ -331,7 +366,7 @@ export function clientSource(options) {
 
   function describeTargets() {
     if (!selectedTargets.length) return '未选择元素，点击“选择”后在页面上框选。';
-    return selectedTargets.length === 1 ? describeSelection(selectedTargets[0].selection) : '已选择 ' + selectedTargets.length + ' 个元素';
+    return '任务草稿 · 已选择 ' + selectedTargets.length + ' 个目标';
   }
 
   function renderTargets(panel) {
@@ -342,16 +377,23 @@ export function clientSource(options) {
     target.dataset.empty = selectedTargets.length ? 'false' : 'true';
     list.innerHTML = selectedTargets.map((item, index) => {
       const title = describeSelection(item.selection);
+      const meta = sourceLabel(item.selection) || item.selection?.dom?.selector || '';
       const hasSource = !!item.selection?.source?.file;
       return '<div class="ui-inspect-target-card" data-target-index="' + index + '">' +
         '<div class="ui-inspect-target-top">' +
-          '<div class="ui-inspect-target-title">' + escapeHtml(title) + '</div>' +
+          '<div class="ui-inspect-target-info">' +
+            '<div class="ui-inspect-target-id">' + (index + 1) + '</div>' +
+            '<div class="ui-inspect-target-main">' +
+              '<div class="ui-inspect-target-title" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</div>' +
+              (meta ? '<div class="ui-inspect-target-meta" title="' + escapeHtml(meta) + '">' + escapeHtml(meta) + '</div>' : '') +
+            '</div>' +
+          '</div>' +
           '<div class="ui-inspect-target-tools">' +
             (hasSource ? '<button type="button" data-action="open-source">打开源码</button><button type="button" data-action="copy-source">复制路径</button>' : '') +
             '<button type="button" data-action="remove-target">移除</button>' +
           '</div>' +
         '</div>' +
-        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="给这个元素单独备注，例如：标题太大" />' +
+        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="针对这个目标的要求（可选），例如：标题小一点" />' +
       '</div>';
     }).join('');
     Array.from(list.querySelectorAll('[data-target-note]')).forEach((input) => {
@@ -415,7 +457,7 @@ export function clientSource(options) {
       '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeTargets()) + '</div>',
       '<div class="ui-inspect-target-list"></div>',
       '<div class="ui-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ui-inspect-instruction" placeholder="描述整体需求，发送后 AI 会继续处理"></textarea>',
+      '<textarea id="ui-inspect-instruction" placeholder="整体需求（可选），例如：这组卡片间距太大，改得更像后台管理系统"></textarea>',
       '<div class="ui-inspect-actions">',
       '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
       '<div class="ui-inspect-actions-right"><button type="button" data-action="select">选择</button><button type="button" data-primary="true" data-action="send">发送</button></div>',

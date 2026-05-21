@@ -1,4 +1,4 @@
-# ui-inspect release 0.1.1
+# ui-inspect release 0.1.2
 
 ui-inspect 是一个通用 MCP 前端检查上下文服务。
 
@@ -70,8 +70,8 @@ export default defineConfig({
 如果你需要使用当前 release 目录里的 tgz 包：
 
 ```bash
-npm install -g ./ui-inspect-protocol-0.1.1.tgz ./ui-inspect-server-0.1.1.tgz ./ui-inspect-cli-0.1.1.tgz
-npm install -D ./ui-inspect-protocol-0.1.1.tgz ./ui-inspect-vite-plugin-0.1.1.tgz
+npm install -g ./ui-inspect-protocol-0.1.2.tgz ./ui-inspect-server-0.1.2.tgz ./ui-inspect-cli-0.1.2.tgz
+npm install -D ./ui-inspect-protocol-0.1.2.tgz ./ui-inspect-vite-plugin-0.1.2.tgz
 ```
 
 第一条命令用于安装 MCP CLI；第二条命令需要在目标 Vite 项目目录里执行。
@@ -86,7 +86,9 @@ npm install -D ./ui-inspect-protocol-0.1.1.tgz ./ui-inspect-vite-plugin-0.1.1.tg
 
 agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待用户在浏览器面板里选择元素并点击发送。
 
-## 0.1.1 能力
+`start_ui_inspect` 只启动/复用 ui-inspect daemon 并检查 Vite 插件接入，不会启动用户项目 dev server，也不会打开浏览器。用户需要用项目自己的命令启动目标前端系统。
+
+## 0.1.2 能力
 
 - 浏览器面板支持多选元素。
 - 每个元素可以填写单独备注。

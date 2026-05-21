@@ -20,7 +20,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { delay, isRecord, numberOr, stringOr, trimUrl } from './utils.js';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;

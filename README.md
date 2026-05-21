@@ -99,6 +99,8 @@ export default defineConfig({
 
 ### 4. 启动你的前端项目
 
+ui-inspect 不会替你启动项目。请用你项目自己的方式启动目标前端系统：
+
 ```bash
 npm run dev
 ```
@@ -119,6 +121,8 @@ yarn dev
 ```
 
 agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend_request` 等待你在浏览器里选择元素并发送需求。
+
+`start_ui_inspect` 只会启动/复用 ui-inspect daemon 并检查 Vite 插件接入，不会执行 `npm run dev`、`pnpm dev` 或打开浏览器。请先自己打开要检查的页面，尤其适合一个仓库里有多个内部系统的项目。
 
 页面右下角会出现 `UI 检查` 按钮：
 
@@ -143,7 +147,7 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 3. 在 Vite 配置中加入 `uiInspect()`。
 4. 指导用户把 `ui-inspect` 加入 MCP client 配置。
 5. 当用户说 `启用 ui-inspect` 时，直接调用 `start_ui_inspect`。
-6. `start_ui_inspect` 返回页面 URL 后，提示用户在浏览器里打开或继续使用该页面。
+6. 提示用户自行启动目标前端项目，并在浏览器里打开或继续使用要检查的页面。
 7. 立即调用 `wait_for_frontend_request`，等待用户在浏览器面板中选择元素并点击发送。
 8. 收到结果后，读取 `targets` 和 `targetSources`，根据整体需求和每个元素备注修改代码。
 9. 开始处理时调用 `update_ui_task_status` 设置为 `working`。
@@ -161,8 +165,8 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 
 - 启动或复用本地 daemon。
 - 检查当前项目是否接入 Vite 插件。
-- 启动或复用 dev server。
-- 返回状态和本地 URL。
+- 不启动、不复用、不探测用户项目 dev server。
+- 返回 daemon、插件接入状态和下一步提示。
 - 不打开浏览器。
 - 不启动任何固定 agent。
 
@@ -322,9 +326,9 @@ UI_INSPECT_EDITOR=cursor
 - 如果使用全局安装，终端里 `ui-inspect mcp` 是否能启动。
 - MCP client 是否已经重启或重新加载配置。
 
-### `start_ui_inspect` 没有打开浏览器
+### `start_ui_inspect` 没有启动项目或打开浏览器
 
-这是预期行为。它只返回本地 URL，不主动打开或刷新浏览器。
+这是预期行为。它只负责 ui-inspect daemon 和插件接入检查，不会执行项目里的 dev 脚本，也不会主动打开或刷新浏览器。请用项目自己的命令启动目标系统。
 
 ### 点击 `发送` 后 AI 没有继续改代码
 

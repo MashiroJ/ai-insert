@@ -2,19 +2,18 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { ensureDaemon } from './daemon.js';
-import { ensureProjectDevServer } from './project-dev.js';
 import { ensureProjectIntegration } from './project-setup.js';
 import { DEFAULT_DAEMON_URL, } from '@ui-inspect/protocol';
 import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@ui-inspect/server';
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.1.1';
+const SERVER_VERSION = '0.1.2';
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const WAIT_POLL_INTERVAL_MS = 1000;
 const TOOL_DEFS = [
     {
         name: 'start_ui_inspect',
-        description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @ui-inspect/vite-plugin is installed and uiInspect() is mounted in vite.config, starts or reuses the project dev server, and returns the detected browser URL without opening or refreshing it.',
+        description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @ui-inspect/vite-plugin is installed and uiInspect() is mounted in vite.config. It never starts the user project dev server; the user must start or keep using their own frontend URL.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -157,8 +156,8 @@ export async function runMcpStdio({ daemonUrl }) {
             'ui-inspect is a universal MCP context bridge for local frontend inspection.',
             'Treat "ui-inspect", "UI inspect", "UI 检查", and "界面检查" as user-facing aliases for ui-inspect.',
             'Canonical user trigger phrase: "启用 ui-inspect". When the user says this exact phrase, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
-            'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon, project integration, project dev server, and browser URL. Do not search the codebase for a ui-inspect feature first.',
-            'start_ui_inspect returns integration and devServer status but must not open or refresh the browser. If devServer.url is present, tell the user to keep using that browser page.',
+            'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Do not search the codebase for a ui-inspect feature first.',
+            'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. Tell the user to start their own frontend dev server, or keep using their already-open page, then select an element and click Send.',
             'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
             'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
         ].join('\n'),
@@ -172,12 +171,22 @@ export async function runMcpStdio({ daemonUrl }) {
                 const project = typeof args.project === 'string' && args.project.trim() ? args.project.trim() : process.cwd();
                 await ensureDaemon({ daemonUrl, project });
                 const integration = ensureProjectIntegration({ project });
-                const devServer = await ensureProjectDevServer({ project, openBrowser: false });
                 return textResult({
                     ok: true,
                     daemon: await fetchHealth(daemonUrl),
                     integration,
-                    devServer,
+                    devServer: {
+                        skipped: true,
+                        started: false,
+                        url: null,
+                        message: 'ui-inspect does not start the project dev server. Ask the user to start their own frontend dev server and open the page they want to inspect.',
+                    },
+                    nextSteps: [
+                        'Ask the user to start or keep using their frontend dev server.',
+                        'Ask the user to open the target page in the browser.',
+                        'Ask the user to select an element in the ui-inspect panel and click Send.',
+                        'Call wait_for_frontend_request and continue editing when it returns.',
+                    ],
                 });
             }
             await ensureDaemon({ daemonUrl });
