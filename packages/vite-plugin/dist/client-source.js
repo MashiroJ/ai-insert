@@ -8,7 +8,7 @@ export function clientSource(options) {
   const MENU_ID = 'ui-inspect-menu';
   const PANEL_ID = 'ui-inspect-panel';
   const TOAST_ID = 'ui-inspect-toast';
-  const BATCH_BAR_ID = 'ui-inspect-batch-bar';
+  const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
   let enabled = false;
@@ -33,15 +33,13 @@ export function clientSource(options) {
       '#ui-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;width:82px;height:92px;border:0;background:transparent;color:white;padding:0;cursor:pointer;filter:drop-shadow(0 14px 24px rgba(15,23,42,.4));transform-origin:50% 100%}',
       '#ui-inspect-toggle:hover{transform:translateY(-2px)}',
       '#ui-inspect-toggle[data-active="true"]{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 14px 30px rgba(37,99,235,.45))}',
-      '#ui-inspect-toggle[data-compact="true"] .ui-inspect-diana-label{display:none}',
-      '#ui-inspect-toggle[data-compact="true"]{width:72px;height:82px}',
-      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:5px;bottom:8px;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:ui-diana-idle 1400ms steps(8) infinite}',
+      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:5px;bottom:8px;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:ui-diana-idle 5200ms steps(8) infinite}',
       '#ui-inspect-toggle .ui-inspect-diana-label{position:absolute;right:0;bottom:0;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid rgba(96,165,250,.42);border-radius:999px;background:rgba(15,23,42,.88);color:#dbeafe;padding:2px 7px;font:10px/1.3 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:900}',
-      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 900ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 1100ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 720ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1200ms steps(8) infinite}',
-      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 1400ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 1800ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 2000ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 1200ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1800ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 2200ms steps(8) infinite}',
       '@keyframes ui-diana-idle{from{background-position:0 0}to{background-position:-576px 0}}',
       '@keyframes ui-diana-run{from{background-position:0 -78px}to{background-position:-576px -78px}}',
       '@keyframes ui-diana-wave{from{background-position:0 -234px}to{background-position:-576px -234px}}',
@@ -59,10 +57,40 @@ export function clientSource(options) {
       '#ui-inspect-menu .ui-inspect-menu-desc{display:block;margin-top:2px;color:#cbd5e1;font-size:11px;font-weight:500}',
       '#ui-inspect-menu .ui-inspect-menu-secondary{margin-top:8px;border-style:dashed;color:#cbd5e1}',
       '#ui-inspect-toast{position:fixed;z-index:2147483647;right:22px;bottom:112px;max-width:min(300px,calc(100vw - 44px));border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 10px;font:12px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
-      '#ui-inspect-batch-bar{position:fixed;z-index:2147483647;right:18px;bottom:110px;max-width:min(360px,calc(100vw - 36px));display:flex;align-items:center;gap:8px;border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 9px;font:12px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
-      '#ui-inspect-batch-bar .ui-inspect-batch-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:900}',
-      '#ui-inspect-batch-bar button{border:1px solid #475569;border-radius:6px;background:#1e293b;color:white;padding:6px 8px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}',
-      '#ui-inspect-batch-bar button[data-primary="true"]{border-color:#2563eb;background:#2563eb}',
+      '#ui-inspect-batch-sidebar{position:fixed;z-index:2147483647;right:16px;top:16px;bottom:108px;width:min(400px,calc(100vw - 32px));display:flex;flex-direction:column;background:#10151f;color:white;border:1px solid rgba(148,163,184,.34);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:0;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}',
+      '#ui-inspect-batch-sidebar,#ui-inspect-batch-sidebar *{cursor:auto!important}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 12px 10px;border-bottom:1px solid rgba(148,163,184,.16);background:#151b26}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-title{color:#f8fafc;font-size:14px;font-weight:900}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-subtitle{margin-top:2px;color:#94a3b8;font-size:11px;font-weight:800}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-close{width:28px;height:28px;padding:0;border-radius:7px!important;line-height:1;font-size:18px;background:#1f2937;border-color:#334155;color:#e2e8f0}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-status{display:inline-flex;align-self:flex-start;margin:10px 12px 8px;padding:4px 8px;border:1px solid rgba(45,212,191,.32);border-radius:999px;background:rgba(20,184,166,.12);color:#99f6e4;font-size:11px;font-weight:900}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-list{display:flex;flex-direction:column;gap:8px;min-height:120px;overflow:auto;flex:1;margin:0;padding:0 12px 10px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-empty{border:1px dashed rgba(148,163,184,.28);border-radius:7px;color:#94a3b8;background:#0c111b;padding:14px;font-weight:800;text-align:center}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-footer{border-top:1px solid rgba(148,163,184,.16);background:#151b26;padding:10px 12px 12px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-sidebar-footer label{display:block;margin:0 0 6px;color:#cbd5e1;font-size:12px;font-weight:900}',
+      '#ui-inspect-batch-sidebar textarea{box-sizing:border-box;width:100%;height:78px;resize:vertical;border:1px solid #334155;border-radius:7px;background:#0b1020;color:white;padding:9px;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
+      '#ui-inspect-batch-sidebar textarea:focus,#ui-inspect-batch-sidebar input:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.22)}',
+      '#ui-inspect-batch-sidebar button{border:1px solid #334155;border-radius:7px;background:#1f2937;color:#e2e8f0;padding:7px 10px;font-weight:800;cursor:pointer}',
+      '#ui-inspect-batch-sidebar button:hover{border-color:#64748b;background:#273449}',
+      '#ui-inspect-batch-sidebar button:disabled{opacity:.55;cursor:default}',
+      '#ui-inspect-batch-sidebar button[data-primary="true"]{border-color:#2563eb;background:#2563eb;color:white}',
+      '#ui-inspect-batch-sidebar button[data-primary="true"]:hover{border-color:#1d4ed8;background:#1d4ed8}',
+      '#ui-inspect-batch-sidebar .ui-inspect-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-actions-right{display:flex;gap:8px;margin-left:auto}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-card{border:1px solid rgba(148,163,184,.24);border-radius:8px;background:#151b26;padding:9px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;margin-bottom:8px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-info{min-width:0;display:flex;gap:8px;align-items:flex-start}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-id{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:22px;border-radius:6px;background:#0f766e;color:#ecfeff;font-size:11px;font-weight:900}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-main{min-width:0;display:flex;flex-direction:column;gap:2px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f8fafc;font-size:12px;font-weight:900}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#93c5fd;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-tools{display:flex;gap:5px;flex:none}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-tools button{padding:4px 7px;font-size:11px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-target-card input{box-sizing:border-box;width:100%;border:1px solid #334155;border-radius:6px;background:#0b1020;color:white;padding:7px;font:12px/1.35 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
+      '#ui-inspect-batch-sidebar .ui-inspect-messages{display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;margin:0 12px 10px;padding-right:2px}',
+      '#ui-inspect-batch-sidebar .ui-inspect-msg{border:1px solid rgba(148,163,184,.25);border-radius:7px;padding:8px 9px;background:#151b26;white-space:pre-wrap}',
+      '#ui-inspect-batch-sidebar .ui-inspect-msg[data-role="assistant"]{border-color:rgba(45,212,191,.36);background:rgba(20,184,166,.1)}',
+      '#ui-inspect-batch-sidebar .ui-inspect-msg-role{display:block;margin-bottom:3px;color:#5eead4;font-size:11px;font-weight:800;text-transform:uppercase}',
       '#ui-inspect-panel{position:fixed;z-index:2147483647;right:16px;bottom:54px;width:min(420px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:12px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-panel,#ui-inspect-panel *{cursor:auto!important}',
       '#ui-inspect-panel .ui-inspect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}',
@@ -128,9 +156,8 @@ export function clientSource(options) {
     const button = ensureToggle();
     button.dataset.state = normalized;
     const label = button.querySelector('.ui-inspect-diana-label');
-    const text = dianaStateText(normalized);
-    if (label) label.textContent = text;
-    button.title = 'Diana · ' + text;
+    if (label) label.textContent = 'Diana';
+    button.title = 'Diana · ' + dianaStateText(normalized);
     if (dianaResetTimer) clearTimeout(dianaResetTimer);
     if (temporary) {
       dianaResetTimer = setTimeout(() => {
@@ -172,7 +199,7 @@ export function clientSource(options) {
   }
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_BAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_BAR_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID))));
   }
 
   function updateHover(el) {
@@ -398,10 +425,8 @@ export function clientSource(options) {
     if (menu) menu.remove();
     const existing = document.getElementById(PANEL_ID);
     if (existing) existing.remove();
-    const bar = document.getElementById(BATCH_BAR_ID);
-    if (bar) bar.remove();
-    const toggle = document.getElementById(TOGGLE_ID);
-    if (toggle) toggle.dataset.compact = 'false';
+    const sidebar = document.getElementById(BATCH_SIDEBAR_ID);
+    if (sidebar) sidebar.remove();
   }
 
   function closeDebugPanel() {
@@ -458,8 +483,8 @@ export function clientSource(options) {
     if (mode === 'source') showToast('点击页面元素，Diana 会帮你打开源码。');
     if (mode === 'single') showToast('点击一个需要交给 AI 修改的元素。');
     if (mode === 'batch') {
-      showToast('连续点击多个元素，完成后点“完成标注”。');
-      renderBatchBar();
+      showToast('批注侧栏已打开，连续点击页面元素即可添加目标。');
+      openBatchSidebar();
     }
   }
 
@@ -589,39 +614,67 @@ export function clientSource(options) {
       : '针对这个目标的要求（可选），例如：标题小一点';
   }
 
-  function renderBatchBar() {
-    if (selectionMode !== 'batch') return;
-    let bar = document.getElementById(BATCH_BAR_ID);
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = BATCH_BAR_ID;
-      bar.innerHTML = [
-        '<span class="ui-inspect-batch-text"></span>',
-        '<button type="button" data-action="undo">撤销</button>',
-        '<button type="button" data-primary="true" data-action="finish">完成标注</button>'
-      ].join('');
-      document.body.appendChild(bar);
+  function openBatchSidebar() {
+    renderBatchSidebar();
+  }
+
+  function renderBatchSidebar() {
+    if (activeTaskMode !== 'batch') return;
+    let sidebar = document.getElementById(BATCH_SIDEBAR_ID);
+    const existingInstruction = sidebar?.querySelector('#ui-inspect-batch-instruction')?.value || '';
+    if (!sidebar) {
+      sidebar = document.createElement('div');
+      sidebar.id = BATCH_SIDEBAR_ID;
+      document.body.appendChild(sidebar);
       ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
-        bar.addEventListener(type, (event) => event.stopPropagation());
-      });
-      bar.querySelector('[data-action="undo"]').addEventListener('click', () => {
-        selectedTargets.pop();
-        renderBatchBar();
-      });
-      bar.querySelector('[data-action="finish"]').addEventListener('click', () => {
-        if (!selectedTargets.length) {
-          showToast('请先点击页面上的目标元素。', 'failed');
-          return;
-        }
-        openDebugPanel({ sessionId: activePanelSessionId || undefined });
+        sidebar.addEventListener(type, (event) => event.stopPropagation());
       });
     }
-    const text = bar.querySelector('.ui-inspect-batch-text');
-    if (text) text.textContent = selectedTargets.length
-      ? '批量标注中 · 已选择 ' + selectedTargets.length + ' 个'
-      : '批量标注中 · 点击页面元素';
-    const undo = bar.querySelector('[data-action="undo"]');
-    if (undo) undo.disabled = selectedTargets.length === 0;
+    const status = activeSessionData?.status ? statusText(activeSessionData.status) : (selectionMode === 'batch' ? '选择中' : '草稿');
+    sidebar.innerHTML = [
+      '<div class="ui-inspect-sidebar-head">',
+        '<div><div class="ui-inspect-sidebar-title">批量标注</div><div class="ui-inspect-sidebar-subtitle">Diana 工作台</div></div>',
+        '<button type="button" class="ui-inspect-sidebar-close" data-action="close" aria-label="关闭">×</button>',
+      '</div>',
+      '<div class="ui-inspect-sidebar-status">' + escapeHtml(status + ' · ' + selectedTargets.length + ' 个目标') + '</div>',
+      '<div class="ui-inspect-sidebar-list"></div>',
+      '<div class="ui-inspect-messages" aria-live="polite"></div>',
+      '<div class="ui-inspect-sidebar-footer">',
+        '<label for="ui-inspect-batch-instruction">整体需求，可选</label>',
+        '<textarea id="ui-inspect-batch-instruction" placeholder="例如：这组输入框更紧凑，风格统一">' + escapeHtml(existingInstruction) + '</textarea>',
+        '<div class="ui-inspect-actions">',
+          '<button type="button" data-action="history">历史</button>',
+          '<div class="ui-inspect-actions-right">',
+            '<button type="button" data-action="undo">撤销</button>',
+            '<button type="button" data-action="select"' + (selectionMode === 'batch' ? ' disabled' : '') + '>' + (selectionMode === 'batch' ? '正在选择' : '继续选择') + '</button>',
+            '<button type="button" data-primary="true" data-action="send">创建 AI 任务</button>',
+          '</div>',
+        '</div>',
+      '</div>'
+    ].join('');
+    const list = sidebar.querySelector('.ui-inspect-sidebar-list');
+    if (list) {
+      if (!selectedTargets.length) {
+        list.innerHTML = '<div class="ui-inspect-sidebar-empty">暂无批注</div>';
+      } else {
+        list.innerHTML = selectedTargets.map((item, index) => targetCardHtml(item, index, true)).join('');
+      }
+    }
+    wireTargetCards(sidebar, () => renderBatchSidebar());
+    renderSidebarMessages(sidebar);
+    sidebar.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
+    sidebar.querySelector('[data-action="history"]').addEventListener('click', () => openHistoryPanel());
+    sidebar.querySelector('[data-action="undo"]').addEventListener('click', () => {
+      selectedTargets.pop();
+      renderBatchSidebar();
+    });
+    sidebar.querySelector('[data-action="select"]').addEventListener('click', () => {
+      selectionMode = 'batch';
+      setEnabled(true);
+      renderBatchSidebar();
+    });
+    sidebar.querySelector('[data-action="send"]').addEventListener('click', () => sendCurrentTask(sidebar, sidebar.querySelector('#ui-inspect-batch-instruction')));
+    if (activePanelSessionId && activeSessionData) startSessionStream(activePanelSessionId);
   }
 
   function renderTargets(panel) {
@@ -630,11 +683,15 @@ export function clientSource(options) {
     if (!list || !target) return;
     target.textContent = describeTargets();
     target.dataset.empty = selectedTargets.length ? 'false' : 'true';
-    list.innerHTML = selectedTargets.map((item, index) => {
-      const title = describeSelection(item.selection);
-      const meta = sourceLabel(item.selection) || item.selection?.dom?.selector || '';
-      const hasSource = !!item.selection?.source?.file;
-      return '<div class="ui-inspect-target-card" data-target-index="' + index + '">' +
+    list.innerHTML = selectedTargets.map((item, index) => targetCardHtml(item, index, activeTaskMode === 'batch')).join('');
+    wireTargetCards(panel, () => renderTargets(panel));
+  }
+
+  function targetCardHtml(item, index, includeNote) {
+    const title = describeSelection(item.selection);
+    const meta = sourceLabel(item.selection) || item.selection?.dom?.selector || '';
+    const hasSource = !!item.selection?.source?.file;
+    return '<div class="ui-inspect-target-card" data-target-index="' + index + '">' +
         '<div class="ui-inspect-target-top">' +
           '<div class="ui-inspect-target-info">' +
             '<div class="ui-inspect-target-id">' + (index + 1) + '</div>' +
@@ -648,32 +705,34 @@ export function clientSource(options) {
             '<button type="button" data-action="remove-target">移除</button>' +
           '</div>' +
         '</div>' +
-        (activeTaskMode === 'batch' ? '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="' + escapeHtml(targetNotePlaceholder()) + '" />' : '') +
+        (includeNote ? '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="' + escapeHtml(targetNotePlaceholder()) + '" />' : '') +
       '</div>';
-    }).join('');
-    Array.from(list.querySelectorAll('[data-target-note]')).forEach((input) => {
+  }
+
+  function wireTargetCards(root, rerender) {
+    Array.from(root.querySelectorAll('[data-target-note]')).forEach((input) => {
       input.addEventListener('input', () => {
         const row = input.closest('[data-target-index]');
         const index = Number(row?.getAttribute('data-target-index'));
         if (Number.isInteger(index) && selectedTargets[index]) selectedTargets[index].note = input.value;
       });
     });
-    Array.from(list.querySelectorAll('[data-action="remove-target"]')).forEach((button) => {
+    Array.from(root.querySelectorAll('[data-action="remove-target"]')).forEach((button) => {
       button.addEventListener('click', () => {
         const row = button.closest('[data-target-index]');
         const index = Number(row?.getAttribute('data-target-index'));
         if (Number.isInteger(index)) selectedTargets.splice(index, 1);
-        renderTargets(panel);
+        rerender();
       });
     });
-    Array.from(list.querySelectorAll('[data-action="open-source"]')).forEach((button) => {
+    Array.from(root.querySelectorAll('[data-action="open-source"]')).forEach((button) => {
       button.addEventListener('click', () => {
         const row = button.closest('[data-target-index]');
         const index = Number(row?.getAttribute('data-target-index'));
         openSource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '打开失败'; showToast('编辑器未响应，请复制路径手动打开。', 'failed'); });
       });
     });
-    Array.from(list.querySelectorAll('[data-action="copy-source"]')).forEach((button) => {
+    Array.from(root.querySelectorAll('[data-action="copy-source"]')).forEach((button) => {
       button.addEventListener('click', () => {
         const row = button.closest('[data-target-index]');
         const index = Number(row?.getAttribute('data-target-index'));
@@ -734,8 +793,6 @@ export function clientSource(options) {
       '</div>'
     ].join('');
     document.body.appendChild(panel);
-    const toggle = document.getElementById(TOGGLE_ID);
-    if (toggle) toggle.dataset.compact = 'true';
     placePanel(panel);
     ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
       panel.addEventListener(type, (event) => {
@@ -757,47 +814,11 @@ export function clientSource(options) {
       removePanel();
       selectionMode = activeTaskMode === 'single' ? 'single' : 'batch';
       setEnabled(true);
-      if (selectionMode === 'batch') renderBatchBar();
+      if (selectionMode === 'batch') openBatchSidebar();
     });
     close.addEventListener('click', () => closeDebugPanel());
     history.addEventListener('click', () => openHistoryPanel());
-    send.addEventListener('click', () => {
-      const instruction = textarea.value.trim();
-      if (!selectedTargets.length) {
-        panel.querySelector('.ui-inspect-target').textContent = '请先点击“选择”，在页面上框选一个元素。';
-        panel.querySelector('.ui-inspect-target').dataset.empty = 'true';
-        return;
-      }
-      const hasTargetNote = selectedTargets.some((item) => (item.note || '').trim());
-      if (!instruction && !hasTargetNote) {
-        panel.querySelector('.ui-inspect-target').textContent = activeTaskMode === 'single' ? '请描述你想怎么改这个元素。' : '请填写整体需求，或给至少一个目标写要求。';
-        panel.querySelector('.ui-inspect-target').dataset.empty = 'true';
-        return;
-      }
-      selectedTargets = selectedTargets.map((item) => {
-        const note = item.note || '';
-        return targetFromSelection({ ...item.selection, note }, note);
-      });
-      const primary = selectedTargets[0].selection;
-      const payload = {
-        ...primary,
-        id: 'selection-' + Date.now(),
-        sessionId: activePanelSessionId,
-        timestamp: Date.now(),
-        instruction,
-        note: selectedTargets[0].note || '',
-        targets: selectedTargets
-      };
-      submitPayload(payload).then(() => {
-        textarea.value = '';
-        panel.querySelector('.ui-inspect-status').textContent = statusText('sent');
-        renderTargets(panel);
-        setEnabled(false);
-      }).catch((err) => {
-        setDianaState('failed', 2200);
-        panel.querySelector('.ui-inspect-target').textContent = friendlyError(err, 'send');
-      });
-    });
+    send.addEventListener('click', () => sendCurrentTask(panel, textarea));
     textarea.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -806,6 +827,50 @@ export function clientSource(options) {
       if (event.key === 'Escape') closeDebugPanel();
     });
 	  }
+
+  function sendCurrentTask(container, textarea) {
+    const instruction = textarea?.value.trim() || '';
+    const target = container.querySelector('.ui-inspect-target') || container.querySelector('.ui-inspect-sidebar-status');
+    if (!selectedTargets.length) {
+      if (target) target.textContent = '请先点击页面上的目标元素。';
+      return;
+    }
+    const hasTargetNote = selectedTargets.some((item) => (item.note || '').trim());
+    if (!instruction && !hasTargetNote) {
+      if (target) target.textContent = activeTaskMode === 'single' ? '请描述你想怎么改这个元素。' : '请填写整体需求，或给至少一个目标写要求。';
+      return;
+    }
+    selectedTargets = selectedTargets.map((item) => {
+      const note = item.note || '';
+      return targetFromSelection({ ...item.selection, note }, note);
+    });
+    const primary = selectedTargets[0].selection;
+    const payload = {
+      ...primary,
+      id: 'selection-' + Date.now(),
+      sessionId: activePanelSessionId,
+      timestamp: Date.now(),
+      instruction,
+      note: selectedTargets[0].note || '',
+      targets: selectedTargets
+    };
+    submitPayload(payload).then(() => {
+      if (textarea) textarea.value = '';
+      const statusEl = container.querySelector('.ui-inspect-status') || container.querySelector('.ui-inspect-sidebar-status');
+      if (statusEl) statusEl.textContent = statusText('sent') + (activeTaskMode === 'batch' ? ' · 已选择 ' + selectedTargets.length + ' 个目标' : '');
+      if (activeTaskMode === 'batch') {
+        selectionMode = 'done';
+        renderBatchSidebar();
+      } else {
+        renderTargets(container);
+      }
+      setEnabled(false);
+    }).catch((err) => {
+      setDianaState('failed', 2200);
+      setEnabled(false);
+      if (target) target.textContent = friendlyError(err, 'send');
+    });
+  }
 
   async function fetchSessions() {
     const url = DAEMON_URL.replace(/\\/$/, '') + '/sessions?t=' + Date.now();
@@ -978,7 +1043,7 @@ export function clientSource(options) {
       selectedTargets.push(targetFromSelection(selection, ''));
       highlightElement(el);
       setEnabled(true);
-      renderBatchBar();
+      openBatchSidebar();
       return;
     }
     openDebugPanel({ element: el, sessionId: sessionId || activePanelSessionId || undefined });
@@ -997,13 +1062,25 @@ export function clientSource(options) {
   function renderSessionData(session) {
     if (!session) return;
     const panel = document.getElementById(PANEL_ID);
-    if (!panel) return;
-    const messagesEl = panel.querySelector('.ui-inspect-messages');
-    const statusEl = panel.querySelector('.ui-inspect-status');
-    if (statusEl) statusEl.textContent = statusText(session.status);
+    const sidebar = document.getElementById(BATCH_SIDEBAR_ID);
+    const root = panel || sidebar;
+    if (!root) return;
+    const messagesEl = root.querySelector('.ui-inspect-messages');
+    const statusEl = root.querySelector('.ui-inspect-status') || root.querySelector('.ui-inspect-sidebar-status');
+    if (statusEl) statusEl.textContent = statusText(session.status) + (sidebar ? ' · 已选择 ' + selectedTargets.length + ' 个目标' : '');
     if (session.status) setDianaState(session.status);
     if (!messagesEl) return;
-    messagesEl.innerHTML = session.messages.map((message) => (
+    renderMessages(messagesEl, session.messages || []);
+  }
+
+  function renderSidebarMessages(sidebar) {
+    const messagesEl = sidebar.querySelector('.ui-inspect-messages');
+    if (!messagesEl) return;
+    renderMessages(messagesEl, activeSessionData?.messages || []);
+  }
+
+  function renderMessages(messagesEl, messages) {
+    messagesEl.innerHTML = messages.map((message) => (
       '<div class="ui-inspect-msg" data-role="' + escapeHtml(message.role) + '">' +
       '<span class="ui-inspect-msg-role">' + (message.role === 'assistant' ? '助手' : '你') + '</span>' +
       escapeHtml(message.content) +
