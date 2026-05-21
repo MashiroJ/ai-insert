@@ -4,29 +4,29 @@ import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextpro
 import { ensureDaemon } from './daemon.js';
 import { ensureProjectDevServer } from './project-dev.js';
 import { ensureProjectIntegration } from './project-setup.js';
-import { DEFAULT_DAEMON_URL, } from '@mashiro39/ai-inspect-protocol';
-import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@mashiro39/ai-inspect-server';
-const SERVER_NAME = 'ai-inspect';
-const SERVER_VERSION = '0.2.1';
+import { DEFAULT_DAEMON_URL, } from '@mashiro39/ui-inspect-protocol';
+import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@mashiro39/ui-inspect-server';
+const SERVER_NAME = 'ui-inspect';
+const SERVER_VERSION = '0.3.1';
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const WAIT_POLL_INTERVAL_MS = 1000;
 const TOOL_DEFS = [
     {
-        name: 'start_ai_inspect',
-        description: 'Start or verify ai-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ai-insert". Also use this for "enable ai-inspect", "enable ai-insert", "启用 ai-inspect", "打开 AI 调试", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @mashiro39/ai-inspect-vite-plugin is installed and aiInspect() is mounted in vite.config, starts or reuses the project dev server, and returns the detected browser URL without opening or refreshing it.',
+        name: 'start_ui_inspect',
+        description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @mashiro39/ui-inspect-vite-plugin is installed and uiInspect() is mounted in vite.config, starts or reuses the project dev server, and returns the detected browser URL without opening or refreshing it.',
         inputSchema: {
             type: 'object',
             properties: {
                 project: {
                     type: 'string',
-                    description: 'Project directory where ai-inspect should be enabled. Defaults to the MCP process cwd.',
+                    description: 'Project directory where ui-inspect should be enabled. Defaults to the MCP process cwd.',
                 },
             },
             additionalProperties: false,
         },
         annotations: {
-            title: 'Start ai-inspect daemon',
+            title: 'Start ui-inspect daemon',
             readOnlyHint: false,
             idempotentHint: true,
             openWorldHint: false,
@@ -34,7 +34,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'get_frontend_selection',
-        description: 'Read the current browser-selected frontend element, user instruction, framework metadata, and source file hint from ai-inspect.',
+        description: 'Read the current browser-selected frontend element, user instruction, framework metadata, and source file hint from ui-inspect.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
         annotations: {
             title: 'Get selected frontend element',
@@ -45,7 +45,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'wait_for_frontend_request',
-        description: 'Wait for the user to select a frontend element and click Send in the ai-inspect browser panel. Use immediately after start_ai_inspect for the canonical "启用 ai-insert" flow, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ai-inspect daemon and MCP process for this run.',
+        description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for the canonical "启用 ui-inspect" flow, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -93,7 +93,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'get_frontend_sessions',
-        description: 'List ai-inspect debug sessions and their user/assistant messages.',
+        description: 'List ui-inspect debug sessions and their user/assistant messages.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
         annotations: {
             title: 'List frontend debug sessions',
@@ -104,7 +104,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'reply_to_user',
-        description: 'Send an assistant reply into the current ai-inspect browser panel after modifying code, so the user can continue the same debug conversation.',
+        description: 'Send an assistant reply into the current ui-inspect browser panel after modifying code, so the user can continue the same debug conversation.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -128,13 +128,13 @@ export async function runMcpStdio({ daemonUrl }) {
     const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, {
         capabilities: { tools: {} },
         instructions: [
-            'ai-inspect is a universal MCP context bridge for local frontend inspection.',
-            'Treat "ai-insert", "AI insert", "AI 插入", and "AI 调试" as user-facing aliases for ai-inspect.',
-            'Canonical user trigger phrase: "启用 ai-insert". When the user says this exact phrase, call start_ai_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
-            'When the user asks to enable ai-inspect or ai-insert, first call start_ai_inspect to silently start or verify the local daemon, project integration, project dev server, and browser URL. Do not search the codebase for an ai-insert feature first.',
-            'start_ai_inspect returns integration and devServer status but must not open or refresh the browser. If devServer.url is present, tell the user to keep using that browser page.',
-            'Interactive edit flow: after start_ai_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source and session, edit code according to the user instruction, then call reply_to_user with a short status asking whether the user wants more changes.',
-            'If wait_for_frontend_request times out after 10 minutes, it shuts down this ai-inspect run and you should tell the user the browser request expired.',
+            'ui-inspect is a universal MCP context bridge for local frontend inspection.',
+            'Treat "ui-inspect", "UI inspect", "UI 检查", and "界面检查" as user-facing aliases for ui-inspect.',
+            'Canonical user trigger phrase: "启用 ui-inspect". When the user says this exact phrase, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
+            'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon, project integration, project dev server, and browser URL. Do not search the codebase for a ui-inspect feature first.',
+            'start_ui_inspect returns integration and devServer status but must not open or refresh the browser. If devServer.url is present, tell the user to keep using that browser page.',
+            'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source and session, edit code according to the user instruction, then call reply_to_user with a short status asking whether the user wants more changes.',
+            'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
         ].join('\n'),
     });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_DEFS }));
@@ -142,7 +142,7 @@ export async function runMcpStdio({ daemonUrl }) {
         const name = request.params.name;
         const args = (request.params.arguments ?? {});
         try {
-            if (name === 'start_ai_inspect') {
+            if (name === 'start_ui_inspect') {
                 const project = typeof args.project === 'string' && args.project.trim() ? args.project.trim() : process.cwd();
                 await ensureDaemon({ daemonUrl, project });
                 const integration = ensureProjectIntegration({ project });
@@ -173,7 +173,7 @@ export async function runMcpStdio({ daemonUrl }) {
             if (name === 'get_frontend_source') {
                 const selection = await fetchSelection(daemonUrl);
                 if (!selection.active || !selection.selection)
-                    throw new Error('No active ai-inspect selection.');
+                    throw new Error('No active ui-inspect selection.');
                 const context = contextLines(args.context);
                 return textResult(await readSelectionSource(selection.selection, context));
             }
@@ -223,7 +223,7 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
         ok: false,
         timedOut: true,
         timeoutMs,
-        message: `No browser request was sent within ${Math.round(timeoutMs / 1000)} seconds. The ai-inspect daemon and MCP process are shutting down for this run.`,
+        message: `No browser request was sent within ${Math.round(timeoutMs / 1000)} seconds. The ui-inspect daemon and MCP process are shutting down for this run.`,
     };
 }
 function latestUserMessage(payload, sinceTimestamp) {

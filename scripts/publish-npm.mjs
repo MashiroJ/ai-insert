@@ -13,10 +13,10 @@ const registry = valueAfter('--registry') || 'https://registry.npmjs.org';
 const tag = valueAfter('--tag') || 'latest';
 
 const packages = [
-  '@mashiro39/ai-inspect-protocol',
-  '@mashiro39/ai-inspect-server',
-  '@mashiro39/ai-inspect-vite-plugin',
-  '@mashiro39/ai-inspect-cli',
+  '@mashiro39/ui-inspect-protocol',
+  '@mashiro39/ui-inspect-server',
+  '@mashiro39/ui-inspect-vite-plugin',
+  '@mashiro39/ui-inspect-cli',
 ];
 
 if (args.has('--help') || args.has('-h')) {
@@ -26,7 +26,7 @@ if (args.has('--help') || args.has('-h')) {
 
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 
-console.log(`ai-inspect npm publish helper`);
+console.log(`ui-inspect npm publish helper`);
 console.log(`version: ${version}`);
 console.log(`registry: ${registry}`);
 console.log(`mode: ${yes ? 'publish' : 'dry-run'}`);

@@ -1,20 +1,20 @@
-import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL, } from '@mashiro39/ai-inspect-protocol';
+import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL, } from '@mashiro39/ui-inspect-protocol';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isRecord, numberOr, stringOr, trimUrl } from './utils.js';
-const VERSION = '0.2.1';
+const VERSION = '0.3.1';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;
 const MAX_MESSAGES_PER_SESSION = 200;
-const PROJECT_STATE_DIR = '.ai-insert';
+const PROJECT_STATE_DIR = '.ui-inspect';
 const SESSIONS_FILE = 'sessions.json';
 class ServerState {
     currentSelection = null;
     currentSelectionReceivedAt = 0;
-    projectRoot = path.resolve(process.env.AI_INSPECT_PROJECT || process.cwd());
+    projectRoot = path.resolve(process.env.UI_INSPECT_PROJECT || process.cwd());
     sessions = new Map();
     sessionStreams = new Map();
     constructor() {
@@ -117,7 +117,7 @@ export async function startServer(options = {}) {
         server.once('error', reject);
         server.listen(port, host, () => resolve());
     });
-    process.stdout.write(`ai-inspect daemon listening at http://${host}:${port}\n`);
+    process.stdout.write(`ui-inspect daemon listening at http://${host}:${port}\n`);
     await new Promise((resolve) => {
         resolveClose = resolve;
         process.once('SIGINT', close);
@@ -216,7 +216,7 @@ async function route(req, res, closeServer) {
     applyCors(req, res);
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     if (req.method === 'GET' && url.pathname === '/health') {
-        sendJson(res, 200, { ok: true, name: 'ai-inspect', version: VERSION });
+        sendJson(res, 200, { ok: true, name: 'ui-inspect', version: VERSION });
         return;
     }
     if (req.method === 'POST' && url.pathname === '/shutdown') {

@@ -1,5 +1,5 @@
-import { DEFAULT_DAEMON_PORT } from '@mashiro39/ai-inspect-protocol';
-import { fetchHealth } from '@mashiro39/ai-inspect-server';
+import { DEFAULT_DAEMON_PORT } from '@mashiro39/ui-inspect-protocol';
+import { fetchHealth } from '@mashiro39/ui-inspect-server';
 import { spawn } from 'node:child_process';
 
 const CONSECUTIVE_HEALTH_CHECKS = 2;
@@ -14,7 +14,7 @@ export interface EnsureDaemonOptions {
 export async function ensureDaemon({ daemonUrl, project, timeoutMs = 2500 }: EnsureDaemonOptions): Promise<void> {
   const parsed = parseLocalDaemonUrl(daemonUrl);
   if (!parsed) {
-    throw new Error(`ai-inspect daemon is not running at ${daemonUrl}. Auto-start only supports localhost daemon URLs.`);
+    throw new Error(`ui-inspect daemon is not running at ${daemonUrl}. Auto-start only supports localhost daemon URLs.`);
   }
 
   if (await isHealthyWithRetry(daemonUrl, CONSECUTIVE_HEALTH_CHECKS, HEALTH_CHECK_INTERVAL_MS)) return;
@@ -26,7 +26,7 @@ export async function ensureDaemon({ daemonUrl, project, timeoutMs = 2500 }: Ens
     stdio: 'ignore',
     env: {
       ...process.env,
-      AI_INSPECT_PROJECT: project ?? process.cwd(),
+      UI_INSPECT_PROJECT: project ?? process.cwd(),
     },
   }).unref();
 
@@ -36,7 +36,7 @@ export async function ensureDaemon({ daemonUrl, project, timeoutMs = 2500 }: Ens
     await delay(HEALTH_CHECK_INTERVAL_MS);
   }
 
-  throw new Error(`ai-inspect daemon did not become ready at ${daemonUrl}`);
+  throw new Error(`ui-inspect daemon did not become ready at ${daemonUrl}`);
 }
 
 async function isHealthyWithRetry(daemonUrl: string, attempts: number, intervalMs: number): Promise<boolean> {

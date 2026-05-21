@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@mashiro39/ai-inspect-protocol';
-import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@mashiro39/ai-inspect-server';
+import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@mashiro39/ui-inspect-protocol';
+import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@mashiro39/ui-inspect-server';
 import { runMcpStdio } from './mcp.js';
 ensureLocalNoProxy();
 const args = process.argv.slice(2);
@@ -77,7 +77,7 @@ catch (err) {
     process.exit(1);
 }
 function daemonUrl() {
-    return stringFlag('--daemon-url') ?? process.env.AI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL;
+    return stringFlag('--daemon-url') ?? process.env.UI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL;
 }
 function hasFlag(name) {
     return args.includes(name);
@@ -100,14 +100,14 @@ function numberFlag(name) {
 }
 function printHelp() {
     process.stdout.write(`Usage:
-  ai-inspect daemon [--host 127.0.0.1] [--port 17321]
-  ai-inspect mcp [--daemon-url <url>]
-  ai-inspect status [--daemon-url <url>]
-  ai-inspect selection [--json] [--daemon-url <url>]
-  ai-inspect sessions [--daemon-url <url>]
-  ai-inspect reply --content <text> [--daemon-url <url>]
-  ai-inspect source [--context 80] [--json] [--daemon-url <url>]
-  ai-inspect clear [--daemon-url <url>]
+  ui-inspect daemon [--host 127.0.0.1] [--port 17321]
+  ui-inspect mcp [--daemon-url <url>]
+  ui-inspect status [--daemon-url <url>]
+  ui-inspect selection [--json] [--daemon-url <url>]
+  ui-inspect sessions [--daemon-url <url>]
+  ui-inspect reply --content <text> [--daemon-url <url>]
+  ui-inspect source [--context 80] [--json] [--daemon-url <url>]
+  ui-inspect clear [--daemon-url <url>]
 `);
 }
 function ensureLocalNoProxy() {

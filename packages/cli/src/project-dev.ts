@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { delay } from '@mashiro39/ai-inspect-server';
+import { delay } from '@mashiro39/ui-inspect-server';
 
 export interface EnsureProjectDevServerOptions {
   project: string;
@@ -171,7 +171,7 @@ function openUrl(url: string): boolean {
 }
 
 function devServerPidFile(project: string): string {
-  const dir = join(project, '.ai-insert');
+  const dir = join(project, '.ui-inspect');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   return join(dir, 'dev-server.pid');
 }

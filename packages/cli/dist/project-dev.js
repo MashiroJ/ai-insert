@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { delay } from '@mashiro39/ai-inspect-server';
+import { delay } from '@mashiro39/ui-inspect-server';
 const VITE_PORTS = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
 export async function ensureProjectDevServer({ project, openBrowser = false, timeoutMs = 10000, }) {
     const result = {
@@ -144,7 +144,7 @@ function openUrl(url) {
     }
 }
 function devServerPidFile(project) {
-    const dir = join(project, '.ai-insert');
+    const dir = join(project, '.ui-inspect');
     if (!existsSync(dir))
         mkdirSync(dir, { recursive: true });
     return join(dir, 'dev-server.pid');

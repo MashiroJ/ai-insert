@@ -1,9 +1,9 @@
 {
-  "name": "@mashiro39/ai-inspect-cli",
-  "version": "0.2.1",
+  "name": "@mashiro39/ui-inspect-cli",
+  "version": "0.3.1",
   "type": "module",
   "bin": {
-    "ai-inspect": "./dist/index.js"
+    "ui-inspect": "./dist/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,9 +16,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@mashiro39/ai-inspect-protocol": "workspace:*",
-    "@mashiro39/ai-inspect-server": "workspace:*",
-    "@mashiro39/ai-inspect-vite-plugin": "workspace:*",
+    "@mashiro39/ui-inspect-protocol": "workspace:*",
+    "@mashiro39/ui-inspect-server": "workspace:*",
+    "@mashiro39/ui-inspect-vite-plugin": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.0"
   }
 }

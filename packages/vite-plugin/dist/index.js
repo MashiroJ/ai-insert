@@ -1,14 +1,14 @@
 import { join } from 'node:path';
 import { clientSource } from './client-source.js';
-const CLIENT_PATH = '/@ai-inspect/client.js';
+const CLIENT_PATH = '/@ui-inspect/client.js';
 const DEFAULT_DAEMON_URL = 'http://127.0.0.1:17321';
-const STATE_WATCH_IGNORES = ['**/.ai-insert/**', '**/.ai-insert/**/*'];
-export function aiInspect(options = {}) {
+const STATE_WATCH_IGNORES = ['**/.ui-inspect/**', '**/.ui-inspect/**/*'];
+export function uiInspect(options = {}) {
     let config;
     const enabled = options.enabled ?? true;
     const isEnabledForCurrentCommand = () => enabled && config?.command === 'serve';
     return {
-        name: 'ai-inspect',
+        name: 'ui-inspect',
         apply: 'serve',
         enforce: 'post',
         config(userConfig) {
@@ -24,12 +24,12 @@ export function aiInspect(options = {}) {
         configureServer(server) {
             if (!isEnabledForCurrentCommand())
                 return;
-            const stateDir = join(config.root, '.ai-insert');
+            const stateDir = join(config.root, '.ui-inspect');
             server.watcher.unwatch([stateDir, join(stateDir, '**')]);
             server.middlewares.use(CLIENT_PATH, (_req, res) => {
                 res.setHeader('content-type', 'application/javascript; charset=utf-8');
                 res.end(clientSource({
-                    daemonUrl: options.daemonUrl ?? process.env.AI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL,
+                    daemonUrl: options.daemonUrl ?? process.env.UI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL,
                     root: config.root,
                 }));
             });
@@ -50,7 +50,7 @@ export function aiInspect(options = {}) {
         },
     };
 }
-export default aiInspect;
+export default uiInspect;
 function mergeWatchIgnored(existing) {
     if (!existing)
         return STATE_WATCH_IGNORES;

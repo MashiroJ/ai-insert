@@ -1,35 +1,35 @@
 export declare const DEFAULT_DAEMON_PORT = 17321;
 export declare const DEFAULT_DAEMON_URL = "http://127.0.0.1:17321";
-export interface AiInspectRect {
+export interface UiInspectRect {
     x: number;
     y: number;
     width: number;
     height: number;
 }
-export interface AiInspectDomSelection {
+export interface UiInspectDomSelection {
     selector: string;
     tagName: string;
     id: string;
     className: string;
     text: string;
     outerHtml: string;
-    rect: AiInspectRect;
+    rect: UiInspectRect;
     styles: Record<string, string>;
 }
-export interface AiInspectVueSelection {
+export interface UiInspectVueSelection {
     componentName: string | null;
     componentChain: string[];
     sourceFile: string | null;
     props: Record<string, string>;
     attrs: Record<string, string>;
 }
-export interface AiInspectSourceSelection {
+export interface UiInspectSourceSelection {
     root: string | null;
     file: string | null;
     line: number | null;
     column: number | null;
 }
-export interface AiInspectSelection {
+export interface UiInspectSelection {
     id: string;
     sessionId: string;
     url: string;
@@ -37,41 +37,41 @@ export interface AiInspectSelection {
     timestamp: number;
     instruction: string;
     framework: 'vue3' | 'dom';
-    dom: AiInspectDomSelection;
-    vue: AiInspectVueSelection | null;
-    source: AiInspectSourceSelection;
+    dom: UiInspectDomSelection;
+    vue: UiInspectVueSelection | null;
+    source: UiInspectSourceSelection;
 }
-export type AiInspectMessageRole = 'user' | 'assistant';
-export interface AiInspectMessage {
+export type UiInspectMessageRole = 'user' | 'assistant';
+export interface UiInspectMessage {
     id: string;
     sessionId: string;
-    role: AiInspectMessageRole;
+    role: UiInspectMessageRole;
     content: string;
     timestamp: number;
     selectionId: string | null;
 }
-export interface AiInspectSession {
+export interface UiInspectSession {
     id: string;
     createdAt: number;
     updatedAt: number;
-    selection: AiInspectSelection | null;
-    messages: AiInspectMessage[];
+    selection: UiInspectSelection | null;
+    messages: UiInspectMessage[];
 }
-export interface AiInspectSelectionResponse {
+export interface UiInspectSelectionResponse {
     active: boolean;
-    selection: AiInspectSelection | null;
-    session: AiInspectSession | null;
+    selection: UiInspectSelection | null;
+    session: UiInspectSession | null;
     ageMs: number | null;
 }
-export interface AiInspectSessionsResponse {
-    sessions: AiInspectSession[];
+export interface UiInspectSessionsResponse {
+    sessions: UiInspectSession[];
 }
-export interface AiInspectHealthResponse {
+export interface UiInspectHealthResponse {
     ok: true;
-    name: 'ai-inspect';
+    name: 'ui-inspect';
     version: string;
 }
-export interface AiInspectSourceResponse {
+export interface UiInspectSourceResponse {
     file: string;
     root: string;
     startLine: number;

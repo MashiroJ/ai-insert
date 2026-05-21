@@ -2,11 +2,11 @@ export function clientSource(options) {
     return `(() => {
   const DAEMON_URL = ${JSON.stringify(options.daemonUrl)};
   const PROJECT_ROOT = ${JSON.stringify(options.root)};
-  const STYLE_ID = 'ai-inspect-style';
-  const BOX_ID = 'ai-inspect-box';
-  const TOGGLE_ID = 'ai-inspect-toggle';
-  const PANEL_ID = 'ai-inspect-panel';
-  const LAST_SESSION_KEY = 'ai-inspect:last-session';
+  const STYLE_ID = 'ui-inspect-style';
+  const BOX_ID = 'ui-inspect-box';
+  const TOGGLE_ID = 'ui-inspect-toggle';
+  const PANEL_ID = 'ui-inspect-panel';
+  const LAST_SESSION_KEY = 'ui-inspect:last-session';
   let enabled = false;
   let hovered = null;
   let activeElement = null;
@@ -21,36 +21,36 @@ export function clientSource(options) {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = [
-      '#ai-inspect-box{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #1d4ed8;background:rgba(29,78,216,.08);box-shadow:0 0 0 99999px rgba(15,23,42,.08);display:none}',
-      '#ai-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;border:1px solid rgba(96,165,250,.55);border-radius:999px;background:linear-gradient(135deg,#0f172a,#075985);color:white;padding:9px 13px;font:12px/1.2 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 10px 28px rgba(14,165,233,.28);cursor:pointer}',
-      '#ai-inspect-toggle[data-active="true"]{background:linear-gradient(135deg,#1d4ed8,#06b6d4);box-shadow:0 0 0 3px rgba(59,130,246,.18),0 12px 34px rgba(14,165,233,.35)}',
-      '#ai-inspect-panel{position:fixed;z-index:2147483647;right:16px;bottom:54px;width:min(420px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:12px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
-      '#ai-inspect-panel,#ai-inspect-panel *{cursor:auto!important}',
-      '#ai-inspect-panel .ai-inspect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}',
-      '#ai-inspect-panel .ai-inspect-title{color:#e2e8f0;font-weight:900}',
-      '#ai-inspect-panel .ai-inspect-close{width:28px;height:28px;padding:0;border-radius:999px!important;line-height:1;font-size:18px}',
-      '#ai-inspect-panel label{display:block;margin:0 0 8px;color:#cbd5e1;font-weight:700}',
-      '#ai-inspect-panel .ai-inspect-target{margin:0 0 8px;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
-      '#ai-inspect-panel .ai-inspect-target[data-empty="true"]{color:#94a3b8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
-      '#ai-inspect-panel .ai-inspect-session-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto;margin:0 0 10px}',
-      '#ai-inspect-panel .ai-inspect-session-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}',
-      '#ai-inspect-panel .ai-inspect-session-item{text-align:left;border:1px solid rgba(148,163,184,.25);border-radius:7px;background:rgba(15,23,42,.72);color:white;padding:8px 9px;cursor:pointer;min-width:0}',
-      '#ai-inspect-panel .ai-inspect-session-delete{padding:0 10px;border-color:#dc2626;color:white;background:#dc2626}',
-      '#ai-inspect-panel .ai-inspect-session-delete:hover{background:#b91c1c;border-color:#b91c1c}',
-      '#ai-inspect-panel .ai-inspect-session-title{display:block;color:#e2e8f0;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '#ai-inspect-panel .ai-inspect-session-meta{display:block;margin-top:3px;color:#94a3b8;font-size:11px}',
-      '#ai-inspect-panel .ai-inspect-messages{display:flex;flex-direction:column;gap:6px;max-height:168px;overflow:auto;margin:0 0 10px;padding-right:2px}',
-      '#ai-inspect-panel .ai-inspect-msg{border:1px solid rgba(148,163,184,.25);border-radius:7px;padding:8px 9px;background:rgba(15,23,42,.72);white-space:pre-wrap}',
-      '#ai-inspect-panel .ai-inspect-msg[data-role="assistant"]{border-color:rgba(96,165,250,.5);background:rgba(30,64,175,.24)}',
-      '#ai-inspect-panel .ai-inspect-msg-role{display:block;margin-bottom:3px;color:#93c5fd;font-size:11px;font-weight:800;text-transform:uppercase}',
-      '#ai-inspect-panel textarea{box-sizing:border-box;width:100%;height:108px;resize:vertical;border:1px solid #475569;border-radius:6px;background:#020617;color:white;padding:10px;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
-      '#ai-inspect-panel textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.22)}',
-      '#ai-inspect-panel .ai-inspect-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px}',
-      '#ai-inspect-panel .ai-inspect-actions-left,#ai-inspect-panel .ai-inspect-actions-right{display:flex;gap:8px;align-items:center}',
-      '#ai-inspect-panel .ai-inspect-actions-right{margin-left:auto}',
-      '#ai-inspect-panel button{border:1px solid #475569;border-radius:6px;background:#1e293b;color:white;padding:7px 10px;font-weight:700;cursor:pointer}',
-      '#ai-inspect-panel button[data-primary="true"]{border-color:#2563eb;background:#2563eb}',
-      'html[data-ai-inspect="true"] *{cursor:crosshair!important}'
+      '#ui-inspect-box{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #1d4ed8;background:rgba(29,78,216,.08);box-shadow:0 0 0 99999px rgba(15,23,42,.08);display:none}',
+      '#ui-inspect-toggle{position:fixed;z-index:2147483647;right:12px;bottom:12px;border:1px solid rgba(96,165,250,.55);border-radius:999px;background:linear-gradient(135deg,#0f172a,#075985);color:white;padding:9px 13px;font:12px/1.2 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 10px 28px rgba(14,165,233,.28);cursor:pointer}',
+      '#ui-inspect-toggle[data-active="true"]{background:linear-gradient(135deg,#1d4ed8,#06b6d4);box-shadow:0 0 0 3px rgba(59,130,246,.18),0 12px 34px rgba(14,165,233,.35)}',
+      '#ui-inspect-panel{position:fixed;z-index:2147483647;right:16px;bottom:54px;width:min(420px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:12px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
+      '#ui-inspect-panel,#ui-inspect-panel *{cursor:auto!important}',
+      '#ui-inspect-panel .ui-inspect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}',
+      '#ui-inspect-panel .ui-inspect-title{color:#e2e8f0;font-weight:900}',
+      '#ui-inspect-panel .ui-inspect-close{width:28px;height:28px;padding:0;border-radius:999px!important;line-height:1;font-size:18px}',
+      '#ui-inspect-panel label{display:block;margin:0 0 8px;color:#cbd5e1;font-weight:700}',
+      '#ui-inspect-panel .ui-inspect-target{margin:0 0 8px;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
+      '#ui-inspect-panel .ui-inspect-target[data-empty="true"]{color:#94a3b8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
+      '#ui-inspect-panel .ui-inspect-session-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto;margin:0 0 10px}',
+      '#ui-inspect-panel .ui-inspect-session-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}',
+      '#ui-inspect-panel .ui-inspect-session-item{text-align:left;border:1px solid rgba(148,163,184,.25);border-radius:7px;background:rgba(15,23,42,.72);color:white;padding:8px 9px;cursor:pointer;min-width:0}',
+      '#ui-inspect-panel .ui-inspect-session-delete{padding:0 10px;border-color:#dc2626;color:white;background:#dc2626}',
+      '#ui-inspect-panel .ui-inspect-session-delete:hover{background:#b91c1c;border-color:#b91c1c}',
+      '#ui-inspect-panel .ui-inspect-session-title{display:block;color:#e2e8f0;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#ui-inspect-panel .ui-inspect-session-meta{display:block;margin-top:3px;color:#94a3b8;font-size:11px}',
+      '#ui-inspect-panel .ui-inspect-messages{display:flex;flex-direction:column;gap:6px;max-height:168px;overflow:auto;margin:0 0 10px;padding-right:2px}',
+      '#ui-inspect-panel .ui-inspect-msg{border:1px solid rgba(148,163,184,.25);border-radius:7px;padding:8px 9px;background:rgba(15,23,42,.72);white-space:pre-wrap}',
+      '#ui-inspect-panel .ui-inspect-msg[data-role="assistant"]{border-color:rgba(96,165,250,.5);background:rgba(30,64,175,.24)}',
+      '#ui-inspect-panel .ui-inspect-msg-role{display:block;margin-bottom:3px;color:#93c5fd;font-size:11px;font-weight:800;text-transform:uppercase}',
+      '#ui-inspect-panel textarea{box-sizing:border-box;width:100%;height:108px;resize:vertical;border:1px solid #475569;border-radius:6px;background:#020617;color:white;padding:10px;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
+      '#ui-inspect-panel textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.22)}',
+      '#ui-inspect-panel .ui-inspect-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px}',
+      '#ui-inspect-panel .ui-inspect-actions-left,#ui-inspect-panel .ui-inspect-actions-right{display:flex;gap:8px;align-items:center}',
+      '#ui-inspect-panel .ui-inspect-actions-right{margin-left:auto}',
+      '#ui-inspect-panel button{border:1px solid #475569;border-radius:6px;background:#1e293b;color:white;padding:7px 10px;font-weight:700;cursor:pointer}',
+      '#ui-inspect-panel button[data-primary="true"]{border-color:#2563eb;background:#2563eb}',
+      'html[data-ui-inspect="true"] *{cursor:crosshair!important}'
     ].join('\\n');
     document.head.appendChild(style);
 	  }
@@ -65,8 +65,8 @@ export function clientSource(options) {
       document.body.appendChild(button);
     }
     button.dataset.active = enabled ? 'true' : 'false';
-    button.textContent = enabled ? '选择元素中' : 'AI 调试';
-    button.title = enabled ? '点击页面元素完成选择' : '打开 AI 调试面板';
+    button.textContent = enabled ? '选择元素中' : 'UI 检查';
+    button.title = enabled ? '点击页面元素完成选择' : '打开 UI 检查面板';
     return button;
   }
 
@@ -82,7 +82,7 @@ export function clientSource(options) {
 
   function setEnabled(next) {
     enabled = next;
-    document.documentElement.toggleAttribute('data-ai-inspect', enabled);
+    document.documentElement.toggleAttribute('data-ui-inspect', enabled);
     ensureToggle();
     if (!enabled && !activeElement) ensureBox().style.display = 'none';
     if (!enabled && activeElement) highlightElement(activeElement);
@@ -286,13 +286,13 @@ export function clientSource(options) {
     panel.id = PANEL_ID;
     const hasSelection = !!selected;
     panel.innerHTML = [
-      '<div class="ai-inspect-head"><div class="ai-inspect-title">AI 调试</div><button type="button" class="ai-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
-      '<div class="ai-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeSelection(selected)) + '</div>',
-      '<div class="ai-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ai-inspect-instruction" placeholder="描述你想调整什么，发送后 AI 会继续处理"></textarea>',
-      '<div class="ai-inspect-actions">',
-      '<div class="ai-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
-      '<div class="ai-inspect-actions-right"><button type="button" data-action="select">选择</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">UI 检查</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeSelection(selected)) + '</div>',
+      '<div class="ui-inspect-messages" aria-live="polite"></div>',
+      '<textarea id="ui-inspect-instruction" placeholder="描述你想调整什么，发送后 AI 会继续处理"></textarea>',
+      '<div class="ui-inspect-actions">',
+      '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
+      '<div class="ui-inspect-actions-right"><button type="button" data-action="select">选择</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
       '</div>'
     ].join('');
     document.body.appendChild(panel);
@@ -310,7 +310,7 @@ export function clientSource(options) {
     if (activeSessionData) renderSessionData(activeSessionData);
     if (activePanelSessionId && activeSessionData) startSessionStream(activePanelSessionId);
     textarea.focus();
-    ensureToggle().textContent = hasSelection ? '已选择元素' : 'AI 调试';
+    ensureToggle().textContent = hasSelection ? '已选择元素' : 'UI 检查';
     select.addEventListener('click', () => {
       reselectSessionId = activePanelSessionId;
       removePanel();
@@ -323,8 +323,8 @@ export function clientSource(options) {
       if (!instruction) return;
       const baseSelection = activeSessionData?.selection || null;
       if (!activeElement && !baseSelection) {
-        panel.querySelector('.ai-inspect-target').textContent = '请先点击“选择”，在页面上框选一个元素。';
-        panel.querySelector('.ai-inspect-target').dataset.empty = 'true';
+        panel.querySelector('.ui-inspect-target').textContent = '请先点击“选择”，在页面上框选一个元素。';
+        panel.querySelector('.ui-inspect-target').dataset.empty = 'true';
         return;
       }
       const payload = activeElement
@@ -332,12 +332,12 @@ export function clientSource(options) {
         : payloadFromSessionSelection(baseSelection, instruction);
       submitPayload(payload).then(() => {
         textarea.value = '';
-        panel.querySelector('.ai-inspect-target').textContent = describeSelection(payload);
-        panel.querySelector('.ai-inspect-target').dataset.empty = 'false';
+        panel.querySelector('.ui-inspect-target').textContent = describeSelection(payload);
+        panel.querySelector('.ui-inspect-target').dataset.empty = 'false';
         setEnabled(false);
       }).catch((err) => {
         ensureToggle().textContent = '发送失败';
-        panel.querySelector('.ai-inspect-target').textContent = '发送失败：' + (err && err.message ? err.message : String(err));
+        panel.querySelector('.ui-inspect-target').textContent = '发送失败：' + (err && err.message ? err.message : String(err));
       });
     });
     textarea.addEventListener('keydown', (event) => {
@@ -384,10 +384,10 @@ export function clientSource(options) {
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.innerHTML = [
-      '<div class="ai-inspect-head"><div class="ai-inspect-title">历史会话</div><button type="button" class="ai-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
-      '<div class="ai-inspect-target">正在读取历史会话...</div>',
-      '<div class="ai-inspect-session-list"></div>',
-      '<div class="ai-inspect-actions">',
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">历史会话</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-target">正在读取历史会话...</div>',
+      '<div class="ui-inspect-session-list"></div>',
+      '<div class="ui-inspect-actions">',
       '<button type="button" data-action="new">新调试</button>',
       '</div>'
     ].join('');
@@ -403,8 +403,8 @@ export function clientSource(options) {
       openDebugPanel();
     });
     function renderHistoryList(sessions) {
-      const list = panel.querySelector('.ai-inspect-session-list');
-      const target = panel.querySelector('.ai-inspect-target');
+      const list = panel.querySelector('.ui-inspect-session-list');
+      const target = panel.querySelector('.ui-inspect-target');
       if (!sessions.length) {
         target.textContent = '暂无历史会话。';
         list.innerHTML = '';
@@ -415,12 +415,12 @@ export function clientSource(options) {
         const title = sessionTitle(session).slice(0, 120);
         const time = new Date(session.updatedAt || session.createdAt || Date.now()).toLocaleString();
         const count = Array.isArray(session.messages) ? session.messages.length : 0;
-        return '<div class="ai-inspect-session-row" data-session-id="' + escapeHtml(session.id) + '">' +
-          '<button type="button" class="ai-inspect-session-item" data-action="open-session">' +
-            '<span class="ai-inspect-session-title">' + escapeHtml(title) + '</span>' +
-            '<span class="ai-inspect-session-meta">' + escapeHtml(time + ' · ' + count + ' 条消息') + '</span>' +
+        return '<div class="ui-inspect-session-row" data-session-id="' + escapeHtml(session.id) + '">' +
+          '<button type="button" class="ui-inspect-session-item" data-action="open-session">' +
+            '<span class="ui-inspect-session-title">' + escapeHtml(title) + '</span>' +
+            '<span class="ui-inspect-session-meta">' + escapeHtml(time + ' · ' + count + ' 条消息') + '</span>' +
           '</button>' +
-          '<button type="button" class="ai-inspect-session-delete" data-action="delete-session" aria-label="删除历史会话">删除</button>' +
+          '<button type="button" class="ui-inspect-session-delete" data-action="delete-session" aria-label="删除历史会话">删除</button>' +
           '</div>';
       }).join('');
       Array.from(list.querySelectorAll('[data-action="open-session"]')).forEach((button) => {
@@ -451,7 +451,7 @@ export function clientSource(options) {
     fetchSessions().then((sessions) => {
       renderHistoryList(sessions);
     }).catch((err) => {
-      panel.querySelector('.ai-inspect-target').textContent = '读取失败：' + (err && err.message ? err.message : String(err));
+      panel.querySelector('.ui-inspect-target').textContent = '读取失败：' + (err && err.message ? err.message : String(err));
     });
   }
 
@@ -497,11 +497,11 @@ export function clientSource(options) {
     if (!session) return;
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
-    const messagesEl = panel.querySelector('.ai-inspect-messages');
+    const messagesEl = panel.querySelector('.ui-inspect-messages');
     if (!messagesEl) return;
     messagesEl.innerHTML = session.messages.map((message) => (
-      '<div class="ai-inspect-msg" data-role="' + escapeHtml(message.role) + '">' +
-      '<span class="ai-inspect-msg-role">' + (message.role === 'assistant' ? '助手' : '你') + '</span>' +
+      '<div class="ui-inspect-msg" data-role="' + escapeHtml(message.role) + '">' +
+      '<span class="ui-inspect-msg-role">' + (message.role === 'assistant' ? '助手' : '你') + '</span>' +
       escapeHtml(message.content) +
       '</div>'
     )).join('');

@@ -1,15 +1,15 @@
 import {
   DEFAULT_DAEMON_PORT,
   DEFAULT_DAEMON_URL,
-  type AiInspectHealthResponse,
-  type AiInspectMessage,
-  type AiInspectMessageRole,
-  type AiInspectSelection,
-  type AiInspectSelectionResponse,
-  type AiInspectSession,
-  type AiInspectSessionsResponse,
-  type AiInspectSourceResponse,
-} from '@mashiro39/ai-inspect-protocol';
+  type UiInspectHealthResponse,
+  type UiInspectMessage,
+  type UiInspectMessageRole,
+  type UiInspectSelection,
+  type UiInspectSelectionResponse,
+  type UiInspectSession,
+  type UiInspectSessionsResponse,
+  type UiInspectSourceResponse,
+} from '@mashiro39/ui-inspect-protocol';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,19 +17,19 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { delay, isRecord, numberOr, stringOr, trimUrl } from './utils.js';
 
-const VERSION = '0.2.1';
+const VERSION = '0.3.1';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;
 const MAX_MESSAGES_PER_SESSION = 200;
-const PROJECT_STATE_DIR = '.ai-insert';
+const PROJECT_STATE_DIR = '.ui-inspect';
 const SESSIONS_FILE = 'sessions.json';
 
 class ServerState {
-  currentSelection: AiInspectSelection | null = null;
+  currentSelection: UiInspectSelection | null = null;
   currentSelectionReceivedAt = 0;
-  projectRoot = path.resolve(process.env.AI_INSPECT_PROJECT || process.cwd());
-  sessions = new Map<string, AiInspectSession>();
+  projectRoot = path.resolve(process.env.UI_INSPECT_PROJECT || process.cwd());
+  sessions = new Map<string, UiInspectSession>();
   sessionStreams = new Map<string, Set<ServerResponse>>();
 
   constructor() {
@@ -137,7 +137,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<voi
     server.listen(port, host, () => resolve());
   });
 
-  process.stdout.write(`ai-inspect daemon listening at http://${host}:${port}\n`);
+  process.stdout.write(`ui-inspect daemon listening at http://${host}:${port}\n`);
 
   await new Promise<void>((resolve) => {
     resolveClose = resolve;
@@ -146,26 +146,26 @@ export async function startServer(options: StartServerOptions = {}): Promise<voi
   });
 }
 
-export async function fetchSelection(daemonUrl = DEFAULT_DAEMON_URL): Promise<AiInspectSelectionResponse> {
+export async function fetchSelection(daemonUrl = DEFAULT_DAEMON_URL): Promise<UiInspectSelectionResponse> {
   const parsed = parseDaemonUrl(daemonUrl);
   const resp = await fetch(`${parsed}/selection`);
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
-  return (await resp.json()) as AiInspectSelectionResponse;
+  return (await resp.json()) as UiInspectSelectionResponse;
 }
 
-export async function fetchSessions(daemonUrl = DEFAULT_DAEMON_URL): Promise<AiInspectSessionsResponse> {
+export async function fetchSessions(daemonUrl = DEFAULT_DAEMON_URL): Promise<UiInspectSessionsResponse> {
   const parsed = parseDaemonUrl(daemonUrl);
   const resp = await fetch(`${parsed}/sessions`);
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
-  return (await resp.json()) as AiInspectSessionsResponse;
+  return (await resp.json()) as UiInspectSessionsResponse;
 }
 
 export async function postMessage(
   content: string,
-  role: AiInspectMessageRole = 'assistant',
+  role: UiInspectMessageRole = 'assistant',
   daemonUrl = DEFAULT_DAEMON_URL,
   options: { mode?: 'append' } = {},
-): Promise<AiInspectMessage> {
+): Promise<UiInspectMessage> {
   const parsed = parseDaemonUrl(daemonUrl);
   const resp = await fetch(`${parsed}/messages`, {
     method: 'POST',
@@ -173,7 +173,7 @@ export async function postMessage(
     body: JSON.stringify({ role, content, mode: options.mode }),
   });
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
-  const payload = (await resp.json()) as { message: AiInspectMessage };
+  const payload = (await resp.json()) as { message: UiInspectMessage };
   return payload.message;
 }
 
@@ -183,11 +183,11 @@ export async function clearSelection(daemonUrl = DEFAULT_DAEMON_URL): Promise<vo
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
 }
 
-export async function fetchHealth(daemonUrl = DEFAULT_DAEMON_URL): Promise<AiInspectHealthResponse> {
+export async function fetchHealth(daemonUrl = DEFAULT_DAEMON_URL): Promise<UiInspectHealthResponse> {
   const parsed = parseDaemonUrl(daemonUrl);
   const resp = await fetch(`${parsed}/health`);
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
-  return (await resp.json()) as AiInspectHealthResponse;
+  return (await resp.json()) as UiInspectHealthResponse;
 }
 
 export async function shutdownDaemon(daemonUrl = DEFAULT_DAEMON_URL): Promise<void> {
@@ -197,9 +197,9 @@ export async function shutdownDaemon(daemonUrl = DEFAULT_DAEMON_URL): Promise<vo
 }
 
 export async function readSelectionSource(
-  selection: AiInspectSelection,
+  selection: UiInspectSelection,
   contextLines: number,
-): Promise<AiInspectSourceResponse> {
+): Promise<UiInspectSourceResponse> {
   const root = selection.source.root;
   const file = selection.source.file;
   if (!root || !file) throw new Error('selection has no source file');
@@ -251,7 +251,7 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
 
   if (req.method === 'GET' && url.pathname === '/health') {
-    sendJson(res, 200, { ok: true, name: 'ai-inspect', version: VERSION } satisfies AiInspectHealthResponse);
+    sendJson(res, 200, { ok: true, name: 'ui-inspect', version: VERSION } satisfies UiInspectHealthResponse);
     return;
   }
 
@@ -274,7 +274,7 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
   }
 
   if (req.method === 'GET' && url.pathname === '/sessions') {
-    sendJson(res, 200, { sessions: Array.from(state.sessions.values()).sort((a, b) => b.updatedAt - a.updatedAt) } satisfies AiInspectSessionsResponse);
+    sendJson(res, 200, { sessions: Array.from(state.sessions.values()).sort((a, b) => b.updatedAt - a.updatedAt) } satisfies UiInspectSessionsResponse);
     return;
   }
 
@@ -337,7 +337,7 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
       return;
     }
     const roleValue = body && typeof body === 'object' ? (body as { role?: unknown }).role : null;
-    const role: AiInspectMessageRole = roleValue === 'user' ? 'user' : 'assistant';
+    const role: UiInspectMessageRole = roleValue === 'user' ? 'user' : 'assistant';
     const modeValue = body && typeof body === 'object' ? (body as { mode?: unknown }).mode : null;
     const mode = modeValue === 'append' ? 'append' : 'create';
     const sessionId = state.currentSelection?.sessionId;
@@ -383,7 +383,7 @@ function openSessionStream(
   req: IncomingMessage,
   res: ServerResponse,
   sessionId: string,
-  session: AiInspectSession,
+  session: UiInspectSession,
 ): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -430,7 +430,7 @@ function writeSse(res: ServerResponse, event: string, data: unknown): void {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function selectionResponse(): AiInspectSelectionResponse {
+function selectionResponse(): UiInspectSelectionResponse {
   if (!state.currentSelection) return { active: false, selection: null, session: null, ageMs: null };
   const ageMs = Date.now() - state.currentSelectionReceivedAt;
   if (ageMs > SELECTION_TTL_MS) {
@@ -441,7 +441,7 @@ function selectionResponse(): AiInspectSelectionResponse {
   return { active: true, selection: state.currentSelection, session: state.sessions.get(state.currentSelection.sessionId) ?? null, ageMs };
 }
 
-function isSession(value: unknown): value is AiInspectSession {
+function isSession(value: unknown): value is UiInspectSession {
   if (!isRecord(value)) return false;
   if (typeof value.id !== 'string') return false;
   if (typeof value.createdAt !== 'number' || typeof value.updatedAt !== 'number') return false;
@@ -449,9 +449,9 @@ function isSession(value: unknown): value is AiInspectSession {
   return value.selection === null || isRecord(value.selection);
 }
 
-function normalizeSelection(value: unknown): AiInspectSelection {
+function normalizeSelection(value: unknown): UiInspectSelection {
   if (!value || typeof value !== 'object') throw new Error('selection object required');
-  const input = value as Partial<AiInspectSelection>;
+  const input = value as Partial<UiInspectSelection>;
   if (!input.dom || !input.source) throw new Error('invalid selection payload');
   return {
     id: stringOr(input.id, `selection-${Date.now()}`),
@@ -467,7 +467,7 @@ function normalizeSelection(value: unknown): AiInspectSelection {
   };
 }
 
-function upsertSessionFromSelection(selection: AiInspectSelection): void {
+function upsertSessionFromSelection(selection: UiInspectSelection): void {
   const now = Date.now();
   const existing = state.sessions.get(selection.sessionId);
   const message = createMessage(selection.sessionId, 'user', selection.instruction, selection.id);
@@ -490,10 +490,10 @@ function upsertSessionFromSelection(selection: AiInspectSelection): void {
 
 function appendMessage(
   sessionId: string,
-  role: AiInspectMessageRole,
+  role: UiInspectMessageRole,
   content: string,
   selectionId: string | null,
-): AiInspectMessage {
+): UiInspectMessage {
   const now = Date.now();
   const session = state.sessions.get(sessionId);
   if (!session) throw new Error(`session not found: ${sessionId}`);
@@ -508,7 +508,7 @@ function appendAssistantMessage(
   sessionId: string,
   content: string,
   selectionId: string | null,
-): AiInspectMessage {
+): UiInspectMessage {
   const now = Date.now();
   const session = state.sessions.get(sessionId);
   if (!session) throw new Error(`session not found: ${sessionId}`);
@@ -529,10 +529,10 @@ function appendAssistantMessage(
 
 function createMessage(
   sessionId: string,
-  role: AiInspectMessageRole,
+  role: UiInspectMessageRole,
   content: string,
   selectionId: string | null,
-): AiInspectMessage {
+): UiInspectMessage {
   return {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     sessionId,

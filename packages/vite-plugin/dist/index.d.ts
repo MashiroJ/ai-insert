@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
-export interface AiInspectPluginOptions {
+export interface UiInspectPluginOptions {
     daemonUrl?: string;
     enabled?: boolean;
 }
-export declare function aiInspect(options?: AiInspectPluginOptions): Plugin;
-export default aiInspect;
+export declare function uiInspect(options?: UiInspectPluginOptions): Plugin;
+export default uiInspect;
