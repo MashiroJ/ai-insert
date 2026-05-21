@@ -12,6 +12,7 @@ export function clientSource(options: ClientSourceOptions): string {
   const TOGGLE_ID = 'ui-inspect-toggle';
   const MENU_ID = 'ui-inspect-menu';
   const PANEL_ID = 'ui-inspect-panel';
+  const TOAST_ID = 'ui-inspect-toast';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
   let enabled = false;
@@ -50,11 +51,16 @@ export function clientSource(options: ClientSourceOptions): string {
       '@keyframes ui-diana-sad{from{background-position:0 -390px}to{background-position:-576px -390px}}',
       '#ui-inspect-menu{position:fixed;z-index:2147483647;right:20px;bottom:110px;width:min(290px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:10px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-menu,#ui-inspect-menu *{cursor:auto!important}',
-      '#ui-inspect-menu .ui-inspect-menu-title{margin:0 0 8px;color:#e2e8f0;font-weight:900}',
+      '#ui-inspect-menu .ui-inspect-menu-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}',
+      '#ui-inspect-menu .ui-inspect-menu-title{color:#e2e8f0;font-weight:900}',
+      '#ui-inspect-menu .ui-inspect-menu-close{width:26px;height:26px;padding:0;border-radius:999px!important;text-align:center!important;line-height:1;font-size:16px}',
       '#ui-inspect-menu .ui-inspect-menu-actions{display:flex;flex-direction:column;gap:7px}',
       '#ui-inspect-menu button{width:100%;text-align:left;border:1px solid rgba(71,85,105,.9);border-radius:7px;background:#1e293b;color:white;padding:8px 9px;font-weight:800;cursor:pointer}',
+      '#ui-inspect-menu .ui-inspect-menu-close{width:26px;height:26px;padding:0;text-align:center!important;flex:none}',
       '#ui-inspect-menu button:hover{border-color:#60a5fa;background:#1d4ed8}',
       '#ui-inspect-menu .ui-inspect-menu-desc{display:block;margin-top:2px;color:#cbd5e1;font-size:11px;font-weight:500}',
+      '#ui-inspect-menu .ui-inspect-menu-secondary{margin-top:8px;border-style:dashed;color:#cbd5e1}',
+      '#ui-inspect-toast{position:fixed;z-index:2147483647;right:22px;bottom:112px;max-width:min(300px,calc(100vw - 44px));border:1px solid rgba(96,165,250,.42);border-radius:8px;background:rgba(15,23,42,.94);color:#dbeafe;padding:8px 10px;font:12px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:800;box-shadow:0 14px 36px rgba(15,23,42,.36)}',
       '#ui-inspect-panel{position:fixed;z-index:2147483647;right:16px;bottom:54px;width:min(420px,calc(100vw - 32px));background:#0f172a;color:white;border:1px solid rgba(148,163,184,.45);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.35);padding:12px;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
       '#ui-inspect-panel,#ui-inspect-panel *{cursor:auto!important}',
       '#ui-inspect-panel .ui-inspect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}',
@@ -163,7 +169,7 @@ export function clientSource(options: ClientSourceOptions): string {
   }
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID))));
   }
 
   function updateHover(el) {
@@ -360,6 +366,19 @@ export function clientSource(options: ClientSourceOptions): string {
     if (button) button.textContent = '已复制';
   }
 
+  function showToast(message, state) {
+    const existing = document.getElementById(TOAST_ID);
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = TOAST_ID;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    if (state) setDianaState(state, 1800);
+    setTimeout(() => {
+      if (toast.parentNode) toast.remove();
+    }, 2200);
+  }
+
   function removePanel() {
     closeSessionStream();
     const menu = document.getElementById(MENU_ID);
@@ -387,12 +406,13 @@ export function clientSource(options: ClientSourceOptions): string {
     const menu = document.createElement('div');
     menu.id = MENU_ID;
     menu.innerHTML = [
-      '<div class="ui-inspect-menu-title">Diana</div>',
+      '<div class="ui-inspect-menu-head"><div class="ui-inspect-menu-title">Diana</div><button type="button" class="ui-inspect-menu-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-menu-actions">',
       '<button type="button" data-mode="source">定位源码<span class="ui-inspect-menu-desc">点选元素后直接打开对应文件</span></button>',
       '<button type="button" data-mode="single">单点修改<span class="ui-inspect-menu-desc">选择一个元素，交给 AI 修改</span></button>',
       '<button type="button" data-mode="batch">批量标注<span class="ui-inspect-menu-desc">连续选择多个目标，再统一发送</span></button>',
-      '</div>'
+      '</div>',
+      '<button type="button" class="ui-inspect-menu-secondary" data-action="history">历史会话</button>'
     ].join('');
     document.body.appendChild(menu);
     ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
@@ -404,6 +424,8 @@ export function clientSource(options: ClientSourceOptions): string {
         beginSelectionMode(mode);
       });
     });
+    menu.querySelector('[data-action="close"]').addEventListener('click', () => removePanel());
+    menu.querySelector('[data-action="history"]').addEventListener('click', () => openHistoryPanel());
   }
 
   function beginSelectionMode(mode) {
@@ -469,7 +491,17 @@ export function clientSource(options: ClientSourceOptions): string {
 
   function describeTargets() {
     if (!selectedTargets.length) return '未选择元素，点击“选择”后在页面上框选。';
-    return '任务草稿 · 已选择 ' + selectedTargets.length + ' 个目标';
+    return taskModeTitle() + ' · 已选择 ' + selectedTargets.length + ' 个目标';
+  }
+
+  function taskModeTitle() {
+    return activeTaskMode === 'single' ? '单点修改' : '批量标注';
+  }
+
+  function targetNotePlaceholder() {
+    return activeTaskMode === 'single'
+      ? '这个元素要怎么改，例如：按钮更醒目'
+      : '针对这个目标的要求（可选），例如：标题小一点';
   }
 
   function renderTargets(panel) {
@@ -496,7 +528,7 @@ export function clientSource(options: ClientSourceOptions): string {
             '<button type="button" data-action="remove-target">移除</button>' +
           '</div>' +
         '</div>' +
-        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="针对这个目标的要求（可选），例如：标题小一点" />' +
+        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="' + escapeHtml(targetNotePlaceholder()) + '" />' +
       '</div>';
     }).join('');
     Array.from(list.querySelectorAll('[data-target-note]')).forEach((input) => {
@@ -556,12 +588,12 @@ export function clientSource(options: ClientSourceOptions): string {
     panel.id = PANEL_ID;
     const hasSelection = selectedTargets.length > 0;
     panel.innerHTML = [
-      '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · 任务草稿</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · ' + escapeHtml(taskModeTitle()) + '</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-status">' + escapeHtml(statusText(activeSessionData?.status || (hasSelection ? 'draft' : 'draft'))) + '</div>',
       '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeTargets()) + '</div>',
       '<div class="ui-inspect-target-list"></div>',
       '<div class="ui-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ui-inspect-instruction" placeholder="整体需求（可选），例如：这组卡片间距太大，改得更像后台管理系统"></textarea>',
+      '<textarea id="ui-inspect-instruction" placeholder="' + (activeTaskMode === 'single' ? '描述这个元素要怎么改，发送后 AI 会继续处理' : '整体需求（可选），例如：这组卡片间距太大，改得更像后台管理系统') + '"></textarea>',
       '<div class="ui-inspect-actions">',
       '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
       '<div class="ui-inspect-actions-right"><button type="button" data-action="select">' + (activeTaskMode === 'single' ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
@@ -624,7 +656,7 @@ export function clientSource(options: ClientSourceOptions): string {
         renderTargets(panel);
         setEnabled(false);
       }).catch((err) => {
-        ensureToggle().textContent = '发送失败';
+        setDianaState('failed', 2200);
         panel.querySelector('.ui-inspect-target').textContent = '发送失败：' + (err && err.message ? err.message : String(err));
       });
     });
@@ -689,7 +721,7 @@ export function clientSource(options: ClientSourceOptions): string {
       activeSessionData = null;
       selectedTargets = [];
       clearHighlight();
-      openDebugPanel();
+      openModeMenu();
     });
     function renderHistoryList(sessions) {
       const list = panel.querySelector('.ui-inspect-session-list');
@@ -769,14 +801,14 @@ export function clientSource(options: ClientSourceOptions): string {
       event.preventDefault();
       event.stopPropagation();
       if (!selection?.source?.file) {
-        setDianaState('failed', 1600);
+        showToast('Diana 没有识别到这个元素的源码位置', 'failed');
         return;
       }
       setDianaState('working');
       openSource(selection).then(() => {
-        setDianaState('done', 1800);
+        showToast('Diana 已打开源码', 'done');
       }).catch(() => {
-        setDianaState('failed', 2200);
+        showToast('打开源码失败', 'failed');
       });
       return;
     }
@@ -790,14 +822,14 @@ export function clientSource(options: ClientSourceOptions): string {
       const selection = selectionPayloadFor(el, '', sessionId || activePanelSessionId || undefined);
       setEnabled(false);
       if (!selection?.source?.file) {
-        setDianaState('failed', 1800);
+        showToast('Diana 没有识别到这个元素的源码位置', 'failed');
         return;
       }
       setDianaState('working');
       openSource(selection).then(() => {
-        setDianaState('done', 1800);
+        showToast('Diana 已打开源码', 'done');
       }).catch(() => {
-        setDianaState('failed', 2200);
+        showToast('打开源码失败', 'failed');
       });
       return;
     }

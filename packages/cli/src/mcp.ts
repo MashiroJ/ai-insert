@@ -21,7 +21,7 @@ import {
 } from '@ui-inspect/server';
 
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.1.3';
+const SERVER_VERSION = '0.1.4';
 
 interface RunMcpOptions {
   daemonUrl: string;
