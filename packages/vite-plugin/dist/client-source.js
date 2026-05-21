@@ -15,6 +15,7 @@ export function clientSource(options) {
   let activeSessionData = null;
   let reselectSessionId = null;
   let sessionEvents = null;
+  let selectedTargets = [];
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -32,6 +33,14 @@ export function clientSource(options) {
       '#ui-inspect-panel label{display:block;margin:0 0 8px;color:#cbd5e1;font-weight:700}',
       '#ui-inspect-panel .ui-inspect-target{margin:0 0 8px;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
       '#ui-inspect-panel .ui-inspect-target[data-empty="true"]{color:#94a3b8;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
+      '#ui-inspect-panel .ui-inspect-status{display:inline-flex;margin:0 0 8px;padding:3px 7px;border:1px solid rgba(96,165,250,.35);border-radius:999px;color:#bfdbfe;background:rgba(30,64,175,.24);font-size:11px;font-weight:800}',
+      '#ui-inspect-panel .ui-inspect-target-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;margin:0 0 10px}',
+      '#ui-inspect-panel .ui-inspect-target-card{border:1px solid rgba(148,163,184,.28);border-radius:7px;background:rgba(15,23,42,.72);padding:8px}',
+      '#ui-inspect-panel .ui-inspect-target-top{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-bottom:6px}',
+      '#ui-inspect-panel .ui-inspect-target-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#93c5fd;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}',
+      '#ui-inspect-panel .ui-inspect-target-tools{display:flex;gap:5px;flex:none}',
+      '#ui-inspect-panel .ui-inspect-target-tools button{padding:4px 7px;font-size:11px}',
+      '#ui-inspect-panel .ui-inspect-target-card input{box-sizing:border-box;width:100%;border:1px solid #334155;border-radius:5px;background:#020617;color:white;padding:7px;font:12px/1.35 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;outline:none}',
       '#ui-inspect-panel .ui-inspect-session-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto;margin:0 0 10px}',
       '#ui-inspect-panel .ui-inspect-session-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}',
       '#ui-inspect-panel .ui-inspect-session-item{text-align:left;border:1px solid rgba(148,163,184,.25);border-radius:7px;background:rgba(15,23,42,.72);color:white;padding:8px 9px;cursor:pointer;min-width:0}',
@@ -112,6 +121,17 @@ export function clientSource(options) {
     activeElement = null;
     hovered = null;
     ensureBox().style.display = 'none';
+  }
+
+  function statusText(status) {
+    return ({
+      draft: '草稿',
+      sent: '已发送',
+      claimed: 'AI 已接收',
+      working: '处理中',
+      done: '已完成',
+      failed: '失败'
+    })[status || 'draft'] || '草稿';
   }
 
   function cssEscape(value) {
@@ -204,6 +224,7 @@ export function clientSource(options) {
       title: document.title,
       timestamp: Date.now(),
       instruction: instruction || '',
+      note: '',
       framework: vue ? 'vue3' : 'dom',
       dom: {
         selector: selectorFor(el),
@@ -245,6 +266,35 @@ export function clientSource(options) {
     renderSession(payload.sessionId).catch(() => {});
   }
 
+  async function updateSessionStatus(sessionId, status) {
+    const resp = await fetch(DAEMON_URL.replace(/\\/$/, '') + '/sessions/' + encodeURIComponent(sessionId) + '/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+  }
+
+  async function openSource(selection, button) {
+    if (!selection?.source?.file) return;
+    const resp = await fetch(DAEMON_URL.replace(/\\/$/, '') + '/open-source', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ source: selection.source })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    if (button) button.textContent = '已打开';
+  }
+
+  async function copySource(selection, button) {
+    const source = selection?.source;
+    if (!source?.file) return;
+    const suffix = source.line ? ':' + source.line + (source.column ? ':' + source.column : '') : '';
+    const text = source.file + suffix;
+    await navigator.clipboard?.writeText(text);
+    if (button) button.textContent = '已复制';
+  }
+
   function removePanel() {
     closeSessionStream();
     const existing = document.getElementById(PANEL_ID);
@@ -257,12 +307,82 @@ export function clientSource(options) {
     activePanelSessionId = null;
     activeSessionData = null;
     reselectSessionId = null;
+    selectedTargets = [];
     clearHighlight();
   }
 
   function describeSelection(selection) {
     if (!selection) return '未选择元素，点击“选择”后在页面上框选。';
     return selection.source?.file || selection.vue?.componentName || selection.dom?.selector || '已选择 DOM 元素';
+  }
+
+  function targetFromSelection(selection, note) {
+    return {
+      id: selection.id,
+      note: note || selection.note || '',
+      selection: { ...selection, note: note || selection.note || '' }
+    };
+  }
+
+  function targetsFromSession(session) {
+    if (Array.isArray(session?.targets) && session.targets.length) return session.targets;
+    return session?.selection ? [targetFromSelection(session.selection, session.selection.note || '')] : [];
+  }
+
+  function describeTargets() {
+    if (!selectedTargets.length) return '未选择元素，点击“选择”后在页面上框选。';
+    return selectedTargets.length === 1 ? describeSelection(selectedTargets[0].selection) : '已选择 ' + selectedTargets.length + ' 个元素';
+  }
+
+  function renderTargets(panel) {
+    const list = panel.querySelector('.ui-inspect-target-list');
+    const target = panel.querySelector('.ui-inspect-target');
+    if (!list || !target) return;
+    target.textContent = describeTargets();
+    target.dataset.empty = selectedTargets.length ? 'false' : 'true';
+    list.innerHTML = selectedTargets.map((item, index) => {
+      const title = describeSelection(item.selection);
+      const hasSource = !!item.selection?.source?.file;
+      return '<div class="ui-inspect-target-card" data-target-index="' + index + '">' +
+        '<div class="ui-inspect-target-top">' +
+          '<div class="ui-inspect-target-title">' + escapeHtml(title) + '</div>' +
+          '<div class="ui-inspect-target-tools">' +
+            (hasSource ? '<button type="button" data-action="open-source">打开源码</button><button type="button" data-action="copy-source">复制路径</button>' : '') +
+            '<button type="button" data-action="remove-target">移除</button>' +
+          '</div>' +
+        '</div>' +
+        '<input data-target-note value="' + escapeHtml(item.note || '') + '" placeholder="给这个元素单独备注，例如：标题太大" />' +
+      '</div>';
+    }).join('');
+    Array.from(list.querySelectorAll('[data-target-note]')).forEach((input) => {
+      input.addEventListener('input', () => {
+        const row = input.closest('[data-target-index]');
+        const index = Number(row?.getAttribute('data-target-index'));
+        if (Number.isInteger(index) && selectedTargets[index]) selectedTargets[index].note = input.value;
+      });
+    });
+    Array.from(list.querySelectorAll('[data-action="remove-target"]')).forEach((button) => {
+      button.addEventListener('click', () => {
+        const row = button.closest('[data-target-index]');
+        const index = Number(row?.getAttribute('data-target-index'));
+        if (Number.isInteger(index)) selectedTargets.splice(index, 1);
+        renderTargets(panel);
+      });
+    });
+    Array.from(list.querySelectorAll('[data-action="open-source"]')).forEach((button) => {
+      button.addEventListener('click', () => {
+        const row = button.closest('[data-target-index]');
+        const index = Number(row?.getAttribute('data-target-index'));
+        openSource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '打开失败'; });
+      });
+    });
+    Array.from(list.querySelectorAll('[data-action="copy-source"]')).forEach((button) => {
+      button.addEventListener('click', () => {
+        const row = button.closest('[data-target-index]');
+        const index = Number(row?.getAttribute('data-target-index'));
+        copySource(selectedTargets[index]?.selection, button).catch(() => { button.textContent = '复制失败'; });
+      });
+    });
   }
 
   function openDebugPanel(options) {
@@ -272,24 +392,30 @@ export function clientSource(options) {
       activeSessionData = options.session;
       activePanelSessionId = options.session.id;
       activeSessionId = options.session.id;
+      selectedTargets = targetsFromSession(options.session);
       localStorage.setItem(LAST_SESSION_KEY, activeSessionId);
     } else if (options?.sessionId) {
       activePanelSessionId = options.sessionId;
     } else if (!activePanelSessionId) {
       activePanelSessionId = 'session-' + Date.now();
     }
-    if (options?.element) activeElement = options.element;
+    if (options?.element) {
+      activeElement = options.element;
+      const draft = selectionPayloadFor(options.element, '', activePanelSessionId);
+      selectedTargets.push(targetFromSelection(draft, ''));
+    }
     if (activeElement) highlightElement(activeElement);
-    const selectedDraft = activeElement ? selectionPayloadFor(activeElement, '', activePanelSessionId) : null;
-    const selected = selectedDraft || activeSessionData?.selection || null;
+    if (!selectedTargets.length && activeSessionData?.selection) selectedTargets = targetsFromSession(activeSessionData);
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
-    const hasSelection = !!selected;
+    const hasSelection = selectedTargets.length > 0;
     panel.innerHTML = [
       '<div class="ui-inspect-head"><div class="ui-inspect-title">UI 检查</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
-      '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeSelection(selected)) + '</div>',
+      '<div class="ui-inspect-status">' + escapeHtml(statusText(activeSessionData?.status || (hasSelection ? 'draft' : 'draft'))) + '</div>',
+      '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeTargets()) + '</div>',
+      '<div class="ui-inspect-target-list"></div>',
       '<div class="ui-inspect-messages" aria-live="polite"></div>',
-      '<textarea id="ui-inspect-instruction" placeholder="描述你想调整什么，发送后 AI 会继续处理"></textarea>',
+      '<textarea id="ui-inspect-instruction" placeholder="描述整体需求，发送后 AI 会继续处理"></textarea>',
       '<div class="ui-inspect-actions">',
       '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
       '<div class="ui-inspect-actions-right"><button type="button" data-action="select">选择</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
@@ -308,6 +434,7 @@ export function clientSource(options) {
     const close = panel.querySelector('[data-action="close"]');
     if (options?.prefill) textarea.value = options.prefill;
     if (activeSessionData) renderSessionData(activeSessionData);
+    renderTargets(panel);
     if (activePanelSessionId && activeSessionData) startSessionStream(activePanelSessionId);
     textarea.focus();
     ensureToggle().textContent = hasSelection ? '已选择元素' : 'UI 检查';
@@ -321,19 +448,29 @@ export function clientSource(options) {
     send.addEventListener('click', () => {
       const instruction = textarea.value.trim();
       if (!instruction) return;
-      const baseSelection = activeSessionData?.selection || null;
-      if (!activeElement && !baseSelection) {
+      if (!selectedTargets.length) {
         panel.querySelector('.ui-inspect-target').textContent = '请先点击“选择”，在页面上框选一个元素。';
         panel.querySelector('.ui-inspect-target').dataset.empty = 'true';
         return;
       }
-      const payload = activeElement
-        ? selectionPayloadFor(activeElement, instruction, activePanelSessionId)
-        : payloadFromSessionSelection(baseSelection, instruction);
+      selectedTargets = selectedTargets.map((item) => {
+        const note = item.note || '';
+        return targetFromSelection({ ...item.selection, note }, note);
+      });
+      const primary = selectedTargets[0].selection;
+      const payload = {
+        ...primary,
+        id: 'selection-' + Date.now(),
+        sessionId: activePanelSessionId,
+        timestamp: Date.now(),
+        instruction,
+        note: selectedTargets[0].note || '',
+        targets: selectedTargets
+      };
       submitPayload(payload).then(() => {
         textarea.value = '';
-        panel.querySelector('.ui-inspect-target').textContent = describeSelection(payload);
-        panel.querySelector('.ui-inspect-target').dataset.empty = 'false';
+        panel.querySelector('.ui-inspect-status').textContent = statusText('sent');
+        renderTargets(panel);
         setEnabled(false);
       }).catch((err) => {
         ensureToggle().textContent = '发送失败';
@@ -399,6 +536,7 @@ export function clientSource(options) {
     panel.querySelector('[data-action="new"]').addEventListener('click', () => {
       activePanelSessionId = null;
       activeSessionData = null;
+      selectedTargets = [];
       clearHighlight();
       openDebugPanel();
     });
@@ -457,6 +595,7 @@ export function clientSource(options) {
 
   function openSessionPanel(session) {
     activeElement = null;
+    selectedTargets = targetsFromSession(session);
     openDebugPanel({ session, sessionId: session.id });
   }
 
@@ -498,6 +637,8 @@ export function clientSource(options) {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
     const messagesEl = panel.querySelector('.ui-inspect-messages');
+    const statusEl = panel.querySelector('.ui-inspect-status');
+    if (statusEl) statusEl.textContent = statusText(session.status);
     if (!messagesEl) return;
     messagesEl.innerHTML = session.messages.map((message) => (
       '<div class="ui-inspect-msg" data-role="' + escapeHtml(message.role) + '">' +

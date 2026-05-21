@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const version = '0.3.1';
+const version = '0.3.2';
 const outDir = join(root, 'release', `ui-inspect-${version}`);
 const packages = [
   '@mashiro39/ui-inspect-protocol',
@@ -122,5 +122,13 @@ npm install -D ./mashiro39-ui-inspect-protocol-${version}.tgz ./mashiro39-ui-ins
 \`\`\`
 
 agent 应调用 \`start_ui_inspect\`，再调用 \`wait_for_frontend_request\` 等待用户在浏览器面板里选择元素并点击发送。
+
+## 0.3.2 能力
+
+- 浏览器面板支持多选元素。
+- 每个元素可以填写单独备注。
+- 面板会显示任务状态：已发送、AI 已接收、处理中、已完成、失败。
+- 支持从选中元素点击打开源码或复制源码路径。
+- MCP agent 可用 \`update_ui_task_status\` 回写任务状态。
 `;
 }

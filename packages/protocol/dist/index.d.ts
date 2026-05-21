@@ -36,11 +36,18 @@ export interface UiInspectSelection {
     title: string;
     timestamp: number;
     instruction: string;
+    note?: string;
     framework: 'vue3' | 'dom';
     dom: UiInspectDomSelection;
     vue: UiInspectVueSelection | null;
     source: UiInspectSourceSelection;
 }
+export interface UiInspectTarget {
+    id: string;
+    note: string;
+    selection: UiInspectSelection;
+}
+export type UiInspectTaskStatus = 'draft' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';
 export type UiInspectMessageRole = 'user' | 'assistant';
 export interface UiInspectMessage {
     id: string;
@@ -54,7 +61,9 @@ export interface UiInspectSession {
     id: string;
     createdAt: number;
     updatedAt: number;
+    status?: UiInspectTaskStatus;
     selection: UiInspectSelection | null;
+    targets?: UiInspectTarget[];
     messages: UiInspectMessage[];
 }
 export interface UiInspectSelectionResponse {

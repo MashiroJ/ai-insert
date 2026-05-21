@@ -2,7 +2,7 @@
 
 ui-inspect 是一个面向前端项目的通用 MCP 上下文服务。
 
-它让用户在本地浏览器里框选页面元素，采集 DOM、样式、Vue 组件和源码线索，再通过 MCP tools 交给任意支持 MCP 的 AI coding agent。它不绑定 Claude、Codex、Cursor 或任何特定 agent，也不会在浏览器里直接改代码。
+它让用户在本地浏览器里框选一个或多个页面元素，采集 DOM、样式、Vue 组件和源码线索，再通过 MCP tools 交给任意支持 MCP 的 AI coding agent。它不绑定 Claude、Codex、Cursor 或任何特定 agent，也不会在浏览器里直接改代码。
 
 当前重点支持：Vite + Vue 3。
 
@@ -124,10 +124,13 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 
 1. 点击 `UI 检查`。
 2. 点击 `选择`。
-3. 在页面上点选要修改的元素。
-4. 输入需求，例如“把这个按钮改成红色，并加一点 hover 效果”。
-5. 点击 `发送`。
-6. AI 会通过 `wait_for_frontend_request` 收到 selection、session 和源码上下文，然后继续改代码。
+3. 在页面上点选要修改的元素；可以反复点击 `选择` 添加多个元素。
+4. 给每个元素写单独备注，也可以点击 `打开源码` 或 `复制路径` 定位到具体文件。
+5. 输入整体需求，例如“这些卡片间距太大，改得更像后台管理系统”。
+6. 点击 `发送`。
+7. AI 会通过 `wait_for_frontend_request` 收到 task、多个 targets、每个元素备注和源码上下文，然后继续改代码。
+
+浏览器面板会显示任务状态：`已发送`、`AI 已接收`、`处理中`、`已完成`、`失败`。
 
 如果 10 分钟内没有点击发送，本次等待会超时，并关闭本次 ui-inspect daemon / MCP 进程。
 
@@ -142,8 +145,9 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 5. 当用户说 `启用 ui-inspect` 时，直接调用 `start_ui_inspect`。
 6. `start_ui_inspect` 返回页面 URL 后，提示用户在浏览器里打开或继续使用该页面。
 7. 立即调用 `wait_for_frontend_request`，等待用户在浏览器面板中选择元素并点击发送。
-8. 收到结果后，根据用户需求修改代码。
-9. 修改完成后，可以调用 `reply_to_user` 把简短结果回写到浏览器面板。
+8. 收到结果后，读取 `targets` 和 `targetSources`，根据整体需求和每个元素备注修改代码。
+9. 开始处理时调用 `update_ui_task_status` 设置为 `working`。
+10. 修改完成后，调用 `update_ui_task_status` 设置为 `done`，再调用 `reply_to_user` 把简短结果回写到浏览器面板。
 
 不要查找项目里是否有名为 `ui-inspect` 的业务功能；`启用 ui-inspect` 是固定触发语。
 
@@ -171,6 +175,7 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 - 最新用户需求
 - 当前 session
 - 当前 selection
+- 多个 targets 和每个元素备注
 - 相关源码上下文
 
 超时后会关闭本次 ui-inspect daemon / MCP 进程。
@@ -205,6 +210,18 @@ agent 应该调用 MCP tool `start_ui_inspect`，然后调用 `wait_for_frontend
 ### `get_frontend_sessions`
 
 读取最近的调试会话和消息历史。
+
+### `update_ui_task_status`
+
+更新浏览器面板里的任务状态。
+
+```json
+{
+  "status": "working"
+}
+```
+
+支持：`claimed`、`working`、`done`、`failed`。
 
 ### `reply_to_user`
 
@@ -249,7 +266,7 @@ ui-inspect clear
 ui-inspect 有四层：
 
 - Vite 插件：在 dev server 中注入浏览器调试面板。
-- 浏览器面板：负责选择元素、输入需求、查看历史。
+- 浏览器面板：负责多选元素、单独备注、打开源码、输入需求、查看历史和显示任务状态。
 - 本地 daemon：默认运行在 `http://127.0.0.1:17321`，保存 selection 和 session。
 - MCP server：把浏览器采集到的上下文提供给 AI agent。
 
@@ -280,6 +297,22 @@ ui-inspect 有四层：
 - 项目是否是 Vite dev server。
 - `vite.config.ts/js` 是否加入了 `uiInspect()`。
 - 是否重启了 dev server。
+
+### 点击 `打开源码` 没反应
+
+ui-inspect 会优先尝试这些编辑器命令：
+
+```text
+code
+cursor
+webstorm
+```
+
+如果都没有，会在 macOS 上回退到 `open`。你也可以指定：
+
+```bash
+UI_INSPECT_EDITOR=cursor
+```
 
 ### agent 找不到 MCP tool
 

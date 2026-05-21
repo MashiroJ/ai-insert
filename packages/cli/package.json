@@ -1,6 +1,6 @@
 {
   "name": "@mashiro39/ui-inspect-cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "bin": {
     "ui-inspect": "./dist/index.js"

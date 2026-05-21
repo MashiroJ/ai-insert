@@ -811,7 +811,7 @@ packages:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
 
-  tinyglobby@0.3.16:
+  tinyglobby@0.3.26:
     resolution: {integrity: sha512-pn99VhoACYR8nFHhxqix+uvsbXineAasWm5ojXoN8xEwK5Kd3/TrhNn1wByuD52UxWRLy8pu+kRMniEi6Eq9Zg==}
     engines: {node: '>=12.0.0'}
 
@@ -1596,7 +1596,7 @@ snapshots:
 
   statuses@2.0.2: {}
 
-  tinyglobby@0.3.16:
+  tinyglobby@0.3.26:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
@@ -1624,7 +1624,7 @@ snapshots:
       picomatch: 4.0.4
       postcss: 8.5.14
       rollup: 4.60.3
-      tinyglobby: 0.3.16
+      tinyglobby: 0.3.26
     optionalDependencies:
       '@types/node': 20.19.40
       fsevents: 2.3.3

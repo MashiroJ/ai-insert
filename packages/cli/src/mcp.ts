@@ -22,7 +22,7 @@ import {
 } from '@mashiro39/ui-inspect-server';
 
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.3.1';
+const SERVER_VERSION = '0.3.2';
 
 interface RunMcpOptions {
   daemonUrl: string;
@@ -32,6 +32,8 @@ interface ToolArgs {
   context?: unknown;
   content?: unknown;
   project?: unknown;
+  sessionId?: unknown;
+  status?: unknown;
   timeoutMs?: unknown;
   sinceTimestamp?: unknown;
 }
@@ -132,6 +134,32 @@ const TOOL_DEFS = [
     },
   },
   {
+    name: 'update_ui_task_status',
+    description: 'Update a ui-inspect browser task status so the user can see whether the AI has received, is working on, completed, or failed the task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'ui-inspect session id. Defaults to the active session when omitted.',
+        },
+        status: {
+          type: 'string',
+          enum: ['claimed', 'working', 'done', 'failed'],
+          description: 'Task status shown in the browser panel.',
+        },
+      },
+      required: ['status'],
+      additionalProperties: false,
+    },
+    annotations: {
+      title: 'Update UI task status',
+      readOnlyHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
     name: 'reply_to_user',
     description: 'Send an assistant reply into the current ui-inspect browser panel after modifying code, so the user can continue the same debug conversation.',
     inputSchema: {
@@ -165,7 +193,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'Canonical user trigger phrase: "启用 ui-inspect". When the user says this exact phrase, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
         'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon, project integration, project dev server, and browser URL. Do not search the codebase for a ui-inspect feature first.',
         'start_ui_inspect returns integration and devServer status but must not open or refresh the browser. If devServer.url is present, tell the user to keep using that browser page.',
-        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source and session, edit code according to the user instruction, then call reply_to_user with a short status asking whether the user wants more changes.',
+        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
         'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
       ].join('\n'),
     },
@@ -214,6 +242,15 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
       if (name === 'get_frontend_sessions') {
         return textResult(await fetchSessions(daemonUrl));
       }
+      if (name === 'update_ui_task_status') {
+        const status = typeof args.status === 'string' ? args.status : '';
+        if (!['claimed', 'working', 'done', 'failed'].includes(status)) throw new Error('status must be claimed, working, done, or failed');
+        const sessionId = typeof args.sessionId === 'string' && args.sessionId.trim()
+          ? args.sessionId.trim()
+          : (await fetchSelection(daemonUrl)).session?.id;
+        if (!sessionId) throw new Error('sessionId is required when there is no active session');
+        return textResult(await updateTaskStatus(daemonUrl, sessionId, status));
+      }
       if (name === 'reply_to_user') {
         if (typeof args.content !== 'string' || !args.content.trim()) {
           throw new Error('content is required');
@@ -250,16 +287,25 @@ async function waitForFrontendRequest({
   while (Date.now() <= deadline) {
     const match = latestUserMessage(await fetchSessions(daemonUrl), sinceTimestamp);
     if (match) {
+      await updateTaskStatus(daemonUrl, match.session.id, 'claimed').catch(() => null);
       const source = match.session.selection
         ? await readSourceIfAvailable(match.session.selection, context)
         : null;
+      const targetSources = await Promise.all((match.session.targets || []).map(async (target) => ({
+        id: target.id,
+        note: target.note,
+        selection: target.selection,
+        source: await readSourceIfAvailable(target.selection, context),
+      })));
       return {
         ok: true,
         timedOut: false,
         message: match.message,
         session: match.session,
         selection: match.session.selection,
+        targets: match.session.targets || [],
         source,
+        targetSources,
       };
     }
     await sleep(WAIT_POLL_INTERVAL_MS);
@@ -270,6 +316,16 @@ async function waitForFrontendRequest({
     timeoutMs,
     message: `No browser request was sent within ${Math.round(timeoutMs / 1000)} seconds. The ui-inspect daemon and MCP process are shutting down for this run.`,
   };
+}
+
+async function updateTaskStatus(daemonUrl: string, sessionId: string, status: string): Promise<unknown> {
+  const resp = await fetch(`${daemonUrl.replace(/\/$/, '')}/sessions/${encodeURIComponent(sessionId)}/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+  return await resp.json();
 }
 
 function latestUserMessage(

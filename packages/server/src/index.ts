@@ -9,15 +9,18 @@ import {
   type UiInspectSession,
   type UiInspectSessionsResponse,
   type UiInspectSourceResponse,
+  type UiInspectTarget,
+  type UiInspectTaskStatus,
 } from '@mashiro39/ui-inspect-protocol';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
 import { delay, isRecord, numberOr, stringOr, trimUrl } from './utils.js';
 
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;
@@ -353,6 +356,39 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
     return;
   }
 
+  if (req.method === 'POST' && url.pathname.startsWith('/sessions/') && url.pathname.endsWith('/status')) {
+    if (!isLocalOrigin(req.headers.origin)) {
+      sendJson(res, 403, { error: 'origin rejected' });
+      return;
+    }
+    const sessionId = decodeURIComponent(url.pathname.slice('/sessions/'.length, -'/status'.length));
+    const session = state.sessions.get(sessionId);
+    if (!session) {
+      sendJson(res, 404, { error: 'session not found' });
+      return;
+    }
+    const body = await readJson(req);
+    const status = normalizeTaskStatus(isRecord(body) ? body.status : null);
+    session.status = status;
+    session.updatedAt = Date.now();
+    state.saveSessions();
+    emitSession(sessionId);
+    sendJson(res, 200, { ok: true, session });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/open-source') {
+    if (!isLocalOrigin(req.headers.origin)) {
+      sendJson(res, 403, { error: 'origin rejected' });
+      return;
+    }
+    const body = await readJson(req);
+    const source = isRecord(body) && isRecord(body.source) ? body.source : body;
+    const result = openSource(source);
+    sendJson(res, result.ok ? 200 : 400, result);
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/selection/clear') {
     state.currentSelection = null;
     state.currentSelectionReceivedAt = 0;
@@ -460,6 +496,7 @@ function normalizeSelection(value: unknown): UiInspectSelection {
     title: stringOr(input.title, ''),
     timestamp: numberOr(input.timestamp, Date.now()),
     instruction: stringOr(input.instruction, ''),
+    note: typeof input.note === 'string' ? input.note : undefined,
     framework: input.framework === 'vue3' ? 'vue3' : 'dom',
     dom: input.dom,
     vue: input.vue ?? null,
@@ -471,8 +508,11 @@ function upsertSessionFromSelection(selection: UiInspectSelection): void {
   const now = Date.now();
   const existing = state.sessions.get(selection.sessionId);
   const message = createMessage(selection.sessionId, 'user', selection.instruction, selection.id);
+  const targets = normalizeTargets((selection as unknown as { targets?: unknown }).targets, selection);
   if (existing) {
     existing.selection = selection;
+    existing.targets = targets;
+    existing.status = 'sent';
     existing.updatedAt = now;
     if (selection.instruction) existing.messages.push(message);
     state.saveSessions();
@@ -482,10 +522,38 @@ function upsertSessionFromSelection(selection: UiInspectSelection): void {
     id: selection.sessionId,
     createdAt: now,
     updatedAt: now,
+    status: 'sent',
     selection,
+    targets,
     messages: selection.instruction ? [message] : [],
   });
   state.saveSessions();
+}
+
+function normalizeTargets(value: unknown, fallback: UiInspectSelection): UiInspectTarget[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return [{
+      id: fallback.id,
+      note: typeof fallback.note === 'string' ? fallback.note : '',
+      selection: fallback,
+    }];
+  }
+  return value.slice(0, 20).map((item, index) => {
+    const input = isRecord(item) ? item : {};
+    const rawSelection = isRecord(input.selection) ? input.selection : fallback;
+    const selection = normalizeSelection(rawSelection);
+    return {
+      id: stringOr(input.id, selection.id || `target-${Date.now()}-${index}`),
+      note: stringOr(input.note, stringOr(selection.note, '')),
+      selection,
+    };
+  });
+}
+
+function normalizeTaskStatus(value: unknown): UiInspectTaskStatus {
+  return value === 'draft' || value === 'sent' || value === 'claimed' || value === 'working' || value === 'done' || value === 'failed'
+    ? value
+    : 'working';
 }
 
 function appendMessage(
@@ -541,6 +609,53 @@ function createMessage(
     timestamp: Date.now(),
     selectionId,
   };
+}
+
+function openSource(value: unknown): { ok: boolean; editor?: string; command?: string; args?: string[]; file?: string; error?: string } {
+  if (!isRecord(value)) return { ok: false, error: 'source object required' };
+  const root = typeof value.root === 'string' ? value.root : state.projectRoot;
+  const file = typeof value.file === 'string' ? value.file : '';
+  if (!file) return { ok: false, error: 'source.file is required' };
+  const resolvedRoot = path.resolve(root);
+  const resolvedFile = path.isAbsolute(file) ? path.resolve(file) : path.resolve(resolvedRoot, file);
+  const rel = path.relative(resolvedRoot, resolvedFile);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return { ok: false, error: `source file is outside root: ${file}` };
+  if (!existsSync(resolvedFile)) return { ok: false, error: `source file not found: ${resolvedFile}` };
+
+  const line = typeof value.line === 'number' && Number.isFinite(value.line) && value.line > 0 ? Math.floor(value.line) : 1;
+  const column = typeof value.column === 'number' && Number.isFinite(value.column) && value.column > 0 ? Math.floor(value.column) : 1;
+  const editor = detectEditor();
+  const target = `${resolvedFile}:${line}:${column}`;
+  const args = editor === 'open'
+    ? [resolvedFile]
+    : ['-g', target];
+  try {
+    const child = spawn(editor, args, {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    return { ok: true, editor, command: editor, args, file: resolvedFile };
+  } catch (err) {
+    return { ok: false, editor, command: editor, args, file: resolvedFile, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function detectEditor(): string {
+  const preferred = process.env.UI_INSPECT_EDITOR;
+  if (preferred && commandExists(preferred)) return preferred;
+  for (const command of ['code', 'cursor', 'webstorm']) {
+    if (commandExists(command)) return command;
+  }
+  return process.platform === 'darwin' ? 'open' : 'code';
+}
+
+function commandExists(command: string): boolean {
+  const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], {
+    stdio: 'ignore',
+    shell: process.platform === 'win32',
+  });
+  return result.status === 0;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

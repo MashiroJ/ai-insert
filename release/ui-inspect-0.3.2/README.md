@@ -1,4 +1,4 @@
-# ui-inspect release 0.3.1
+# ui-inspect release 0.3.2
 
 ui-inspect 是一个通用 MCP 前端检查上下文服务。
 
@@ -70,8 +70,8 @@ export default defineConfig({
 如果你需要使用当前 release 目录里的 tgz 包：
 
 ```bash
-npm install -g ./mashiro39-ui-inspect-protocol-0.3.1.tgz ./mashiro39-ui-inspect-server-0.3.1.tgz ./mashiro39-ui-inspect-cli-0.3.1.tgz
-npm install -D ./mashiro39-ui-inspect-protocol-0.3.1.tgz ./mashiro39-ui-inspect-vite-plugin-0.3.1.tgz
+npm install -g ./mashiro39-ui-inspect-protocol-0.3.2.tgz ./mashiro39-ui-inspect-server-0.3.2.tgz ./mashiro39-ui-inspect-cli-0.3.2.tgz
+npm install -D ./mashiro39-ui-inspect-protocol-0.3.2.tgz ./mashiro39-ui-inspect-vite-plugin-0.3.2.tgz
 ```
 
 第一条命令用于安装 MCP CLI；第二条命令需要在目标 Vite 项目目录里执行。
@@ -85,3 +85,11 @@ npm install -D ./mashiro39-ui-inspect-protocol-0.3.1.tgz ./mashiro39-ui-inspect-
 ```
 
 agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待用户在浏览器面板里选择元素并点击发送。
+
+## 0.3.2 能力
+
+- 浏览器面板支持多选元素。
+- 每个元素可以填写单独备注。
+- 面板会显示任务状态：已发送、AI 已接收、处理中、已完成、失败。
+- 支持从选中元素点击打开源码或复制源码路径。
+- MCP agent 可用 `update_ui_task_status` 回写任务状态。
