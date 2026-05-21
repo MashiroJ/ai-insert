@@ -6,7 +6,7 @@ import { ensureProjectIntegration } from './project-setup.js';
 import { DEFAULT_DAEMON_URL, } from '@ui-inspect/protocol';
 import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@ui-inspect/server';
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.1.2';
+const SERVER_VERSION = '0.1.3';
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const WAIT_POLL_INTERVAL_MS = 1000;
