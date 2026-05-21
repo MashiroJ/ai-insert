@@ -16,6 +16,7 @@ export function clientSource(options: ClientSourceOptions): string {
   const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
+  const SOURCE_EDITOR_KEY = 'ui-inspect:source-editor';
   const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
   let enabled = false;
   let hovered = null;
@@ -46,18 +47,22 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-toggle:focus-visible{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 0 16px rgba(96,165,250,.55))}',
       '#ui-inspect-toggle:hover{transform:translateY(-2px)}',
       '#ui-inspect-toggle[data-active="true"]{filter:drop-shadow(0 0 0 rgba(0,0,0,0)) drop-shadow(0 14px 30px rgba(37,99,235,.45))}',
-      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:0;bottom:0;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:none}',
+      '#ui-inspect-toggle .ui-inspect-diana{position:absolute;left:0;bottom:0;width:72px;height:78px;background-image:url("' + DIANA_SPRITE_URL + '");background-repeat:no-repeat;background-size:576px 702px;background-position:0 0;image-rendering:auto;animation:ui-diana-idle 3600ms steps(6) infinite}',
+      '#ui-inspect-toggle[data-dragging="true"] .ui-inspect-diana{animation:ui-diana-run 900ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-direction="left"] .ui-inspect-diana{transform:scaleX(-1)}',
+      '#ui-inspect-toggle[data-direction="right"] .ui-inspect-diana{transform:scaleX(1)}',
+      '#ui-inspect-toggle .ui-inspect-diana{transform-origin:50% 50%}',
       '#ui-inspect-toggle .ui-inspect-diana-label{display:none}',
-      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 1800ms steps(7) infinite}',
-      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 2000ms steps(7) infinite}',
-      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 1200ms steps(7) infinite}',
-      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1800ms steps(7) infinite}',
-      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 2200ms steps(7) infinite}',
-      '@keyframes ui-diana-idle{from{background-position:0 0}to{background-position:-504px 0}}',
-      '@keyframes ui-diana-run{from{background-position:0 -78px}to{background-position:-504px -78px}}',
-      '@keyframes ui-diana-wave{from{background-position:0 -234px}to{background-position:-504px -234px}}',
-      '@keyframes ui-diana-happy{from{background-position:0 -312px}to{background-position:-504px -312px}}',
-      '@keyframes ui-diana-sad{from{background-position:0 -390px}to{background-position:-504px -390px}}',
+      '#ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana{animation:ui-diana-wave 1800ms steps(4) infinite}',
+      '#ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana{animation:ui-diana-wave 2000ms steps(4) infinite}',
+      '#ui-inspect-toggle[data-state="working"] .ui-inspect-diana{animation:ui-diana-run 1200ms steps(8) infinite}',
+      '#ui-inspect-toggle[data-state="done"] .ui-inspect-diana{animation:ui-diana-happy 1800ms steps(5) infinite}',
+      '#ui-inspect-toggle[data-state="failed"] .ui-inspect-diana{animation:ui-diana-sad 2200ms steps(8) infinite}',
+      '@keyframes ui-diana-idle{from{background-position:0 0}to{background-position:-432px 0}}',
+      '@keyframes ui-diana-run{from{background-position:0 -78px}to{background-position:-576px -78px}}',
+      '@keyframes ui-diana-wave{from{background-position:0 -234px}to{background-position:-288px -234px}}',
+      '@keyframes ui-diana-happy{from{background-position:0 -312px}to{background-position:-360px -312px}}',
+      '@keyframes ui-diana-sad{from{background-position:0 -390px}to{background-position:-576px -390px}}',
       '#ui-inspect-menu{position:fixed;z-index:2147483647;right:22px;bottom:102px;width:48px;background:rgba(15,23,42,.78);color:white;border:1px solid rgba(148,163,184,.18);border-radius:999px;box-shadow:0 14px 34px rgba(15,23,42,.38);padding:7px 0;font:12px/1 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backdrop-filter:blur(10px)}',
       '#ui-inspect-menu{cursor:auto}',
       '#ui-inspect-menu .ui-inspect-menu-head{display:none}',
@@ -150,6 +155,11 @@ export function clientSource(options: ClientSourceOptions): string {
       '#ui-inspect-panel .ui-inspect-actions-right{margin-left:auto}',
       '#ui-inspect-panel button{border:1px solid #475569;border-radius:6px;background:#1e293b;color:white;padding:7px 10px;font-weight:700;cursor:pointer}',
       '#ui-inspect-panel button[data-primary="true"]{border-color:#2563eb;background:#2563eb}',
+      '#ui-inspect-panel .ui-inspect-source-path{border:1px solid rgba(96,165,250,.28);border-radius:7px;background:rgba(15,23,42,.72);color:#bfdbfe;padding:8px 9px;margin:8px 0 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}',
+      '#ui-inspect-panel .ui-inspect-editor-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:8px 0 10px}',
+      '#ui-inspect-panel .ui-inspect-editor-option{display:flex;align-items:center;gap:7px;border:1px solid rgba(148,163,184,.26);border-radius:7px;background:rgba(15,23,42,.72);padding:8px;color:#e2e8f0;font-weight:800;cursor:pointer}',
+      '#ui-inspect-panel .ui-inspect-editor-option input{margin:0}',
+      '#ui-inspect-panel .ui-inspect-editor-option[data-disabled="true"]{opacity:.48}',
       'html[data-ui-inspect="true"] *{cursor:crosshair!important}'
     ].join('\\n');
     document.head.appendChild(style);
@@ -230,6 +240,7 @@ export function clientSource(options: ClientSourceOptions): string {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      lastX: event.clientX,
       offsetX: event.clientX - rect.left,
       offsetY: event.clientY - rect.top,
       moved: false
@@ -248,6 +259,9 @@ export function clientSource(options: ClientSourceOptions): string {
     if (distance > 4) dianaDrag.moved = true;
     const button = document.getElementById(TOGGLE_ID);
     if (!button) return;
+    const deltaX = event.clientX - dianaDrag.lastX;
+    if (Math.abs(deltaX) > 1) button.dataset.direction = deltaX < 0 ? 'left' : 'right';
+    dianaDrag.lastX = event.clientX;
     const next = clampDianaPosition(event.clientX - dianaDrag.offsetX, event.clientY - dianaDrag.offsetY);
     applyDianaPosition(button, next);
     event.preventDefault();
@@ -517,12 +531,18 @@ export function clientSource(options: ClientSourceOptions): string {
     if (!resp.ok) throw new Error(await resp.text());
   }
 
-  async function openSource(selection, button) {
+  async function fetchEditors() {
+    const resp = await fetch(DAEMON_URL.replace(/\\/$/, '') + '/editors', { cache: 'no-store' });
+    if (!resp.ok) throw new Error(await resp.text());
+    return await resp.json();
+  }
+
+  async function openSource(selection, button, editor) {
     if (!selection?.source?.file) return;
     const resp = await fetch(DAEMON_URL.replace(/\\/$/, '') + '/open-source', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ source: selection.source })
+      body: JSON.stringify({ source: selection.source, editor })
     });
     if (!resp.ok) throw new Error(await resp.text());
     if (button) button.textContent = '已打开';
@@ -599,11 +619,11 @@ export function clientSource(options: ClientSourceOptions): string {
     menu.innerHTML = [
       '<div class="ui-inspect-menu-head"><div class="ui-inspect-menu-title">Diana</div><button type="button" class="ui-inspect-menu-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-menu-actions">',
-      '<button type="button" data-mode="source" aria-label="定位源码">' + sourceIcon() + '<span class="ui-inspect-menu-desc">定位源码</span></button>',
-      '<button type="button" data-mode="single" aria-label="单点修改">' + editIcon() + '<span class="ui-inspect-menu-desc">单点修改</span></button>',
-      '<button type="button" data-mode="batch" aria-label="批量标注">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量标注</span></button>',
+      '<button type="button" data-mode="source" aria-label="源码线索">' + sourceIcon() + '<span class="ui-inspect-menu-desc">源码线索</span></button>',
+      '<button type="button" data-mode="single" aria-label="局部调整">' + editIcon() + '<span class="ui-inspect-menu-desc">局部调整</span></button>',
+      '<button type="button" data-mode="batch" aria-label="批量调整">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量调整</span></button>',
       '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
-      '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="历史会话">' + historyIcon() + '<span class="ui-inspect-menu-desc">历史会话</span></button>',
+      '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="历史记录">' + historyIcon() + '<span class="ui-inspect-menu-desc">历史记录</span></button>',
       '</div>',
     ].join('');
     document.body.appendChild(menu);
@@ -668,11 +688,11 @@ export function clientSource(options: ClientSourceOptions): string {
       selectedTargets = [];
     }
     setEnabled(true);
-    if (mode === 'source') showToast('点击页面元素，Diana 会帮你打开源码。');
-    if (mode === 'single') showToast('点击一个需要交给 AI 修改的元素。');
+    if (mode === 'source') showToast('点击页面元素，Diana 会先确认源码线索。');
+    if (mode === 'single') showToast('点击一个需要局部调整的元素。');
     if (mode === 'batch') {
       batchSidebarCollapsed = window.innerWidth <= 520;
-      showToast('批注侧栏已打开，连续点击页面元素即可添加目标。');
+      showToast('批量调整已打开，连续点击页面元素即可添加目标。');
       openBatchSidebar();
     }
   }
@@ -794,7 +814,7 @@ export function clientSource(options: ClientSourceOptions): string {
   }
 
   function taskModeTitle() {
-    return activeTaskMode === 'single' ? '单点修改' : '批量标注';
+    return activeTaskMode === 'single' ? '局部调整' : '批量调整';
   }
 
   function targetNotePlaceholder() {
@@ -822,7 +842,7 @@ export function clientSource(options: ClientSourceOptions): string {
     const status = activeSessionData?.status ? statusText(activeSessionData.status) : (selectionMode === 'batch' ? '选择中' : '草稿');
     sidebar.innerHTML = [
       '<div class="ui-inspect-sidebar-head">',
-        '<div><div class="ui-inspect-sidebar-title">批量标注</div><div class="ui-inspect-sidebar-subtitle">Diana 工作台</div></div>',
+        '<div><div class="ui-inspect-sidebar-title">批量调整</div><div class="ui-inspect-sidebar-subtitle">Diana 工作台</div></div>',
         '<button type="button" class="ui-inspect-sidebar-collapse" data-action="collapse" aria-label="收起">−</button>',
         '<button type="button" class="ui-inspect-sidebar-close" data-action="close" aria-label="关闭">×</button>',
       '</div>',
@@ -833,7 +853,7 @@ export function clientSource(options: ClientSourceOptions): string {
         '<label for="ui-inspect-batch-instruction">整体需求，可选</label>',
         '<textarea id="ui-inspect-batch-instruction" placeholder="例如：这组输入框更紧凑，风格统一">' + escapeHtml(existingInstruction) + '</textarea>',
         '<div class="ui-inspect-actions">',
-          '<button type="button" data-action="history">历史</button>',
+          '<button type="button" data-action="history">历史记录</button>',
           '<div class="ui-inspect-actions-right">',
             '<button type="button" data-action="undo">撤销</button>',
             '<button type="button" data-action="select"' + (selectionMode === 'batch' ? ' disabled' : '') + '>' + (selectionMode === 'batch' ? '正在选择' : '继续选择') + '</button>',
@@ -846,7 +866,7 @@ export function clientSource(options: ClientSourceOptions): string {
     const list = sidebar.querySelector('.ui-inspect-sidebar-list');
     if (list) {
       if (!selectedTargets.length) {
-        list.innerHTML = '<div class="ui-inspect-sidebar-empty">暂无批注</div>';
+        list.innerHTML = '<div class="ui-inspect-sidebar-empty">暂无目标</div>';
       } else {
         list.innerHTML = selectedTargets.map((item, index) => targetCardHtml(item, index, true)).join('');
       }
@@ -958,6 +978,78 @@ export function clientSource(options: ClientSourceOptions): string {
     }
   }
 
+  async function openSourceConfirmPanel(selection) {
+    removePanel();
+    setEnabled(false);
+    setDianaState('idle');
+    const panel = document.createElement('div');
+    panel.id = PANEL_ID;
+    const title = selectionTitle(selection);
+    const source = sourceLabel(selection);
+    panel.innerHTML = [
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · 源码线索</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-target">' + escapeHtml(title) + '</div>',
+      '<div class="ui-inspect-source-path">' + escapeHtml(source) + '</div>',
+      '<label class="ui-inspect-field-label">选择打开方式</label>',
+      '<div class="ui-inspect-editor-list">正在检测本机 IDE...</div>',
+      '<div class="ui-inspect-actions">',
+        '<div class="ui-inspect-actions-left"><button type="button" data-action="copy-source">复制路径</button></div>',
+        '<div class="ui-inspect-actions-right"><button type="button" data-action="cancel">取消</button><button type="button" data-primary="true" data-action="open-source">打开</button></div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(panel);
+    placePanel(panel);
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      panel.addEventListener(type, (event) => event.stopPropagation());
+    });
+    const list = panel.querySelector('.ui-inspect-editor-list');
+    const openButton = panel.querySelector('[data-action="open-source"]');
+    const copyButton = panel.querySelector('[data-action="copy-source"]');
+    const cancelButton = panel.querySelector('[data-action="cancel"]');
+    const closeButton = panel.querySelector('[data-action="close"]');
+    const savedEditor = localStorage.getItem(SOURCE_EDITOR_KEY) || '';
+    try {
+      const payload = await fetchEditors();
+      const editors = Array.isArray(payload.editors) ? payload.editors : [];
+      const available = editors.filter((editor) => editor && editor.available);
+      const preferred = available.find((editor) => editor.id === savedEditor)
+        || available.find((editor) => editor.id === payload.preferred)
+        || available[0];
+      if (list) {
+        list.innerHTML = (available.length ? available : [{ id: 'open', label: '系统默认', available: true }]).map((editor, index) => (
+          '<label class="ui-inspect-editor-option">' +
+            '<input type="radio" name="ui-inspect-editor" value="' + escapeHtml(editor.id) + '"' + ((preferred?.id || 'open') === editor.id || (!preferred && index === 0) ? ' checked' : '') + ' />' +
+            '<span>' + escapeHtml(editor.label || editor.id) + '</span>' +
+          '</label>'
+        )).join('');
+      }
+    } catch {
+      if (list) list.innerHTML = '<label class="ui-inspect-editor-option"><input type="radio" name="ui-inspect-editor" value="open" checked /><span>系统默认</span></label>';
+    }
+    const close = () => {
+      const existing = document.getElementById(PANEL_ID);
+      if (existing) existing.remove();
+      setDianaState('idle');
+      clearHighlight();
+    };
+    openButton.addEventListener('click', () => {
+      const editor = panel.querySelector('input[name="ui-inspect-editor"]:checked')?.value || '';
+      if (editor) localStorage.setItem(SOURCE_EDITOR_KEY, editor);
+      openButton.textContent = '打开中';
+      setDianaState('working');
+      openSource(selection, openButton, editor).then(() => {
+        showToast('已打开源码：' + sourceLabel(selection), 'done');
+        close();
+      }).catch((err) => {
+        openButton.textContent = '打开';
+        showToast(friendlyError(err, 'source'), 'failed');
+      });
+    });
+    copyButton.addEventListener('click', () => copySource(selection, copyButton).catch(() => { copyButton.textContent = '复制失败'; }));
+    cancelButton.addEventListener('click', close);
+    closeButton.addEventListener('click', close);
+  }
+
   function openDebugPanel(options) {
     removePanel();
     setEnabled(false);
@@ -992,7 +1084,7 @@ export function clientSource(options: ClientSourceOptions): string {
       '<label class="ui-inspect-field-label" for="ui-inspect-instruction">' + (activeTaskMode === 'single' ? '你想怎么改？' : '整体需求，可选') + '</label>',
       '<textarea id="ui-inspect-instruction" placeholder="' + (activeTaskMode === 'single' ? '例如：把这个输入框宽一点，和下面输入框对齐' : '例如：这组输入框更紧凑，风格统一') + '"></textarea>',
       '<div class="ui-inspect-actions">',
-      '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史</button></div>',
+      '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史记录</button></div>',
       '<div class="ui-inspect-actions-right"><button type="button" data-action="select">' + (activeTaskMode === 'single' ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
       '</div>'
     ].join('');
@@ -1111,8 +1203,8 @@ export function clientSource(options: ClientSourceOptions): string {
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.innerHTML = [
-      '<div class="ui-inspect-head"><div class="ui-inspect-title">历史会话</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
-      '<div class="ui-inspect-target">正在读取历史会话...</div>',
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">历史记录</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-target">正在读取历史记录...</div>',
       '<div class="ui-inspect-session-list"></div>',
       '<div class="ui-inspect-actions">',
       '<button type="button" data-action="new">新调试</button>',
@@ -1134,7 +1226,7 @@ export function clientSource(options: ClientSourceOptions): string {
       const list = panel.querySelector('.ui-inspect-session-list');
       const target = panel.querySelector('.ui-inspect-target');
       if (!sessions.length) {
-        target.textContent = '暂无历史会话。';
+        target.textContent = '暂无历史记录。';
         list.innerHTML = '';
         return;
       }
@@ -1226,12 +1318,9 @@ export function clientSource(options: ClientSourceOptions): string {
         showToast('Diana 没有识别到这个元素的源码位置', 'failed');
         return;
       }
-      setDianaState('working');
-      openSource(selection).then(() => {
-        showToast('已尝试打开源码：' + sourceLabel(selection), 'done');
-      }).catch((err) => {
-        showToast(friendlyError(err, 'source'), 'failed');
-      });
+      activeElement = el;
+      highlightElement(el);
+      openSourceConfirmPanel(selection);
       return;
     }
     if (!enabled) return;
@@ -1247,12 +1336,9 @@ export function clientSource(options: ClientSourceOptions): string {
         showToast('Diana 没有识别到这个元素的源码位置', 'failed');
         return;
       }
-      setDianaState('working');
-      openSource(selection).then(() => {
-        showToast('已尝试打开源码：' + sourceLabel(selection), 'done');
-      }).catch((err) => {
-        showToast(friendlyError(err, 'source'), 'failed');
-      });
+      activeElement = el;
+      highlightElement(el);
+      openSourceConfirmPanel(selection);
       return;
     }
     if (selectionMode === 'batch') {

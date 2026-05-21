@@ -220,6 +220,10 @@ async function route(req, res, closeServer) {
         sendJson(res, 200, { ok: true, name: 'ui-inspect', version: VERSION });
         return;
     }
+    if (req.method === 'GET' && url.pathname === '/editors') {
+        sendJson(res, 200, { ok: true, editors: detectEditors(), preferred: detectEditor() });
+        return;
+    }
     if (req.method === 'POST' && url.pathname === '/shutdown') {
         if (!isLocalOrigin(req.headers.origin)) {
             sendJson(res, 403, { error: 'origin rejected' });
@@ -339,7 +343,8 @@ async function route(req, res, closeServer) {
         }
         const body = await readJson(req);
         const source = isRecord(body) && isRecord(body.source) ? body.source : body;
-        const result = openSource(source);
+        const editor = isRecord(body) && typeof body.editor === 'string' ? body.editor : undefined;
+        const result = openSource(source, editor);
         sendJson(res, result.ok ? 200 : 400, result);
         return;
     }
@@ -543,7 +548,7 @@ function createMessage(sessionId, role, content, selectionId) {
         selectionId,
     };
 }
-function openSource(value) {
+function openSource(value, requestedEditor) {
     if (!isRecord(value))
         return { ok: false, error: 'source object required' };
     const root = typeof value.root === 'string' ? value.root : state.projectRoot;
@@ -559,7 +564,7 @@ function openSource(value) {
         return { ok: false, error: `source file not found: ${resolvedFile}` };
     const line = typeof value.line === 'number' && Number.isFinite(value.line) && value.line > 0 ? Math.floor(value.line) : 1;
     const column = typeof value.column === 'number' && Number.isFinite(value.column) && value.column > 0 ? Math.floor(value.column) : 1;
-    const editor = detectEditor();
+    const editor = detectEditor(requestedEditor);
     const target = `${resolvedFile}:${line}:${column}`;
     const args = editor === 'open'
         ? [resolvedFile]
@@ -576,15 +581,33 @@ function openSource(value) {
         return { ok: false, editor, command: editor, args, file: resolvedFile, error: err instanceof Error ? err.message : String(err) };
     }
 }
-function detectEditor() {
+function detectEditor(requestedEditor) {
+    if (requestedEditor && isKnownEditorCommand(requestedEditor) && commandExists(requestedEditor))
+        return requestedEditor;
     const preferred = process.env.UI_INSPECT_EDITOR;
     if (preferred && commandExists(preferred))
         return preferred;
-    for (const command of ['code', 'cursor', 'webstorm']) {
+    for (const command of ['cursor', 'code', 'webstorm', 'windsurf', 'zed', 'trae']) {
         if (commandExists(command))
             return command;
     }
     return process.platform === 'darwin' ? 'open' : 'code';
+}
+function detectEditors() {
+    const editors = [
+        { id: 'cursor', label: 'Cursor' },
+        { id: 'code', label: 'VS Code' },
+        { id: 'webstorm', label: 'WebStorm' },
+        { id: 'windsurf', label: 'Windsurf' },
+        { id: 'zed', label: 'Zed' },
+        { id: 'trae', label: 'Trae' },
+    ].map((editor) => ({ ...editor, available: commandExists(editor.id) }));
+    if (process.platform === 'darwin')
+        editors.push({ id: 'open', label: '系统默认', available: true, fallback: true });
+    return editors;
+}
+function isKnownEditorCommand(command) {
+    return ['cursor', 'code', 'webstorm', 'windsurf', 'zed', 'trae', 'open'].includes(command);
 }
 function commandExists(command) {
     const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], {

@@ -258,6 +258,11 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/editors') {
+    sendJson(res, 200, { ok: true, editors: detectEditors(), preferred: detectEditor() });
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/shutdown') {
     if (!isLocalOrigin(req.headers.origin)) {
       sendJson(res, 403, { error: 'origin rejected' });
@@ -384,7 +389,8 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
     }
     const body = await readJson(req);
     const source = isRecord(body) && isRecord(body.source) ? body.source : body;
-    const result = openSource(source);
+    const editor = isRecord(body) && typeof body.editor === 'string' ? body.editor : undefined;
+    const result = openSource(source, editor);
     sendJson(res, result.ok ? 200 : 400, result);
     return;
   }
@@ -611,7 +617,7 @@ function createMessage(
   };
 }
 
-function openSource(value: unknown): { ok: boolean; editor?: string; command?: string; args?: string[]; file?: string; error?: string } {
+function openSource(value: unknown, requestedEditor?: string): { ok: boolean; editor?: string; command?: string; args?: string[]; file?: string; error?: string } {
   if (!isRecord(value)) return { ok: false, error: 'source object required' };
   const root = typeof value.root === 'string' ? value.root : state.projectRoot;
   const file = typeof value.file === 'string' ? value.file : '';
@@ -624,7 +630,7 @@ function openSource(value: unknown): { ok: boolean; editor?: string; command?: s
 
   const line = typeof value.line === 'number' && Number.isFinite(value.line) && value.line > 0 ? Math.floor(value.line) : 1;
   const column = typeof value.column === 'number' && Number.isFinite(value.column) && value.column > 0 ? Math.floor(value.column) : 1;
-  const editor = detectEditor();
+  const editor = detectEditor(requestedEditor);
   const target = `${resolvedFile}:${line}:${column}`;
   const args = editor === 'open'
     ? [resolvedFile]
@@ -641,13 +647,31 @@ function openSource(value: unknown): { ok: boolean; editor?: string; command?: s
   }
 }
 
-function detectEditor(): string {
+function detectEditor(requestedEditor?: string): string {
+  if (requestedEditor && isKnownEditorCommand(requestedEditor) && commandExists(requestedEditor)) return requestedEditor;
   const preferred = process.env.UI_INSPECT_EDITOR;
   if (preferred && commandExists(preferred)) return preferred;
-  for (const command of ['code', 'cursor', 'webstorm']) {
+  for (const command of ['cursor', 'code', 'webstorm', 'windsurf', 'zed', 'trae']) {
     if (commandExists(command)) return command;
   }
   return process.platform === 'darwin' ? 'open' : 'code';
+}
+
+function detectEditors(): Array<{ id: string; label: string; available: boolean; fallback?: boolean }> {
+  const editors: Array<{ id: string; label: string; available: boolean; fallback?: boolean }> = [
+    { id: 'cursor', label: 'Cursor' },
+    { id: 'code', label: 'VS Code' },
+    { id: 'webstorm', label: 'WebStorm' },
+    { id: 'windsurf', label: 'Windsurf' },
+    { id: 'zed', label: 'Zed' },
+    { id: 'trae', label: 'Trae' },
+  ].map((editor) => ({ ...editor, available: commandExists(editor.id) }));
+  if (process.platform === 'darwin') editors.push({ id: 'open', label: '系统默认', available: true, fallback: true });
+  return editors;
+}
+
+function isKnownEditorCommand(command: string): boolean {
+  return ['cursor', 'code', 'webstorm', 'windsurf', 'zed', 'trae', 'open'].includes(command);
 }
 
 function commandExists(command: string): boolean {
