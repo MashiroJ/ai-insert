@@ -69,7 +69,7 @@ export function openSource(
   const editor = detectEditor(requestedEditor);
   const target = `${resolvedFile}:${line}:${column}`;
   const args = editor === 'open'
-    ? [resolvedFile]
+    ? ['-t', resolvedFile]
     : ['-g', target];
   try {
     const child = spawn(editor, args, {

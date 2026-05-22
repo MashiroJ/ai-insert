@@ -1,24 +1,32 @@
 /**
  * @ui-inspect/webpack-plugin
  *
- * Webpack plugin for ui-inspect
- * Injects browser UI into development builds
+ * Webpack plugin for ui-inspect.
+ * Injects browser UI into development builds served by webpack-dev-server.
  */
 import type { UiInspectPluginOptions } from './types.js';
 interface WebpackCompiler {
+    options: {
+        mode?: string;
+        devServer?: Record<string, unknown> & {
+            setupMiddlewares?: (middlewares: WebpackMiddleware[], devServer: WebpackDevServer) => WebpackMiddleware[];
+        };
+        [key: string]: unknown;
+    };
     hooks: {
         compilation: {
-            tap: (name: string, callback: (compilation: WebpackCompilation) => void) => void;
+            tap: (name: string, fn: (c: WebpackCompilation) => void) => void;
         };
+        [key: string]: unknown;
     };
 }
 interface WebpackCompilation {
     hooks: {
         processAssets: {
-            tap: (options: {
+            tap: (opts: {
                 name: string;
                 stage: number;
-            }, callback: (assets: Record<string, WebpackAsset>) => void) => void;
+            }, fn: (assets: Record<string, WebpackAsset>) => void) => void;
         };
     };
     PROCESS_ASSETS_STAGE_ADDITIONS?: number;
@@ -27,34 +35,30 @@ interface WebpackAsset {
     source: () => string;
     size: () => number;
 }
+interface WebpackMiddleware {
+    [key: string]: unknown;
+}
+interface WebpackResponse {
+    setHeader(k: string, v: string): void;
+    end(d?: string | Buffer): void;
+}
+interface WebpackDevServer {
+    app?: {
+        get?(path: string, handler: (req: unknown, res: WebpackResponse) => void): void;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
 export interface WebpackUiInspectPluginOptions extends UiInspectPluginOptions {
-    /**
-     * Enable/disable the plugin
-     */
     enabled?: boolean;
 }
-/**
- * Webpack plugin for ui-inspect
- */
 export declare class WebpackUiInspectPlugin {
     private readonly options;
     constructor(options?: WebpackUiInspectPluginOptions);
-    /**
-     * Apply plugin to webpack compiler
-     */
     apply(compiler: WebpackCompiler): void;
-    /**
-     * Check if ui-inspect should be injected
-     */
-    private shouldInject;
-    /**
-     * Inject ui-inspect script into HTML
-     */
-    private injectUiInspect;
+    private setupDevServerMiddleware;
+    private injectScriptIntoHtml;
 }
-/**
- * Create ui-inspect webpack plugin
- */
 export declare function uiInspect(options?: WebpackUiInspectPluginOptions): WebpackUiInspectPlugin;
 export default WebpackUiInspectPlugin;
 //# sourceMappingURL=plugin.d.ts.map

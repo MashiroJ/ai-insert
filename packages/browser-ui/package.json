@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./plugin-runtime": {
+      "types": "./dist/plugin-runtime.d.ts",
+      "import": "./dist/plugin-runtime.js"
+    },
     "./diana": {
       "types": "./dist/diana/index.d.ts",
       "import": "./dist/diana/index.js"
@@ -24,10 +28,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "!dist/**/*.test.*",
+    "!src/**/*.test.*",
+    "!src/**/*.test.*.map"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.mjs",
     "typecheck": "tsc --noEmit",
     "watch": "tsc --watch"
   },

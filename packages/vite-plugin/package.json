@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ui-inspect/browser-adapter": "workspace:*",
+    "@ui-inspect/browser-ui": "workspace:*",
     "@ui-inspect/protocol": "workspace:*"
   },
   "devDependencies": {

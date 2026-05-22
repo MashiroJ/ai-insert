@@ -3,12 +3,14 @@ node_modules/
 .idea/
 .codex/
 .ai-insert/
+.ui-inspect/
 .claude/
 .codegraph/
 .cursor/
 .pnpm-store/
 doc/
 release/
+examples/*/dist/
 *.tsbuildinfo
 *.log
 npm-debug.log*

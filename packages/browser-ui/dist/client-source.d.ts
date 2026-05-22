@@ -1,6 +1,6 @@
-interface ClientSourceOptions {
+export interface ClientSourceOptions {
     daemonUrl: string;
     root: string;
 }
 export declare function clientSource(options: ClientSourceOptions): string;
-export {};
+//# sourceMappingURL=client-source.d.ts.map

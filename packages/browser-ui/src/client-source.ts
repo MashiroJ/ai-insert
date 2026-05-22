@@ -1,11 +1,17 @@
-import { runtimeMonitorClientSource } from './core/runtime-monitor.js';
+import { runtimeMonitorClientSource } from './client-modules/runtime-monitor-source.js';
 import { dianaClientSource } from './client-modules/diana-source.js';
 import { selectionClientSource } from './client-modules/selection-source.js';
 import { styleClientSource } from './client-modules/style-source.js';
 import { taskPanelClientSource } from './client-modules/task-panel-source.js';
 import { sessionClientSource } from './client-modules/session-source.js';
-export function clientSource(options) {
-    return `(() => {
+
+export interface ClientSourceOptions {
+  daemonUrl: string;
+  root: string;
+}
+
+export function clientSource(options: ClientSourceOptions): string {
+  return `(() => {
   const DAEMON_URL = ${JSON.stringify(options.daemonUrl)};
   const PROJECT_ROOT = ${JSON.stringify(options.root)};
   const STYLE_ID = 'ui-inspect-style';
@@ -182,6 +188,9 @@ ${selectionClientSource}
     activeSessionData = null;
     reselectSessionId = null;
     selectedTargets = [];
+    selectedRuntimeEventIds = new Set();
+    troubleshootRuntimeSnapshot = [];
+    if (Array.isArray(runtimeEvents)) runtimeEvents.length = 0;
     selectionMode = 'batch';
     activeTaskMode = 'batch';
     batchSidebarCollapsed = false;
@@ -491,8 +500,16 @@ ${taskPanelClientSource}
     if (options?.element) {
       activeElement = options.element;
       const draft = selectionPayloadFor(options.element, '', activePanelSessionId);
-      if (activeTaskMode === 'single') selectedTargets = [targetFromSelection(draft, '')];
-      else selectedTargets.push(targetFromSelection(draft, ''));
+      if (activeTaskMode === 'single' || activeTaskMode === 'troubleshoot') {
+        selectedTargets = [targetFromSelection(draft, '')];
+      } else {
+        addSelectedTarget(draft, '');
+      }
+      if (activeTaskMode === 'troubleshoot') {
+        selectedRuntimeEventIds = new Set();
+        troubleshootRuntimeSnapshot = [];
+        if (Array.isArray(runtimeEvents)) runtimeEvents.length = 0;
+      }
     }
     if (activeElement) highlightElement(activeElement);
     if (!selectedTargets.length && activeSessionData?.selection) selectedTargets = targetsFromSession(activeSessionData);
@@ -641,4 +658,3 @@ ${sessionClientSource}
   window.addEventListener('resize', refreshDianaPosition);
 })();`;
 }
-//# sourceMappingURL=client-source.js.map

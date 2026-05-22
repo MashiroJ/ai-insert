@@ -9,20 +9,8 @@ export interface RuntimeMonitorOptions {
     textLimit?: number;
     onError?: (event: UiInspectRuntimeEvent) => void;
 }
-export interface RuntimeMonitorClientSourceOptions {
-    eventLimit?: number;
-    textLimit?: number;
-}
 declare const RUNTIME_EVENT_KINDS: readonly ["console", "window-error", "unhandledrejection"];
 type RuntimeEventKind = typeof RUNTIME_EVENT_KINDS[number];
-/**
- * Browser client runtime capture source.
- *
- * The Vite plugin injects client-source.ts as a generated browser script, so
- * runtime monitoring must be emitted as source text instead of imported as a
- * normal module at runtime.
- */
-export declare function runtimeMonitorClientSource(options?: RuntimeMonitorClientSourceOptions): string;
 /**
  * Runtime Monitor class
  */
