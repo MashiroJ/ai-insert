@@ -1,13 +1,13 @@
 # ui-inspect
 
-ui-inspect 是一个给前端开发者使用的通用 MCP 前端检查工具。当前 npm 最新版本为 `0.1.15`。
+ui-inspect 是一个给前端开发者使用的通用 MCP 前端检查工具。
 
 它把“我在浏览器里看到的这个元素”变成 AI coding agent 能理解的上下文：DOM、样式、框架组件信息、源码线索、用户备注和任务会话。你可以在页面上点选元素，再让支持 MCP 的 AI 工具继续改代码。
 
 ui-inspect 不绑定 Claude、Codex、Cursor 或任何指定 agent。只要你的 AI 工具支持 MCP，就可以使用。
 
 当前主力链路：Vite + Vue 3。  
-`0.1.15` 已加入多前端框架适配基础，包括 Vue、React、Vanilla DOM adapter，以及 Webpack 插件包的早期架构；Vite 插件仍是目前推荐和验证最充分的接入方式。
+当前版本支持多前端框架适配基础，包括 Vue、React、Vanilla DOM adapter，以及 Webpack 插件包的早期架构；Vite 插件仍是目前推荐和验证最充分的接入方式。
 
 ## 你能用它做什么
 
@@ -166,7 +166,7 @@ yarn dev
 
 ### Webpack 项目
 
-`0.1.14` 起提供 `@ui-inspect/webpack-plugin`，用于后续适配非 Vite 项目。它目前是实验能力，适合开发者预览和参与测试；真实项目优先推荐 Vite 插件。
+当前提供 `@ui-inspect/webpack-plugin`，用于后续适配非 Vite 项目。它目前是实验能力，适合开发者预览和参与测试；真实项目优先推荐 Vite 插件。
 
 ```bash
 npm install -D @ui-inspect/webpack-plugin@latest
@@ -478,9 +478,13 @@ node packages/cli/dist/index.js mcp
 发布 npm 包：
 
 ```bash
+git switch dev
+git switch -c release/vX.Y.Z
 pnpm run publish:npm:dry-run
 pnpm run publish:npm
 ```
+
+发布只应在 `release/vX.Y.Z` 或 `main` 分支执行。完整分支和发布规则见 [docs/release-flow.md](docs/release-flow.md)。
 
 发布脚本会发布完整包拓扑：
 

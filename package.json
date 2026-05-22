@@ -9,6 +9,8 @@
     "typecheck": "pnpm -r --filter './packages/*' run typecheck",
     "test": "vitest run",
     "check:versions": "node scripts/check-versions.mjs",
+    "check:public-docs": "node scripts/check-public-docs.mjs",
+    "check:release-clean": "node scripts/check-release-clean.mjs",
     "test:runtime-monitor": "node scripts/verify-runtime-monitor-integration.mjs",
     "release:local": "node scripts/make-release.mjs",
     "publish:npm:dry-run": "node scripts/publish-npm.mjs",

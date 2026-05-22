@@ -35,8 +35,14 @@ console.log(`version: ${version}`);
 console.log(`registry: ${registry}`);
 console.log(`mode: ${yes ? 'publish' : 'dry-run'}`);
 
+assertPublishBranch();
+
 if (!skipChecks) {
   run('npm', ['whoami', '--registry', registry], root);
+  run('pnpm', ['run', 'check:versions'], root);
+  run('pnpm', ['run', 'check:public-docs'], root);
+  run('pnpm', ['run', 'check:release-clean'], root);
+  run('pnpm', ['run', 'test'], root);
   run('pnpm', ['run', 'typecheck'], root);
   run('pnpm', ['release:local'], root);
 }
@@ -78,6 +84,20 @@ function valueAfter(name) {
   return index >= 0 ? cliArgs[index + 1] : null;
 }
 
+function assertPublishBranch() {
+  const result = spawnSync('git', ['branch', '--show-current'], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  if (result.status !== 0) throw new Error(`git branch --show-current failed: ${result.stderr || result.stdout}`);
+
+  const branch = result.stdout.trim();
+  if (branch === 'main' || branch.startsWith('release/')) return;
+
+  throw new Error(`Refusing to publish from branch "${branch || '(detached)'}". Use release/vX.Y.Z or main.`);
+}
+
 function npmViewVersion(pkg) {
   const result = spawnSync('npm', ['view', `${pkg}@${version}`, 'version', '--registry', registry], {
     cwd: root,
@@ -116,5 +136,6 @@ function printHelp() {
   node scripts/publish-npm.mjs [--yes] [--skip-checks] [--otp <code>] [--tag latest] [--registry https://registry.npmjs.org]
 
 Default mode is dry-run. Use --yes to publish.
+Publishing is allowed only from main or release/* branches.
 `);
 }
