@@ -95,7 +95,7 @@ export interface UiInspectComponentHierarchy {
  */
 export interface UiInspectSourceHint {
   kind: 'direct' | 'vue-component' | 'dom-attr' | 'style' | 'stack-frame' | 'heuristic' |
-        'component-file' | 'template-file' | 'config-file';
+        'component-file' | 'template-file' | 'style-file' | 'config-file';
   file: string | null;
   line: number | null;
   column: number | null;

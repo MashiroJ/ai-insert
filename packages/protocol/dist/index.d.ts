@@ -79,7 +79,7 @@ export interface UiInspectComponentHierarchy {
  * Extended source hint with framework support
  */
 export interface UiInspectSourceHint {
-    kind: 'direct' | 'vue-component' | 'dom-attr' | 'style' | 'stack-frame' | 'heuristic' | 'component-file' | 'template-file' | 'config-file';
+    kind: 'direct' | 'vue-component' | 'dom-attr' | 'style' | 'stack-frame' | 'heuristic' | 'component-file' | 'template-file' | 'style-file' | 'config-file';
     file: string | null;
     line: number | null;
     column: number | null;

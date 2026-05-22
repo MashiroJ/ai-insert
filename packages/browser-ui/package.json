@@ -1,0 +1,42 @@
+{
+  "name": "@ui-inspect/browser-ui",
+  "version": "0.1.12",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./diana": {
+      "types": "./dist/diana/index.d.ts",
+      "import": "./dist/diana/index.js"
+    },
+    "./panels": {
+      "types": "./dist/panels/index.d.ts",
+      "import": "./dist/panels/index.js"
+    },
+    "./styles": {
+      "types": "./dist/styles/index.d.ts",
+      "import": "./dist/styles/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@ui-inspect/protocol": "workspace:*",
+    "@ui-inspect/shared": "workspace:*",
+    "@ui-inspect/browser-adapter": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

@@ -33,6 +33,35 @@ importers:
         specifier: ^3.5.0
         version: 3.5.34(typescript@5.9.3)
 
+  packages/browser-adapter:
+    dependencies:
+      '@ui-inspect/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@ui-inspect/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  packages/browser-ui:
+    dependencies:
+      '@ui-inspect/browser-adapter':
+        specifier: workspace:*
+        version: link:../browser-adapter
+      '@ui-inspect/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@ui-inspect/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/cli:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -56,7 +85,24 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
+  packages/shared:
+    dependencies:
+      '@ui-inspect/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/vite-plugin:
+    dependencies:
+      '@ui-inspect/browser-adapter':
+        specifier: workspace:*
+        version: link:../browser-adapter
+      '@ui-inspect/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       vite:
         specifier: ^6.0.0
