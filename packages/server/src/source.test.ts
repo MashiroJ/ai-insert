@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readSelectionSource } from './source.js';
+import { readSelectionSource, sourceOpenCommand } from './source.js';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -80,5 +80,28 @@ describe('readSelectionSource', () => {
     } finally {
       rmSync(FIXTURE_DIR, { recursive: true, force: true });
     }
+  });
+});
+
+describe('sourceOpenCommand', () => {
+  it('opens macOS system default as text file', () => {
+    expect(sourceOpenCommand('open', '/tmp/App.vue', 3, 5)).toEqual({
+      command: 'open',
+      args: ['-t', '/tmp/App.vue'],
+    });
+  });
+
+  it('opens Windows system default through cmd start', () => {
+    expect(sourceOpenCommand('start', 'C:\\project\\App.vue', 3, 5)).toEqual({
+      command: 'cmd.exe',
+      args: ['/c', 'start', '', 'C:\\project\\App.vue'],
+    });
+  });
+
+  it('opens source-aware editors with line and column target', () => {
+    expect(sourceOpenCommand('code', '/tmp/App.vue', 3, 5)).toEqual({
+      command: 'code',
+      args: ['-g', '/tmp/App.vue:3:5'],
+    });
   });
 });
