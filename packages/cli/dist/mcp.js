@@ -267,6 +267,7 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
                 message: match.message,
                 session: match.session,
                 selection: match.session.selection,
+                targetCount: match.session.targets?.length || 0,
                 targets: match.session.targets || [],
                 source,
                 targetSources,

@@ -361,10 +361,11 @@ async function route(req, res, closeServer) {
         }
         const body = await readJson(req);
         const selection = normalizeSelection(body);
+        const targets = normalizeTargets(isRecord(body) ? body.targets : undefined, selection);
         state.setProjectRoot(selection.source.root);
         state.currentSelection = selection;
         state.currentSelectionReceivedAt = Date.now();
-        upsertSessionFromSelection(state.currentSelection);
+        upsertSessionFromSelection(state.currentSelection, targets);
         emitSession(state.currentSelection.sessionId);
         sendJson(res, 200, { ok: true, selection: state.currentSelection });
         return;
@@ -458,11 +459,11 @@ function normalizeSelection(value) {
         source: input.source,
     };
 }
-function upsertSessionFromSelection(selection) {
+function upsertSessionFromSelection(selection, incomingTargets) {
     const now = Date.now();
     const existing = state.sessions.get(selection.sessionId);
     const message = createMessage(selection.sessionId, 'user', selection.instruction, selection.id);
-    const targets = normalizeTargets(selection.targets, selection);
+    const targets = incomingTargets?.length ? incomingTargets : normalizeTargets(undefined, selection);
     if (existing) {
         existing.selection = selection;
         existing.targets = targets;
