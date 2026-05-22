@@ -17,28 +17,43 @@ export const DIANA_SIZE = { width: 72, height: 78 };
 export const ANIMATION_DURATION = {
   idle: 3600,
   run: 900,
-  wave: 1800,
-  happy: 1800,
+  scan: 1200,
+  write: 1800,
+  rest: 1800,
   sad: 2200,
+  standby: 3000,
+  process: 1200,
+  read: 2400,
 } as const;
 
 // Sprite positions
 export const SPRITE_POSITION = {
   idle: { x: 0, y: 0 },
   run: { x: 0, y: -78 },
-  wave: { x: 0, y: -234 },
-  happy: { x: 0, y: -312 },
+  scan: { x: 0, y: -156 },
+  write: { x: 0, y: -234 },
+  rest: { x: 0, y: -312 },
   sad: { x: 0, y: -390 },
+  standby: { x: 0, y: -468 },
+  process: { x: 0, y: -546 },
+  read: { x: 0, y: -624 },
 } as const;
 
 export const STATE_TEXT: Record<string, string> = {
   idle: '',
-  selecting: '选择元素...',
-  sent: '已发送',
-  claimed: 'AI 已接收',
-  working: '处理中...',
+  standby: '待命中',
+  selecting: '扫描中...',
+  sent: '写入数据...',
+  claimed: '读取数据...',
+  working: '执行中...',
   done: '完成',
   failed: '失败',
+  run: '移动中',
+  scan: '扫描中',
+  write: '写入数据...',
+  rest: '休息中',
+  process: '执行中',
+  read: '读取数据...',
 };
 
 export const ICONS = {

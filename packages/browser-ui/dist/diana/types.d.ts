@@ -1,7 +1,7 @@
 /**
  * Diana component types
  */
-export type DianaState = 'idle' | 'selecting' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';
+export type DianaState = 'idle' | 'standby' | 'selecting' | 'sent' | 'claimed' | 'working' | 'done' | 'failed' | 'run' | 'scan' | 'write' | 'rest' | 'process' | 'read';
 export type DianaDirection = 'left' | 'right';
 export interface DianaPosition {
     x: number;

@@ -14,9 +14,13 @@ export declare const DIANA_SIZE: {
 export declare const ANIMATION_DURATION: {
     readonly idle: 3600;
     readonly run: 900;
-    readonly wave: 1800;
-    readonly happy: 1800;
+    readonly scan: 1200;
+    readonly write: 1800;
+    readonly rest: 1800;
     readonly sad: 2200;
+    readonly standby: 3000;
+    readonly process: 1200;
+    readonly read: 2400;
 };
 export declare const SPRITE_POSITION: {
     readonly idle: {
@@ -27,17 +31,33 @@ export declare const SPRITE_POSITION: {
         readonly x: 0;
         readonly y: -78;
     };
-    readonly wave: {
+    readonly scan: {
+        readonly x: 0;
+        readonly y: -156;
+    };
+    readonly write: {
         readonly x: 0;
         readonly y: -234;
     };
-    readonly happy: {
+    readonly rest: {
         readonly x: 0;
         readonly y: -312;
     };
     readonly sad: {
         readonly x: 0;
         readonly y: -390;
+    };
+    readonly standby: {
+        readonly x: 0;
+        readonly y: -468;
+    };
+    readonly process: {
+        readonly x: 0;
+        readonly y: -546;
+    };
+    readonly read: {
+        readonly x: 0;
+        readonly y: -624;
     };
 };
 export declare const STATE_TEXT: Record<string, string>;

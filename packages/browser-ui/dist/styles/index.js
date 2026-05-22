@@ -103,25 +103,40 @@ export function dianaStyles() {
   transform-origin: 50% 50%;
 }
 
+#ui-inspect-toggle[data-state="standby"] .ui-inspect-diana {
+  animation: ui-diana-standby 3000ms steps(6) infinite;
+}
+
 #ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana {
-  animation: ui-diana-wave 1800ms steps(4) infinite;
+  animation: ui-diana-scan 1200ms steps(8) infinite;
 }
 
 #ui-inspect-toggle[data-state="sent"] .ui-inspect-diana,
-#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana {
-  animation: ui-diana-wave 2000ms steps(4) infinite;
+#ui-inspect-toggle[data-state="write"] .ui-inspect-diana {
+  animation: ui-diana-write 1800ms steps(4) infinite;
 }
 
-#ui-inspect-toggle[data-state="working"] .ui-inspect-diana {
-  animation: ui-diana-run 1200ms steps(8) infinite;
+#ui-inspect-toggle[data-state="claimed"] .ui-inspect-diana,
+#ui-inspect-toggle[data-state="read"] .ui-inspect-diana {
+  animation: ui-diana-read 2400ms steps(6) infinite;
 }
 
-#ui-inspect-toggle[data-state="done"] .ui-inspect-diana {
-  animation: ui-diana-happy 1800ms steps(5) infinite;
+#ui-inspect-toggle[data-state="working"] .ui-inspect-diana,
+#ui-inspect-toggle[data-state="process"] .ui-inspect-diana {
+  animation: ui-diana-process 1200ms steps(6) infinite;
+}
+
+#ui-inspect-toggle[data-state="done"] .ui-inspect-diana,
+#ui-inspect-toggle[data-state="rest"] .ui-inspect-diana {
+  animation: ui-diana-rest 1800ms steps(5) infinite;
 }
 
 #ui-inspect-toggle[data-state="failed"] .ui-inspect-diana {
   animation: ui-diana-sad 2200ms steps(8) infinite;
+}
+
+#ui-inspect-toggle[data-state="run"] .ui-inspect-diana {
+  animation: ui-diana-run 900ms steps(8) infinite;
 }
 
 @keyframes ui-diana-idle {
@@ -134,12 +149,17 @@ export function dianaStyles() {
   to { background-position: -576px -78px; }
 }
 
-@keyframes ui-diana-wave {
+@keyframes ui-diana-scan {
+  from { background-position: 0 -156px; }
+  to { background-position: -576px -156px; }
+}
+
+@keyframes ui-diana-write {
   from { background-position: 0 -234px; }
   to { background-position: -288px -234px; }
 }
 
-@keyframes ui-diana-happy {
+@keyframes ui-diana-rest {
   from { background-position: 0 -312px; }
   to { background-position: -360px -312px; }
 }
@@ -147,6 +167,21 @@ export function dianaStyles() {
 @keyframes ui-diana-sad {
   from { background-position: 0 -390px; }
   to { background-position: -576px -390px; }
+}
+
+@keyframes ui-diana-standby {
+  from { background-position: 0 -468px; }
+  to { background-position: -432px -468px; }
+}
+
+@keyframes ui-diana-process {
+  from { background-position: 0 -546px; }
+  to { background-position: -432px -546px; }
+}
+
+@keyframes ui-diana-read {
+  from { background-position: 0 -624px; }
+  to { background-position: -432px -624px; }
 }
 `;
 }

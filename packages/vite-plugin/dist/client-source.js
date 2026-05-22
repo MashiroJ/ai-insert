@@ -198,6 +198,7 @@ ${selectionClientSource}
     const existingSidebar = document.getElementById(BATCH_SIDEBAR_ID);
     if (existingPanel || existingSidebar) return;
     setEnabled(false);
+    setDianaState('standby');
     const menu = document.createElement('div');
     menu.id = MENU_ID;
     menu.innerHTML = [
