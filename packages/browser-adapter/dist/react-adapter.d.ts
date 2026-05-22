@@ -1,22 +1,31 @@
 /**
  * React framework adapter
  *
- * This adapter provides React-specific functionality through React DevTools.
- * Note: This is a placeholder implementation - full integration requires React DevTools hooks.
+ * Provides React-specific functionality through React Fiber and DevTools.
+ * Supports React 16.8+ (hooks) and React 18+.
  */
 import type { ComponentInfo, ComponentTreeNode, FrameworkAdapter, SourceHint, SourceLocation, PropValue, StateValue, DevToolsCallback } from './interfaces.js';
 /**
- * React adapter implementation
+ * Enhanced React adapter implementation
  */
 export declare class ReactAdapter implements FrameworkAdapter {
     readonly name = "react";
-    readonly version?: string;
+    version?: string;
     private devToolsCleanup;
+    private renderer;
     constructor();
+    /**
+     * Detect React version from global objects
+     */
+    private detectReactVersion;
+    /**
+     * Attach to React DevTools if available
+     */
+    private attachToDevTools;
     getComponentInfo(element: HTMLElement): ComponentInfo | null;
     getComponentChain(element: HTMLElement): ComponentInfo[];
     getComponentTree(element: HTMLElement): ComponentTreeNode;
-    getSourceLocation(): SourceLocation | null;
+    getSourceLocation(element: HTMLElement): SourceLocation | null;
     getSourceHints(element: HTMLElement): SourceHint[];
     getComponentProps(element: HTMLElement): Record<string, PropValue>;
     getComponentState(element: HTMLElement): Record<string, StateValue> | null;
@@ -30,6 +39,14 @@ export declare class ReactAdapter implements FrameworkAdapter {
      * Get component name from element type
      */
     private getComponentName;
+    /**
+     * Get display name for component
+     */
+    private getDisplayName;
+    /**
+     * Get source file from fiber node
+     */
+    private getSourceFileFromFiber;
     /**
      * Get a unique ID for a fiber node
      */

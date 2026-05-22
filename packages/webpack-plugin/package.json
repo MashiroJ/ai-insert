@@ -1,0 +1,38 @@
+{
+  "name": "@ui-inspect/webpack-plugin",
+  "version": "0.1.12",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsc --watch"
+  },
+  "peerDependencies": {
+    "webpack": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "webpack": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@ui-inspect/browser-ui": "workspace:*",
+    "@ui-inspect/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "webpack": "^5.0.0"
+  }
+}
