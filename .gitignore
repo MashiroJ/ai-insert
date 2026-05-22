@@ -4,7 +4,11 @@ node_modules/
 .codex/
 .ai-insert/
 .claude/
+.codegraph/
+.cursor/
 .pnpm-store/
+doc/
+*.tsbuildinfo
 *.log
 npm-debug.log*
 yarn-debug.log*

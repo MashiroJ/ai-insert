@@ -15,6 +15,11 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.test.*.map"
+  ],
   "dependencies": {
     "@ui-inspect/protocol": "workspace:*",
     "@ui-inspect/server": "workspace:*",

@@ -28,7 +28,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "!dist/**/*.test.*",
+    "!dist/**/*.test.*.map"
   ],
   "scripts": {
     "build": "tsc",

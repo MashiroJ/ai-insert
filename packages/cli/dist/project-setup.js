@@ -2,9 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { getVersion } from './version.js';
 const require = createRequire(import.meta.url);
 const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'];
-const PACKAGE_VERSION = '0.1.12';
+const PACKAGE_VERSION = getVersion();
 const VITE_PLUGIN_SPEC = `@ui-inspect/vite-plugin@${PACKAGE_VERSION}`;
 export function ensureProjectIntegration({ project }) {
     const result = {

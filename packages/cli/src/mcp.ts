@@ -20,8 +20,10 @@ import {
   readSelectionSource,
 } from '@ui-inspect/server';
 
+import { getVersion } from './version.js';
+
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.1.12';
+const SERVER_VERSION = getVersion();
 
 interface RunMcpOptions {
   daemonUrl: string;
