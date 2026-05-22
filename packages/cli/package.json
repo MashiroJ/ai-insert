@@ -1,6 +1,6 @@
 {
   "name": "@ui-inspect/cli",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "type": "module",
   "bin": {
     "ui-inspect": "./dist/index.js"

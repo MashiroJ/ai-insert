@@ -14,8 +14,12 @@ const tag = valueAfter('--tag') || 'latest';
 
 const packages = [
   '@ui-inspect/protocol',
+  '@ui-inspect/shared',
+  '@ui-inspect/browser-adapter',
+  '@ui-inspect/browser-ui',
   '@ui-inspect/server',
   '@ui-inspect/vite-plugin',
+  '@ui-inspect/webpack-plugin',
   '@ui-inspect/cli',
 ];
 

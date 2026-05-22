@@ -8,9 +8,13 @@ const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).v
 const outDir = join(root, 'release', `ui-inspect-${version}`);
 const packages = [
   '@ui-inspect/protocol',
+  '@ui-inspect/shared',
+  '@ui-inspect/browser-adapter',
+  '@ui-inspect/browser-ui',
   '@ui-inspect/server',
-  '@ui-inspect/cli',
   '@ui-inspect/vite-plugin',
+  '@ui-inspect/webpack-plugin',
+  '@ui-inspect/cli',
 ];
 
 run('pnpm', ['build'], root);

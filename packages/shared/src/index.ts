@@ -11,3 +11,4 @@ export * from './types.js';
 export * from './utils/performance.js';
 export * from './utils/selector.js';
 export * from './utils/validation.js';
+export * from './utils/cache.js';
