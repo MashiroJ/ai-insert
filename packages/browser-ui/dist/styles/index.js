@@ -87,10 +87,6 @@ export function dianaStyles() {
   animation: ui-diana-idle 3600ms steps(6) infinite;
 }
 
-#ui-inspect-toggle[data-dragging="true"] .ui-inspect-diana {
-  animation: ui-diana-run 900ms steps(8) infinite;
-}
-
 #ui-inspect-toggle[data-direction="left"] .ui-inspect-diana {
   transform: scaleX(-1);
 }
@@ -108,6 +104,10 @@ export function dianaStyles() {
 }
 
 #ui-inspect-toggle[data-state="selecting"] .ui-inspect-diana {
+  animation: ui-diana-read 2400ms steps(6) infinite;
+}
+
+#ui-inspect-toggle[data-state="scan"] .ui-inspect-diana {
   animation: ui-diana-scan 1200ms steps(8) infinite;
 }
 
@@ -136,6 +136,10 @@ export function dianaStyles() {
 }
 
 #ui-inspect-toggle[data-state="run"] .ui-inspect-diana {
+  animation: ui-diana-run 900ms steps(8) infinite;
+}
+
+#ui-inspect-toggle[data-dragging="true"] .ui-inspect-diana {
   animation: ui-diana-run 900ms steps(8) infinite;
 }
 

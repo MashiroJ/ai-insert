@@ -35,7 +35,7 @@ export const SPRITE_POSITION = {
 export const STATE_TEXT = {
     idle: '',
     standby: '待命中',
-    selecting: '扫描中...',
+    selecting: '读取元素...',
     sent: '写入数据...',
     claimed: '读取数据...',
     working: '执行中...',

@@ -8,6 +8,7 @@ node_modules/
 .cursor/
 .pnpm-store/
 doc/
+release/
 *.tsbuildinfo
 *.log
 npm-debug.log*
