@@ -1,0 +1,49 @@
+{
+  "name": "@ui-inspect/browser-adapter",
+  "version": "0.1.12",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./interfaces": {
+      "types": "./dist/interfaces.d.ts",
+      "import": "./dist/interfaces.js"
+    },
+    "./vue-adapter": {
+      "types": "./dist/vue-adapter.d.ts",
+      "import": "./dist/vue-adapter.js"
+    },
+    "./react-adapter": {
+      "types": "./dist/react-adapter.d.ts",
+      "import": "./dist/react-adapter.js"
+    },
+    "./vanilla-adapter": {
+      "types": "./dist/vanilla-adapter.d.ts",
+      "import": "./dist/vanilla-adapter.js"
+    },
+    "./factory": {
+      "types": "./dist/factory.d.ts",
+      "import": "./dist/factory.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@ui-inspect/protocol": "workspace:*",
+    "@ui-inspect/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
