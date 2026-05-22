@@ -29,6 +29,12 @@ export function clientSource(options) {
   let dianaDrag = null;
   let suppressDianaClick = false;
   let batchSidebarCollapsed = false;
+  let selectedRuntimeEventIds = new Set();
+  let troubleshootRuntimeSnapshot = [];
+  let runtimePrivacyConfirmed = false;
+  const RUNTIME_EVENT_LIMIT = 20;
+  const RUNTIME_EVENT_TEXT_LIMIT = 2000;
+  const runtimeEvents = [];
 
   function installStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -155,6 +161,17 @@ export function clientSource(options) {
       '#ui-inspect-panel .ui-inspect-editor-option{display:flex;align-items:center;gap:7px;border:1px solid rgba(148,163,184,.26);border-radius:7px;background:rgba(15,23,42,.72);padding:8px;color:#e2e8f0;font-weight:800;cursor:pointer}',
       '#ui-inspect-panel .ui-inspect-editor-option input{margin:0}',
       '#ui-inspect-panel .ui-inspect-editor-option[data-disabled="true"]{opacity:.48}',
+      '#ui-inspect-panel .ui-inspect-log-panel{display:flex;flex-direction:column;gap:7px;margin:8px 0 10px}',
+      '#ui-inspect-panel .ui-inspect-log-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#cbd5e1;font-size:12px;font-weight:900}',
+      '#ui-inspect-panel .ui-inspect-log-list{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow:auto}',
+      '#ui-inspect-panel .ui-inspect-log-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;border:1px solid rgba(148,163,184,.24);border-radius:7px;background:rgba(15,23,42,.72);padding:7px}',
+      '#ui-inspect-panel .ui-inspect-log-item[data-level="error"]{border-color:rgba(248,113,113,.42);background:rgba(127,29,29,.18)}',
+      '#ui-inspect-panel .ui-inspect-log-item input{margin-top:2px}',
+      '#ui-inspect-panel .ui-inspect-log-meta{display:flex;gap:6px;align-items:center;margin-bottom:3px;color:#93c5fd;font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}',
+      '#ui-inspect-panel .ui-inspect-log-message{color:#e2e8f0;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}',
+      '#ui-inspect-panel .ui-inspect-log-empty{border:1px dashed rgba(148,163,184,.3);border-radius:7px;background:rgba(15,23,42,.54);color:#94a3b8;padding:10px;font-size:12px;font-weight:800}',
+      '#ui-inspect-panel .ui-inspect-privacy{display:flex;gap:7px;align-items:flex-start;border:1px solid rgba(250,204,21,.26);border-radius:7px;background:rgba(113,63,18,.18);color:#fde68a;padding:8px;margin:8px 0 0;font-size:12px;line-height:1.45;font-weight:800}',
+      '#ui-inspect-panel .ui-inspect-privacy input{margin-top:2px;flex:none}',
       'html[data-ui-inspect="true"] *{cursor:crosshair!important}'
     ].join('\\n');
     document.head.appendChild(style);
@@ -348,6 +365,72 @@ export function clientSource(options) {
     if (!enabled && activeElement) highlightElement(activeElement);
   }
 
+  function installRuntimeCapture() {
+    if (window.__UI_INSPECT_RUNTIME_CAPTURED__) return;
+    window.__UI_INSPECT_RUNTIME_CAPTURED__ = true;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    console.error = function(...args) {
+      recordRuntimeEvent('console', 'error', args);
+      return originalError.apply(this, args);
+    };
+    console.warn = function(...args) {
+      recordRuntimeEvent('console', 'warn', args);
+      return originalWarn.apply(this, args);
+    };
+    window.addEventListener('error', (event) => {
+      recordRuntimeEvent('window-error', 'error', [event.message, event.error?.stack || '']);
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      recordRuntimeEvent('unhandledrejection', 'error', [event.reason]);
+    });
+  }
+
+  function recordRuntimeEvent(kind, level, args) {
+    const text = args.map(formatRuntimeValue).filter(Boolean).join(' ');
+    const stack = args.map((item) => item && item.stack ? String(item.stack) : '').find(Boolean) || '';
+    runtimeEvents.push({
+      id: 'runtime-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      kind,
+      level,
+      message: truncateText(redactRuntimeText(text || kind), RUNTIME_EVENT_TEXT_LIMIT),
+      stack: truncateText(redactRuntimeText(stack), RUNTIME_EVENT_TEXT_LIMIT),
+      timestamp: Date.now(),
+      url: window.location.href
+    });
+    while (runtimeEvents.length > RUNTIME_EVENT_LIMIT) runtimeEvents.shift();
+    const panel = document.getElementById(PANEL_ID);
+    if (panel && activeTaskMode === 'troubleshoot') {
+      syncTroubleshootSnapshot();
+      renderTroubleshootLogs(panel);
+      updateTroubleshootSendState(panel);
+    }
+  }
+
+  function formatRuntimeValue(value) {
+    if (value == null) return String(value);
+    if (value instanceof Error) return value.message || String(value);
+    if (typeof value === 'string') return value;
+    if (['number','boolean','bigint'].includes(typeof value)) return String(value);
+    try {
+      return JSON.stringify(value, (_key, item) => typeof item === 'function' ? '[Function]' : item);
+    } catch {
+      return Object.prototype.toString.call(value);
+    }
+  }
+
+  function redactRuntimeText(value) {
+    return String(value || '')
+      .replace(/(token|authorization|password|secret|cookie)(["'\\s:=]+)([^\\s"',;&]+)/ig, '$1$2[redacted]')
+      .replace(/Bearer\\s+[A-Za-z0-9._~+/-]+=*/g, 'Bearer [redacted]')
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/ig, '[email]');
+  }
+
+  function truncateText(value, max) {
+    const text = String(value || '');
+    return text.length > max ? text.slice(0, max) + '... [truncated]' : text;
+  }
+
   function isOwnNode(el) {
     return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID))));
   }
@@ -463,6 +546,131 @@ export function clientSource(options) {
     return out;
   }
 
+  function elementSummaryFor(el) {
+    if (!el || el.nodeType !== 1) return null;
+    const text = cleanText(el.textContent || '').slice(0, 120);
+    return {
+      tagName: el.tagName.toLowerCase(),
+      selector: selectorFor(el),
+      role: el.getAttribute('role') || '',
+      text,
+      attributes: attributesFor(el)
+    };
+  }
+
+  function attributesFor(el) {
+    const out = {};
+    Array.from(el.attributes || []).slice(0, 20).forEach((attr) => {
+      out[attr.name] = truncateText(attr.value, 160);
+    });
+    return out;
+  }
+
+  function parentChainFor(el) {
+    const chain = [];
+    let cursor = el.parentElement;
+    while (cursor && cursor !== document.body && chain.length < 5) {
+      chain.push(elementSummaryFor(cursor));
+      cursor = cursor.parentElement;
+    }
+    return chain.filter(Boolean);
+  }
+
+  function siblingsFor(el) {
+    const parent = el.parentElement;
+    if (!parent) return [];
+    return Array.from(parent.children).filter((item) => item !== el).slice(0, 8).map(elementSummaryFor).filter(Boolean);
+  }
+
+  function childrenFor(el) {
+    return Array.from(el.children || []).slice(0, 8).map(elementSummaryFor).filter(Boolean);
+  }
+
+  function accessibleNameFor(el) {
+    const html = el.outerHTML || '';
+    const attrs = attrsFromHtml(html);
+    const labelledBy = attrs['aria-labelledby'];
+    if (labelledBy) {
+      const label = document.getElementById(labelledBy);
+      if (label) return cleanText(label.textContent);
+    }
+    const explicit = attrs['aria-label'] || attrs.title || attrs.placeholder || '';
+    if (explicit) return cleanText(explicit);
+    if (el.id) {
+      const label = document.querySelector('label[for="' + cssEscape(el.id) + '"]');
+      if (label) return cleanText(label.textContent);
+    }
+    return cleanText(el.textContent || '').slice(0, 80);
+  }
+
+  function formContextFor(el) {
+    const html = el.outerHTML || '';
+    const attrs = attrsFromHtml(html);
+    let label = '';
+    if (el.id) {
+      const labelEl = document.querySelector('label[for="' + cssEscape(el.id) + '"]');
+      label = labelEl ? cleanText(labelEl.textContent) : '';
+    }
+    return {
+      label,
+      placeholder: cleanText(attrs.placeholder || ''),
+      name: cleanText(attrs.name || ''),
+      type: cleanText(attrs.type || '')
+    };
+  }
+
+  function interactionStateFor(el) {
+    const state = {};
+    try {
+      if (el.matches(':hover')) state.hover = true;
+      if (el.matches(':active')) state.active = true;
+      if (el.matches(':focus')) state.focus = true;
+      if (el.matches(':focus-within')) state.focusWithin = true;
+    } catch {}
+    return state;
+  }
+
+  function pseudoSummary(el, pseudo) {
+    const computed = window.getComputedStyle(el, pseudo);
+    const content = computed.content || '';
+    if (!content || content === 'none') return undefined;
+    return {
+      content: truncateText(content, 160),
+      color: computed.color || '',
+      backgroundColor: computed.backgroundColor || '',
+      display: computed.display || ''
+    };
+  }
+
+  function elementContextFor(el) {
+    return {
+      accessibleName: accessibleNameFor(el),
+      role: el.getAttribute('role') || '',
+      attributes: attributesFor(el),
+      parentChain: parentChainFor(el),
+      siblingsSummary: siblingsFor(el),
+      childrenSummary: childrenFor(el),
+      formContext: formContextFor(el),
+      interactionState: interactionStateFor(el),
+      computedStyles: styleSummary(el),
+      pseudoElements: {
+        before: pseudoSummary(el, '::before'),
+        after: pseudoSummary(el, '::after')
+      }
+    };
+  }
+
+  function sourceHintsFor(vue, sourceFile, el) {
+    const hints = [];
+    if (sourceFile) {
+      hints.push({ kind: 'direct', file: sourceFile, line: null, column: null, confidence: 0.86, reason: 'Vue runtime exposed component source file.' });
+      if (vue?.componentName) hints.push({ kind: 'vue-component', file: sourceFile, line: null, column: null, confidence: 0.78, reason: 'Selected element belongs to Vue component ' + vue.componentName + '.' });
+    }
+    const className = typeof el.className === 'string' ? el.className : '';
+    if (sourceFile && className) hints.push({ kind: 'style', file: sourceFile, line: null, column: null, confidence: 0.42, reason: 'Element class list may map to style/template in the same component.' });
+    return hints;
+  }
+
   function selectionPayloadFor(el, instruction, sessionId) {
     const rect = el.getBoundingClientRect();
     const vue = vueInfoFor(el);
@@ -476,6 +684,7 @@ export function clientSource(options) {
       timestamp: Date.now(),
       instruction: instruction || '',
       note: '',
+      mode: activeTaskMode,
       framework: vue ? 'vue3' : 'dom',
       dom: {
         selector: selectorFor(el),
@@ -488,7 +697,9 @@ export function clientSource(options) {
         styles: styleSummary(el)
       },
       vue,
-      source: { root: PROJECT_ROOT, file: sourceFile, line: null, column: null }
+      source: { root: PROJECT_ROOT, file: sourceFile, line: null, column: null },
+      context: elementContextFor(el),
+      sourceHints: sourceHintsFor(vue, sourceFile, el)
     };
   }
 
@@ -615,6 +826,7 @@ export function clientSource(options) {
       '<div class="ui-inspect-menu-head"><div class="ui-inspect-menu-title">Diana</div><button type="button" class="ui-inspect-menu-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-menu-actions">',
       '<button type="button" data-mode="source" aria-label="源码线索">' + sourceIcon() + '<span class="ui-inspect-menu-desc">源码线索</span></button>',
+      '<button type="button" data-mode="troubleshoot" aria-label="问题排查：选择可能报错的组件并确认 console 日志">' + troubleshootIcon() + '<span class="ui-inspect-menu-desc">问题排查</span></button>',
       '<button type="button" data-mode="single" aria-label="局部调整">' + editIcon() + '<span class="ui-inspect-menu-desc">局部调整</span></button>',
       '<button type="button" data-mode="batch" aria-label="批量调整">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量调整</span></button>',
       '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
@@ -642,7 +854,7 @@ export function clientSource(options) {
     if (!button || !menu) return;
     const rect = button.getBoundingClientRect();
     const menuWidth = 48;
-    const menuHeight = menu.offsetHeight || 190;
+    const menuHeight = menu.offsetHeight || 232;
     const margin = 8;
     const x = Math.min(Math.max(margin, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - margin);
     const preferredY = rect.top - menuHeight - 8;
@@ -665,6 +877,10 @@ export function clientSource(options) {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/><path d="m14 6 4 4"/></svg>';
   }
 
+  function troubleshootIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.8 2h4.4L16 2"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 17v3"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5 5 2 2"/><path d="m19 5-2 2"/><rect x="6" y="5" width="12" height="13" rx="6"/></svg>';
+  }
+
   function batchIcon() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="5" rx="1"/><rect x="4" y="15" width="16" height="5" rx="1"/><path d="M7 9v6"/><path d="M17 9v6"/></svg>';
   }
@@ -676,14 +892,17 @@ export function clientSource(options) {
   function beginSelectionMode(mode) {
     removePanel();
     selectionMode = mode;
-    activeTaskMode = mode === 'single' ? 'single' : 'batch';
-    if (mode === 'single' || mode === 'batch') {
+    activeTaskMode = mode === 'single' ? 'single' : (mode === 'troubleshoot' ? 'troubleshoot' : 'batch');
+    if (mode === 'single' || mode === 'batch' || mode === 'troubleshoot') {
       activePanelSessionId = 'session-' + Date.now();
       activeSessionData = null;
       selectedTargets = [];
+      selectedRuntimeEventIds = new Set();
+      runtimePrivacyConfirmed = false;
     }
     setEnabled(true);
     if (mode === 'source') showToast('点击页面元素，Diana 会先确认源码线索。');
+    if (mode === 'troubleshoot') showToast('点击可能报错的组件，Diana 会附带可确认的 console 线索。');
     if (mode === 'single') showToast('点击一个需要局部调整的元素。');
     if (mode === 'batch') {
       batchSidebarCollapsed = window.innerWidth <= 520;
@@ -789,6 +1008,77 @@ export function clientSource(options) {
     })[tag] || (tag || '元素');
   }
 
+  function runtimeEventsForPanel() {
+    return runtimeEvents.slice(-RUNTIME_EVENT_LIMIT).reverse();
+  }
+
+  function syncTroubleshootSnapshot() {
+    const known = new Set(troubleshootRuntimeSnapshot.map((event) => event.id));
+    const additions = runtimeEventsForPanel().filter((event) => !known.has(event.id));
+    if (additions.length) troubleshootRuntimeSnapshot = additions.concat(troubleshootRuntimeSnapshot);
+    if (troubleshootRuntimeSnapshot.length > RUNTIME_EVENT_LIMIT) {
+      const selected = troubleshootRuntimeSnapshot.filter((event) => selectedRuntimeEventIds.has(event.id));
+      const unselected = troubleshootRuntimeSnapshot.filter((event) => !selectedRuntimeEventIds.has(event.id));
+      troubleshootRuntimeSnapshot = selected.concat(unselected).slice(0, Math.max(RUNTIME_EVENT_LIMIT, selected.length));
+    }
+  }
+
+  function selectedDiagnostics() {
+    syncTroubleshootSnapshot();
+    const selected = troubleshootRuntimeSnapshot.filter((event) => selectedRuntimeEventIds.has(event.id));
+    return {
+      runtimeEvents: selected,
+      capturedAt: Date.now(),
+      truncated: runtimeEvents.length >= RUNTIME_EVENT_LIMIT
+    };
+  }
+
+  function renderTroubleshootLogs(panel) {
+    const box = panel.querySelector('.ui-inspect-log-panel');
+    if (!box) return;
+    syncTroubleshootSnapshot();
+    const events = troubleshootRuntimeSnapshot;
+    const selectedCount = events.filter((event) => selectedRuntimeEventIds.has(event.id)).length;
+    if (!events.length) {
+      box.innerHTML = '<div class="ui-inspect-log-summary"><span>Console 线索</span><span>0 条</span></div><div class="ui-inspect-log-empty">暂未捕获到 console 错误。你可以保留面板，复现一次问题后再发送。</div>';
+      return;
+    }
+    box.innerHTML = [
+      '<div class="ui-inspect-log-summary"><span>Console 线索</span><span>已选 ' + selectedCount + ' / ' + events.length + ' 条</span></div>',
+      '<div class="ui-inspect-log-list">',
+      events.map((event) => {
+        const checked = selectedRuntimeEventIds.has(event.id) ? ' checked' : '';
+        const time = new Date(event.timestamp).toLocaleTimeString();
+        return '<label class="ui-inspect-log-item" data-level="' + escapeHtml(event.level) + '">' +
+          '<input type="checkbox" data-runtime-id="' + escapeHtml(event.id) + '"' + checked + ' />' +
+          '<span><span class="ui-inspect-log-meta"><span>' + escapeHtml(event.level) + '</span><span>' + escapeHtml(event.kind) + '</span><span>' + escapeHtml(time) + '</span></span>' +
+          '<span class="ui-inspect-log-message">' + escapeHtml(event.message || event.stack || '') + '</span></span>' +
+        '</label>';
+      }).join(''),
+      '</div>'
+    ].join('');
+    Array.from(box.querySelectorAll('[data-runtime-id]')).forEach((input) => {
+      input.addEventListener('change', () => {
+        const id = input.getAttribute('data-runtime-id');
+        if (!id) return;
+        if (input.checked) selectedRuntimeEventIds.add(id);
+        else selectedRuntimeEventIds.delete(id);
+        renderTroubleshootLogs(panel);
+        updateTroubleshootSendState(panel);
+      });
+    });
+  }
+
+  function updateTroubleshootSendState(panel) {
+    if (activeTaskMode !== 'troubleshoot') return;
+    const send = panel.querySelector('[data-action="send"]');
+    if (!send) return;
+    const hasSelectedLogs = selectedRuntimeEventIds.size > 0;
+    const confirmed = !!panel.querySelector('[data-action="privacy-confirm"]')?.checked;
+    send.textContent = hasSelectedLogs ? '发送组件和日志' : '发送组件线索';
+    send.disabled = hasSelectedLogs && !confirmed;
+  }
+
   function targetFromSelection(selection, note) {
     return {
       id: selection.id,
@@ -809,6 +1099,7 @@ export function clientSource(options) {
   }
 
   function taskModeTitle() {
+    if (activeTaskMode === 'troubleshoot') return '问题排查';
     return activeTaskMode === 'single' ? '局部调整' : '批量调整';
   }
 
@@ -1069,18 +1360,24 @@ export function clientSource(options) {
     if (!selectedTargets.length && activeSessionData?.selection) selectedTargets = targetsFromSession(activeSessionData);
     const panel = document.createElement('div');
     panel.id = PANEL_ID;
+    if (activeTaskMode === 'troubleshoot') {
+      troubleshootRuntimeSnapshot = runtimeEventsForPanel();
+      selectedRuntimeEventIds = new Set(troubleshootRuntimeSnapshot.filter((event) => event.level === 'error').map((event) => event.id));
+    }
     const hasSelection = selectedTargets.length > 0;
+    const isTroubleshoot = activeTaskMode === 'troubleshoot';
     panel.innerHTML = [
       '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · ' + escapeHtml(taskModeTitle()) + '</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-status">' + escapeHtml(statusText(activeSessionData?.status || (hasSelection ? 'draft' : 'draft'))) + '</div>',
       '<div class="ui-inspect-target" data-empty="' + (hasSelection ? 'false' : 'true') + '">' + escapeHtml(describeTargets()) + '</div>',
       '<div class="ui-inspect-target-list"></div>',
       '<div class="ui-inspect-messages" aria-live="polite"></div>',
-      '<label class="ui-inspect-field-label" for="ui-inspect-instruction">' + (activeTaskMode === 'single' ? '你想怎么改？' : '整体需求，可选') + '</label>',
-      '<textarea id="ui-inspect-instruction" placeholder="' + (activeTaskMode === 'single' ? '例如：把这个输入框宽一点，和下面输入框对齐' : '例如：这组输入框更紧凑，风格统一') + '"></textarea>',
+      (isTroubleshoot ? '<div class="ui-inspect-log-panel"></div><label class="ui-inspect-privacy"><input type="checkbox" data-action="privacy-confirm" /> <span>我已确认选中的日志可发送给 AI。日志可能包含 token、邮箱、订单号等敏感信息；Diana 不会自动发送 cookies、localStorage、网络请求正文或截图。</span></label>' : ''),
+      '<label class="ui-inspect-field-label" for="ui-inspect-instruction">' + (isTroubleshoot ? '发生了什么？' : (activeTaskMode === 'single' ? '你想怎么改？' : '整体需求，可选')) + '</label>',
+      '<textarea id="ui-inspect-instruction" placeholder="' + (isTroubleshoot ? '例如：点击提交后无响应，控制台有红色报错' : (activeTaskMode === 'single' ? '例如：把这个输入框宽一点，和下面输入框对齐' : '例如：这组输入框更紧凑，风格统一')) + '"></textarea>',
       '<div class="ui-inspect-actions">',
       '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史记录</button></div>',
-      '<div class="ui-inspect-actions-right"><button type="button" data-action="select">' + (activeTaskMode === 'single' ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
+      '<div class="ui-inspect-actions-right"><button type="button" data-action="copy-logs">复制日志</button><button type="button" data-action="select">' + (activeTaskMode === 'single' || isTroubleshoot ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
       '</div>'
     ].join('');
     document.body.appendChild(panel);
@@ -1094,21 +1391,40 @@ export function clientSource(options) {
     const send = panel.querySelector('[data-action="send"]');
     const select = panel.querySelector('[data-action="select"]');
     const history = panel.querySelector('[data-action="history"]');
+    const copyLogs = panel.querySelector('[data-action="copy-logs"]');
     const close = panel.querySelector('[data-action="close"]');
+    if (!isTroubleshoot && copyLogs) copyLogs.style.display = 'none';
     if (options?.prefill) textarea.value = options.prefill;
     if (activeSessionData) renderSessionData(activeSessionData);
     renderTargets(panel);
+    if (isTroubleshoot) {
+      renderTroubleshootLogs(panel);
+      const privacy = panel.querySelector('[data-action="privacy-confirm"]');
+      if (privacy) {
+        privacy.checked = runtimePrivacyConfirmed;
+        privacy.addEventListener('change', () => {
+          runtimePrivacyConfirmed = !!privacy.checked;
+          updateTroubleshootSendState(panel);
+        });
+      }
+      updateTroubleshootSendState(panel);
+    }
     if (activePanelSessionId && activeSessionData) startSessionStream(activePanelSessionId);
     textarea.focus();
     select.addEventListener('click', () => {
       reselectSessionId = activePanelSessionId;
       removePanel();
-      selectionMode = activeTaskMode === 'single' ? 'single' : 'batch';
+      selectionMode = activeTaskMode === 'single' ? 'single' : (activeTaskMode === 'troubleshoot' ? 'troubleshoot' : 'batch');
       setEnabled(true);
       if (selectionMode === 'batch') openBatchSidebar();
     });
     close.addEventListener('click', () => closeDebugPanel());
     history.addEventListener('click', () => openHistoryPanel());
+    if (copyLogs) copyLogs.addEventListener('click', () => {
+      syncTroubleshootSnapshot();
+      const text = troubleshootRuntimeSnapshot.map((event) => '[' + event.level + '] ' + event.kind + ' ' + new Date(event.timestamp).toISOString() + '\\n' + event.message + (event.stack ? '\\n' + event.stack : '')).join('\\n\\n');
+      navigator.clipboard?.writeText(text).then(() => { copyLogs.textContent = '已复制'; }).catch(() => { copyLogs.textContent = '复制失败'; });
+    });
     send.addEventListener('click', () => sendCurrentTask(panel, textarea));
     textarea.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -1127,8 +1443,12 @@ export function clientSource(options) {
       return;
     }
     const hasTargetNote = selectedTargets.some((item) => (item.note || '').trim());
-    if (!instruction && !hasTargetNote) {
+    if (activeTaskMode !== 'troubleshoot' && !instruction && !hasTargetNote) {
       if (target) target.textContent = activeTaskMode === 'single' ? '请描述你想怎么改这个元素。' : '请填写整体需求，或给至少一个目标写要求。';
+      return;
+    }
+    if (activeTaskMode === 'troubleshoot' && selectedRuntimeEventIds.size > 0 && !container.querySelector('[data-action="privacy-confirm"]')?.checked) {
+      if (target) target.textContent = '请先确认选中的日志可发送给 AI。';
       return;
     }
     selectedTargets = selectedTargets.map((item) => {
@@ -1136,14 +1456,19 @@ export function clientSource(options) {
       return targetFromSelection({ ...item.selection, note }, note);
     });
     const primary = selectedTargets[0].selection;
+    const diagnostics = activeTaskMode === 'troubleshoot' ? selectedDiagnostics() : undefined;
     const payload = {
       ...primary,
       id: 'selection-' + Date.now(),
       sessionId: activePanelSessionId,
       timestamp: Date.now(),
-      instruction,
+      mode: activeTaskMode,
+      instruction: activeTaskMode === 'troubleshoot'
+        ? ('问题排查：请根据所选组件、源码线索和用户确认的 console 日志定位原因；先说明可能原因，再实施必要修复。\\n\\n现象：' + (instruction || '用户未填写额外描述。'))
+        : instruction,
       note: selectedTargets[0].note || '',
-      targets: selectedTargets
+      targets: selectedTargets.map((target) => diagnostics ? { ...target, diagnostics } : target),
+      diagnostics
     };
     submitPayload(payload).then(() => {
       if (textarea) textarea.value = '';
@@ -1277,7 +1602,13 @@ export function clientSource(options) {
     activePanelSessionId = session.id;
     activeSessionId = session.id;
     localStorage.setItem(LAST_SESSION_KEY, activeSessionId);
-    if (selectedTargets.length > 1 || Array.isArray(session?.targets)) {
+    if (session.mode === 'troubleshoot') {
+      activeTaskMode = 'troubleshoot';
+      selectionMode = 'done';
+      openDebugPanel({ session, sessionId: session.id });
+      return;
+    }
+    if (session.mode === 'batch' || selectedTargets.length > 1) {
       removePanel();
       activeTaskMode = 'batch';
       selectionMode = 'done';
@@ -1286,7 +1617,7 @@ export function clientSource(options) {
       startSessionStream(session.id);
       return;
     }
-    activeTaskMode = 'single';
+    activeTaskMode = session.mode === 'troubleshoot' ? 'troubleshoot' : 'single';
     openDebugPanel({ session, sessionId: session.id });
   }
 
@@ -1343,6 +1674,11 @@ export function clientSource(options) {
       highlightElement(el);
       setEnabled(true);
       openBatchSidebar();
+      return;
+    }
+    if (selectionMode === 'troubleshoot') {
+      activeTaskMode = 'troubleshoot';
+      openDebugPanel({ element: el, sessionId: sessionId || activePanelSessionId || undefined });
       return;
     }
     openDebugPanel({ element: el, sessionId: sessionId || activePanelSessionId || undefined });
@@ -1419,6 +1755,7 @@ export function clientSource(options) {
   }
 
   installStyle();
+  installRuntimeCapture();
   ensureToggle();
   document.addEventListener('pointermove', moveDiana, true);
   document.addEventListener('pointerup', endDianaDrag, true);

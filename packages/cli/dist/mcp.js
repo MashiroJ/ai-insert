@@ -6,7 +6,7 @@ import { ensureProjectIntegration } from './project-setup.js';
 import { DEFAULT_DAEMON_URL, } from '@ui-inspect/protocol';
 import { fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, } from '@ui-inspect/server';
 const SERVER_NAME = 'ui-inspect';
-const SERVER_VERSION = '0.1.4';
+const SERVER_VERSION = '0.1.12';
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const WAIT_POLL_INTERVAL_MS = 1000;
@@ -159,6 +159,9 @@ export async function runMcpStdio({ daemonUrl }) {
             'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Do not search the codebase for a ui-inspect feature first.',
             'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. Tell the user to start their own frontend dev server, or keep using their already-open page, then select an element and click Send.',
             'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
+            'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
+            'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
+            'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
             'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
         ].join('\n'),
     });
@@ -251,11 +254,12 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
     while (Date.now() <= deadline) {
         const match = latestUserMessage(await fetchSessions(daemonUrl), sinceTimestamp);
         if (match) {
-            await updateTaskStatus(daemonUrl, match.session.id, 'claimed').catch(() => null);
-            const source = match.session.selection
-                ? await readSourceIfAvailable(match.session.selection, context)
+            const claimed = await updateTaskStatus(daemonUrl, match.session.id, 'claimed').catch(() => null);
+            const session = claimed?.session || match.session;
+            const source = session.selection
+                ? await readSourceIfAvailable(session.selection, context)
                 : null;
-            const targetSources = await Promise.all((match.session.targets || []).map(async (target) => ({
+            const targetSources = await Promise.all((session.targets || []).map(async (target) => ({
                 id: target.id,
                 note: target.note,
                 selection: target.selection,
@@ -265,12 +269,18 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
                 ok: true,
                 timedOut: false,
                 message: match.message,
-                session: match.session,
-                selection: match.session.selection,
-                targetCount: match.session.targets?.length || 0,
-                targets: match.session.targets || [],
+                session,
+                selection: session.selection,
+                targetCount: session.targets?.length || 0,
+                targets: session.targets || [],
                 source,
                 targetSources,
+                contextSummary: summarizeSelection(session.selection),
+                targetsSummary: summarizeTargets(session.targets || []),
+                batchContext: buildBatchContext(session.targets || []),
+                sourceHintSummary: summarizeSourceHints(session.selection, session.targets || []),
+                runtimeSummary: summarizeDiagnostics(session.diagnostics || session.selection?.diagnostics),
+                diagnostics: session.diagnostics || session.selection?.diagnostics || null,
             };
         }
         await sleep(WAIT_POLL_INTERVAL_MS);
@@ -281,6 +291,107 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
         timeoutMs,
         message: `No browser request was sent within ${Math.round(timeoutMs / 1000)} seconds. The ui-inspect daemon and MCP process are shutting down for this run.`,
     };
+}
+function summarizeSelection(selection) {
+    if (!selection)
+        return 'No selected element.';
+    const title = selectionTitle(selection);
+    const context = selection.context;
+    const parts = [
+        `Element: ${title}`,
+        selection.source?.file ? `Source: ${sourceLabel(selection)}` : 'Source: unavailable',
+    ];
+    if (context?.accessibleName)
+        parts.push(`Accessible name: ${context.accessibleName}`);
+    if (context?.role)
+        parts.push(`Role: ${context.role}`);
+    if (context?.formContext) {
+        const form = Object.entries(context.formContext).filter(([, value]) => value).map(([key, value]) => `${key}=${value}`).join(', ');
+        if (form)
+            parts.push(`Form context: ${form}`);
+    }
+    if (selection.dom?.styles) {
+        const style = ['display', 'position', 'width', 'height', 'fontSize', 'borderRadius']
+            .map((key) => selection.dom.styles[key] ? `${key}=${selection.dom.styles[key]}` : '')
+            .filter(Boolean)
+            .join(', ');
+        if (style)
+            parts.push(`Styles: ${style}`);
+    }
+    return parts.join('\n');
+}
+function summarizeTargets(targets) {
+    if (!targets.length)
+        return 'No targets.';
+    return targets.map((target, index) => {
+        const selection = target.selection;
+        const note = target.note ? ` | note: ${target.note}` : '';
+        return `${index + 1}. ${selectionTitle(selection)} | ${sourceLabel(selection) || selection.dom?.selector || 'no source'}${note}`;
+    }).join('\n');
+}
+function buildBatchContext(targets) {
+    const groups = new Map();
+    const components = new Map();
+    for (const target of targets) {
+        const file = target.selection.source?.file || '(no source)';
+        groups.set(file, (groups.get(file) || 0) + 1);
+        const component = target.selection.vue?.componentName;
+        if (component)
+            components.set(component, (components.get(component) || 0) + 1);
+    }
+    return {
+        targetCount: targets.length,
+        groupsBySourceFile: Array.from(groups.entries()).map(([file, count]) => ({ file, count })),
+        sharedComponents: Array.from(components.entries()).map(([component, count]) => ({ component, count })),
+        targetsChecklist: targets.map((target, index) => ({
+            index: index + 1,
+            id: target.id,
+            title: selectionTitle(target.selection),
+            note: target.note,
+            source: sourceLabel(target.selection),
+        })),
+    };
+}
+function summarizeSourceHints(selection, targets) {
+    const hints = [
+        ...(selection?.sourceHints || []),
+        ...targets.flatMap((target) => target.selection.sourceHints || target.sourceHints || []),
+    ];
+    if (!hints.length)
+        return 'No source hints.';
+    return hints
+        .slice()
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+        .slice(0, 10)
+        .map((hint, index) => `${index + 1}. [${hint.kind}] ${hint.file || '(no file)'}${hint.line ? `:${hint.line}` : ''} confidence=${hint.confidence} reason=${hint.reason}`)
+        .join('\n');
+}
+function summarizeDiagnostics(diagnostics) {
+    if (!diagnostics || typeof diagnostics !== 'object')
+        return 'No user-confirmed runtime diagnostics.';
+    const events = Array.isArray(diagnostics.runtimeEvents)
+        ? diagnostics.runtimeEvents
+        : [];
+    if (!events.length)
+        return 'No user-confirmed runtime diagnostics.';
+    return events.slice(0, 10).map((event, index) => {
+        const time = event.timestamp ? new Date(event.timestamp).toISOString() : '';
+        return `${index + 1}. [${event.level || 'error'}] ${event.kind || 'runtime'} ${time}\n${event.message || ''}`;
+    }).join('\n');
+}
+function selectionTitle(selection) {
+    const dom = selection.dom;
+    const tag = dom?.tagName || 'element';
+    const text = dom?.text ? ` · ${dom.text.slice(0, 60)}` : '';
+    const vue = selection.vue?.componentName ? `${selection.vue.componentName} · ` : '';
+    const id = dom?.id ? `#${dom.id}` : '';
+    return `${vue}${tag}${id}${text}`;
+}
+function sourceLabel(selection) {
+    const source = selection.source;
+    if (!source?.file)
+        return '';
+    return `${source.file}${source.line ? `:${source.line}` : ''}`;
 }
 async function updateTaskStatus(daemonUrl, sessionId, status) {
     const resp = await fetch(`${daemonUrl.replace(/\/$/, '')}/sessions/${encodeURIComponent(sessionId)}/status`, {

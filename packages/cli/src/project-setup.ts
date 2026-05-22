@@ -20,7 +20,7 @@ export interface EnsureProjectIntegrationResult {
 
 const require = createRequire(import.meta.url);
 const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'];
-const PACKAGE_VERSION = '0.1.4';
+const PACKAGE_VERSION = '0.1.12';
 const VITE_PLUGIN_SPEC = `@ui-inspect/vite-plugin@${PACKAGE_VERSION}`;
 
 export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOptions): EnsureProjectIntegrationResult {

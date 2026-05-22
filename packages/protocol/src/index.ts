@@ -19,6 +19,40 @@ export interface UiInspectDomSelection {
   styles: Record<string, string>;
 }
 
+export interface UiInspectElementSummary {
+  tagName: string;
+  selector?: string;
+  role?: string;
+  text?: string;
+  attributes?: Record<string, string>;
+}
+
+export interface UiInspectElementContext {
+  accessibleName?: string;
+  role?: string;
+  attributes?: Record<string, string>;
+  parentChain?: UiInspectElementSummary[];
+  siblingsSummary?: UiInspectElementSummary[];
+  childrenSummary?: UiInspectElementSummary[];
+  formContext?: {
+    label?: string;
+    placeholder?: string;
+    name?: string;
+    type?: string;
+  };
+  interactionState?: {
+    hover?: boolean;
+    active?: boolean;
+    focus?: boolean;
+    focusWithin?: boolean;
+  };
+  computedStyles?: Record<string, string>;
+  pseudoElements?: {
+    before?: Record<string, string>;
+    after?: Record<string, string>;
+  };
+}
+
 export interface UiInspectVueSelection {
   componentName: string | null;
   componentChain: string[];
@@ -34,6 +68,33 @@ export interface UiInspectSourceSelection {
   column: number | null;
 }
 
+export interface UiInspectSourceHint {
+  kind: 'direct' | 'vue-component' | 'dom-attr' | 'style' | 'stack-frame' | 'heuristic';
+  file: string | null;
+  line: number | null;
+  column: number | null;
+  confidence: number;
+  reason: string;
+}
+
+export interface UiInspectRuntimeEvent {
+  id: string;
+  level: 'warn' | 'error';
+  kind: 'console' | 'window-error' | 'unhandledrejection';
+  message: string;
+  stack?: string;
+  timestamp: number;
+  url: string;
+}
+
+export interface UiInspectDiagnostics {
+  runtimeEvents: UiInspectRuntimeEvent[];
+  capturedAt: number;
+  truncated?: boolean;
+}
+
+export type UiInspectSessionMode = 'source' | 'single' | 'batch' | 'troubleshoot';
+
 export interface UiInspectSelection {
   id: string;
   sessionId: string;
@@ -46,12 +107,18 @@ export interface UiInspectSelection {
   dom: UiInspectDomSelection;
   vue: UiInspectVueSelection | null;
   source: UiInspectSourceSelection;
+  context?: UiInspectElementContext;
+  sourceHints?: UiInspectSourceHint[];
+  diagnostics?: UiInspectDiagnostics;
 }
 
 export interface UiInspectTarget {
   id: string;
   note: string;
   selection: UiInspectSelection;
+  context?: UiInspectElementContext;
+  sourceHints?: UiInspectSourceHint[];
+  diagnostics?: UiInspectDiagnostics;
 }
 
 export type UiInspectTaskStatus = 'draft' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';
@@ -72,8 +139,10 @@ export interface UiInspectSession {
   createdAt: number;
   updatedAt: number;
   status?: UiInspectTaskStatus;
+  mode?: UiInspectSessionMode;
   selection: UiInspectSelection | null;
   targets?: UiInspectTarget[];
+  diagnostics?: UiInspectDiagnostics;
   messages: UiInspectMessage[];
 }
 

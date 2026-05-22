@@ -1,12 +1,14 @@
 import {
   DEFAULT_DAEMON_PORT,
   DEFAULT_DAEMON_URL,
+  type UiInspectDiagnostics,
   type UiInspectHealthResponse,
   type UiInspectMessage,
   type UiInspectMessageRole,
   type UiInspectSelection,
   type UiInspectSelectionResponse,
   type UiInspectSession,
+  type UiInspectSessionMode,
   type UiInspectSessionsResponse,
   type UiInspectSourceResponse,
   type UiInspectTarget,
@@ -20,7 +22,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { delay, isRecord, numberOr, stringOr, trimUrl } from './utils.js';
 
-const VERSION = '0.1.4';
+const VERSION = '0.1.12';
 const SELECTION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_SESSIONS = 100;
@@ -410,10 +412,12 @@ async function route(req: IncomingMessage, res: ServerResponse, closeServer: () 
     const body = await readJson(req);
     const selection = normalizeSelection(body);
     const targets = normalizeTargets(isRecord(body) ? body.targets : undefined, selection);
+    const mode = normalizeSessionMode(isRecord(body) ? body.mode : undefined);
+    const diagnostics = normalizeDiagnostics(isRecord(body) ? body.diagnostics : selection.diagnostics);
     state.setProjectRoot(selection.source.root);
     state.currentSelection = selection;
     state.currentSelectionReceivedAt = Date.now();
-    upsertSessionFromSelection(state.currentSelection, targets);
+    upsertSessionFromSelection(state.currentSelection, targets, mode, diagnostics);
     emitSession(state.currentSelection.sessionId);
     sendJson(res, 200, { ok: true, selection: state.currentSelection });
     return;
@@ -508,10 +512,18 @@ function normalizeSelection(value: unknown): UiInspectSelection {
     dom: input.dom,
     vue: input.vue ?? null,
     source: input.source,
+    context: isRecord(input.context) ? input.context : undefined,
+    sourceHints: Array.isArray(input.sourceHints) ? input.sourceHints : undefined,
+    diagnostics: isRecord(input.diagnostics) ? input.diagnostics : undefined,
   };
 }
 
-function upsertSessionFromSelection(selection: UiInspectSelection, incomingTargets?: UiInspectTarget[]): void {
+function upsertSessionFromSelection(
+  selection: UiInspectSelection,
+  incomingTargets?: UiInspectTarget[],
+  mode?: UiInspectSessionMode,
+  diagnostics?: UiInspectDiagnostics,
+): void {
   const now = Date.now();
   const existing = state.sessions.get(selection.sessionId);
   const message = createMessage(selection.sessionId, 'user', selection.instruction, selection.id);
@@ -519,6 +531,8 @@ function upsertSessionFromSelection(selection: UiInspectSelection, incomingTarge
   if (existing) {
     existing.selection = selection;
     existing.targets = targets;
+    if (mode) existing.mode = mode;
+    if (diagnostics) existing.diagnostics = diagnostics;
     existing.status = 'sent';
     existing.updatedAt = now;
     if (selection.instruction) existing.messages.push(message);
@@ -530,8 +544,10 @@ function upsertSessionFromSelection(selection: UiInspectSelection, incomingTarge
     createdAt: now,
     updatedAt: now,
     status: 'sent',
+    mode,
     selection,
     targets,
+    diagnostics,
     messages: selection.instruction ? [message] : [],
   });
   state.saveSessions();
@@ -553,8 +569,26 @@ function normalizeTargets(value: unknown, fallback: UiInspectSelection): UiInspe
       id: stringOr(input.id, selection.id || `target-${Date.now()}-${index}`),
       note: stringOr(input.note, stringOr(selection.note, '')),
       selection,
+      context: isRecord(input.context) ? input.context : selection.context,
+      sourceHints: Array.isArray(input.sourceHints) ? input.sourceHints : selection.sourceHints,
+      diagnostics: normalizeDiagnostics(input.diagnostics) || selection.diagnostics,
     };
   });
+}
+
+function normalizeDiagnostics(value: unknown): UiInspectDiagnostics | undefined {
+  if (!isRecord(value) || !Array.isArray(value.runtimeEvents)) return undefined;
+  return {
+    runtimeEvents: value.runtimeEvents as UiInspectDiagnostics['runtimeEvents'],
+    capturedAt: numberOr(value.capturedAt, Date.now()),
+    truncated: typeof value.truncated === 'boolean' ? value.truncated : undefined,
+  };
+}
+
+function normalizeSessionMode(value: unknown): UiInspectSessionMode | undefined {
+  return value === 'source' || value === 'single' || value === 'batch' || value === 'troubleshoot'
+    ? value
+    : undefined;
 }
 
 function normalizeTaskStatus(value: unknown): UiInspectTaskStatus {
