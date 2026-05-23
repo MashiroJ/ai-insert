@@ -46,7 +46,7 @@ const WAIT_POLL_INTERVAL_MS = 1000;
 const TOOL_DEFS = [
   {
     name: 'start_ui_inspect',
-    description: 'Start or verify ui-inspect for a Vite/Vue project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, ensures @ui-inspect/vite-plugin is installed and uiInspect() is mounted in vite.config. It never starts the user project dev server; the user must start or keep using their own frontend URL.',
+    description: 'Start or verify ui-inspect for a local frontend project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, detects the project integration status, and returns framework-specific next steps. Vite projects may be auto-installed/patched; Next.js projects return manual App Router or Pages Router instructions. It never starts the user project dev server and never opens the browser.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -192,8 +192,8 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'ui-inspect is a universal MCP context bridge for local frontend inspection.',
         'Treat "ui-inspect", "UI inspect", "UI 检查", and "界面检查" as user-facing aliases for ui-inspect.',
         'Canonical user trigger phrase: "启用 ui-inspect". When the user says this exact phrase, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
-        'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Do not search the codebase for a ui-inspect feature first.',
-        'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. Tell the user to start their own frontend dev server, or keep using their already-open page, then select an element and click Send.',
+        'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
+        'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
         'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
         'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
@@ -224,6 +224,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
             message: 'ui-inspect does not start the project dev server. Ask the user to start their own frontend dev server and open the page they want to inspect.',
           },
           nextSteps: [
+            'Check integration.nextSteps and ask the user to complete any missing setup first.',
             'Ask the user to start or keep using their frontend dev server.',
             'Ask the user to open the target page in the browser.',
             'Ask the user to select an element in the ui-inspect panel and click Send.',
