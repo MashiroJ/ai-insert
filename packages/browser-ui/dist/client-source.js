@@ -15,6 +15,7 @@ export function clientSource(options) {
   const PANEL_ID = 'ui-inspect-panel';
   const TOAST_ID = 'ui-inspect-toast';
   const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
+  const CSS_DEBUG_OVERLAY_ID = 'ui-inspect-css-overlay';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
   const SOURCE_EDITOR_KEY = 'ui-inspect:source-editor';
@@ -38,6 +39,7 @@ export function clientSource(options) {
   let selectedRuntimeEventIds = new Set();
   let troubleshootRuntimeSnapshot = [];
   let runtimePrivacyConfirmed = false;
+  let cssDebugState = null;
 
 ${styleClientSource}
 
@@ -65,16 +67,24 @@ ${styleClientSource}
 ${runtimeMonitorClientSource({ eventLimit: 20, textLimit: 2000 })}
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID))));
+  }
+
+  function elementFromNode(node) {
+    if (!node) return null;
+    if (node.nodeType === 1) return node;
+    return node.parentElement || null;
   }
 
   function updateHover(el) {
-    if (!enabled || !el || isOwnNode(el)) return;
-    hovered = el;
-    highlightElement(el);
+    const element = elementFromNode(el);
+    if (!enabled || !element || isOwnNode(element)) return;
+    hovered = element;
+    highlightElement(element);
   }
 
   function highlightElement(el) {
+    if (!el?.getBoundingClientRect) return;
     const rect = el.getBoundingClientRect();
     const box = ensureBox();
     box.style.display = 'block';
@@ -176,6 +186,9 @@ ${selectionClientSource}
   }
 
   function closeDebugPanel() {
+    resetCssDebugPreview();
+    removeCssDebugOverlay();
+    document.documentElement.removeAttribute('data-ui-inspect-css-debug');
     removePanel();
     setEnabled(false);
     activePanelSessionId = null;
@@ -184,6 +197,7 @@ ${selectionClientSource}
     selectedTargets = [];
     selectedRuntimeEventIds = new Set();
     troubleshootRuntimeSnapshot = [];
+    cssDebugState = null;
     if (Array.isArray(runtimeEvents)) runtimeEvents.length = 0;
     selectionMode = 'batch';
     activeTaskMode = 'batch';
@@ -209,6 +223,7 @@ ${selectionClientSource}
       '<div class="ui-inspect-menu-actions">',
       '<button type="button" data-mode="source" aria-label="源码线索">' + sourceIcon() + '<span class="ui-inspect-menu-desc">源码线索</span></button>',
       '<button type="button" data-mode="troubleshoot" aria-label="问题排查：选择可能报错的组件并确认 console 日志">' + troubleshootIcon() + '<span class="ui-inspect-menu-desc">问题排查</span></button>',
+      '<button type="button" data-mode="css-debug" aria-label="CSS 调试：选择元素后实时调整样式">' + cssDebugIcon() + '<span class="ui-inspect-menu-desc">CSS 调试</span></button>',
       '<button type="button" data-mode="single" aria-label="局部调整">' + editIcon() + '<span class="ui-inspect-menu-desc">局部调整</span></button>',
       '<button type="button" data-mode="batch" aria-label="批量调整">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量调整</span></button>',
       '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
@@ -263,6 +278,10 @@ ${selectionClientSource}
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.8 2h4.4L16 2"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 17v3"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5 5 2 2"/><path d="m19 5-2 2"/><rect x="6" y="5" width="12" height="13" rx="6"/></svg>';
   }
 
+  function cssDebugIcon() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M6 16l8.5-8.5a2.1 2.1 0 0 1 3 3L9 19H6z"/><path d="m13 6 5 5"/><path d="M4 4h6"/><path d="M4 8h3"/></svg>';
+  }
+
   function batchIcon() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="5" rx="1"/><rect x="4" y="15" width="16" height="5" rx="1"/><path d="M7 9v6"/><path d="M17 9v6"/></svg>';
   }
@@ -274,17 +293,19 @@ ${selectionClientSource}
   function beginSelectionMode(mode) {
     removePanel();
     selectionMode = mode;
-    activeTaskMode = mode === 'single' ? 'single' : (mode === 'troubleshoot' ? 'troubleshoot' : 'batch');
-    if (mode === 'single' || mode === 'batch' || mode === 'troubleshoot') {
+    activeTaskMode = mode === 'single' ? 'single' : (mode === 'troubleshoot' ? 'troubleshoot' : (mode === 'css-debug' ? 'css-debug' : 'batch'));
+    if (mode === 'single' || mode === 'batch' || mode === 'troubleshoot' || mode === 'css-debug') {
       activePanelSessionId = 'session-' + Date.now();
       activeSessionData = null;
       selectedTargets = [];
       selectedRuntimeEventIds = new Set();
       runtimePrivacyConfirmed = false;
+      cssDebugState = null;
     }
     setEnabled(true);
     if (mode === 'source') showToast('点击页面元素，Diana 会先确认源码线索。');
     if (mode === 'troubleshoot') showToast('点击可能报错的组件，Diana 会附带可确认的 console 线索。');
+    if (mode === 'css-debug') showToast('点击一个元素，Diana 会打开 CSS 调试面板。');
     if (mode === 'single') showToast('点击一个需要局部调整的元素。');
     if (mode === 'batch') {
       batchSidebarCollapsed = window.innerWidth <= 520;
@@ -477,6 +498,716 @@ ${taskPanelClientSource}
     closeButton.addEventListener('click', close);
   }
 
+  const CSS_DEBUG_PROPERTIES = [
+    'margin',
+    'padding',
+    'gap',
+    'width',
+    'height',
+    'min-width',
+    'max-width',
+    'min-height',
+    'max-height',
+    'display',
+    'flex-direction',
+    'align-items',
+    'justify-content',
+    'font-size',
+    'font-weight',
+    'line-height',
+    'color',
+    'background-color',
+    'border',
+    'border-radius',
+    'box-shadow',
+    'opacity',
+    'transform'
+  ];
+
+  const CSS_DEBUG_GROUPS = [
+    { title: 'Spacing', properties: ['margin', 'padding', 'gap'], open: true },
+    { title: 'Typography', properties: ['font-size', 'font-weight', 'line-height', 'color'], open: true },
+    { title: 'Visual', properties: ['background-color', 'border', 'border-radius', 'box-shadow', 'opacity'], open: true },
+    { title: 'Size', properties: ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height'], open: false },
+    { title: 'Layout', properties: ['display', 'flex-direction', 'align-items', 'justify-content', 'transform'], open: false }
+  ];
+
+  const CSS_DEBUG_SELECT_OPTIONS = {
+    display: ['', 'block', 'inline-block', 'inline', 'flex', 'inline-flex', 'grid', 'none'],
+    'flex-direction': ['', 'row', 'row-reverse', 'column', 'column-reverse'],
+    'align-items': ['', 'stretch', 'flex-start', 'center', 'flex-end', 'baseline'],
+    'justify-content': ['', 'flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'],
+    'font-weight': ['', '300', '400', '500', '600', '700', '800', '900']
+  };
+
+  const CSS_DEBUG_RANGE = {
+    margin: { min: -80, max: 120, unit: 'px' },
+    padding: { min: 0, max: 120, unit: 'px' },
+    gap: { min: 0, max: 80, unit: 'px' },
+    width: { min: 0, max: 960, unit: 'px' },
+    height: { min: 0, max: 720, unit: 'px' },
+    'min-width': { min: 0, max: 960, unit: 'px' },
+    'max-width': { min: 0, max: 1200, unit: 'px' },
+    'min-height': { min: 0, max: 720, unit: 'px' },
+    'max-height': { min: 0, max: 960, unit: 'px' },
+    'font-size': { min: 8, max: 96, unit: 'px' },
+    'border-radius': { min: 0, max: 80, unit: 'px' },
+    opacity: { min: 0, max: 1, step: 0.01, unit: '' }
+  };
+
+  function cssDebugComputedStyles(el) {
+    const computed = window.getComputedStyle(el);
+    const out = {};
+    CSS_DEBUG_PROPERTIES.forEach((property) => {
+      out[property] = computed.getPropertyValue(property) || '';
+    });
+    return out;
+  }
+
+  function cssDebugInlineStyles(el) {
+    const out = {};
+    CSS_DEBUG_PROPERTIES.forEach((property) => {
+      out[property] = el.style.getPropertyValue(property) || '';
+    });
+    return out;
+  }
+
+  function cssDebugChangedStyles(originalStyles, previewStyles, properties) {
+    const out = {};
+    Array.from(properties || CSS_DEBUG_PROPERTIES).forEach((property) => {
+      const before = originalStyles[property] || '';
+      const after = previewStyles[property] || '';
+      if (before !== after) out[property] = { originalValue: before, previewValue: after };
+    });
+    return out;
+  }
+
+  function cssDebugComputedEffects(originalStyles, previewStyles, activeProperties) {
+    const active = new Set(activeProperties || []);
+    return {
+      self: cssDebugChangedStyles(
+        originalStyles,
+        previewStyles,
+        CSS_DEBUG_PROPERTIES.filter((property) => !active.has(property))
+      )
+    };
+  }
+
+  function cssDebugPreviewStyles() {
+    if (!cssDebugState?.element) return {};
+    const computed = cssDebugComputedStyles(cssDebugState.element);
+    return { ...computed, ...cssDebugState.previewStyles };
+  }
+
+  function removeCssDebugOverlay() {
+    const overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
+    if (overlay) overlay.remove();
+    if (cssDebugState) cssDebugState.drag = null;
+  }
+
+  function ensureCssDebugOverlay() {
+    let overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = CSS_DEBUG_OVERLAY_ID;
+      overlay.innerHTML = [
+        '<button type="button" data-css-debug-handle="move" aria-label="移动选中元素"></button>',
+        '<button type="button" data-css-debug-handle="e" aria-label="向右调整宽度"></button>',
+        '<button type="button" data-css-debug-handle="s" aria-label="向下调整高度"></button>',
+        '<button type="button" data-css-debug-handle="se" aria-label="调整宽度和高度"></button>'
+      ].join('');
+      document.body.appendChild(overlay);
+      ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+        overlay.addEventListener(type, (event) => event.stopPropagation());
+      });
+      Array.from(overlay.querySelectorAll('[data-css-debug-handle]')).forEach((handle) => {
+        handle.addEventListener('pointerdown', beginCssDebugInteraction);
+      });
+    }
+    return overlay;
+  }
+
+  function updateCssDebugOverlay() {
+    const panel = cssDebugPanel();
+    if (!cssDebugState?.element || !document.documentElement.hasAttribute('data-ui-inspect-css-debug') || panel?.dataset?.sent === 'true') {
+      removeCssDebugOverlay();
+      return;
+    }
+    const rect = cssDebugState.element.getBoundingClientRect();
+    const overlay = ensureCssDebugOverlay();
+    overlay.style.display = 'block';
+    overlay.style.left = Math.round(rect.left) + 'px';
+    overlay.style.top = Math.round(rect.top) + 'px';
+    overlay.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+    overlay.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+  }
+
+  function cssDebugTranslateFromTransform(value) {
+    const text = String(value || '');
+    const translate = text.match(/translate(?:3d)?\\(\\s*(-?\\d+(?:\\.\\d+)?)px\\s*,\\s*(-?\\d+(?:\\.\\d+)?)px/i);
+    if (translate) return { x: Number(translate[1]) || 0, y: Number(translate[2]) || 0 };
+    const translateX = text.match(/translateX\\(\\s*(-?\\d+(?:\\.\\d+)?)px/i);
+    const translateY = text.match(/translateY\\(\\s*(-?\\d+(?:\\.\\d+)?)px/i);
+    return {
+      x: translateX ? Number(translateX[1]) || 0 : 0,
+      y: translateY ? Number(translateY[1]) || 0 : 0
+    };
+  }
+
+  function cssDebugTransformBase(value) {
+    return String(value || '').replace(/translate(?:3d)?\\([^)]*\\)/gi, '').replace(/translate[XY]\\([^)]*\\)/gi, '').trim();
+  }
+
+  function cssDebugPreviewTransform(base, x, y) {
+    const prefix = base && base !== 'none' ? base + ' ' : '';
+    return prefix + 'translate(' + Math.round(x) + 'px, ' + Math.round(y) + 'px)';
+  }
+
+  function cssDebugPanel() {
+    const panel = document.getElementById(PANEL_ID);
+    return panel?.dataset?.mode === 'css-debug' ? panel : null;
+  }
+
+  function syncCssDebugControl(panel, property, value) {
+    if (!panel) return;
+    const input = panel.querySelector('[data-css-input="' + property + '"]');
+    if (input) input.value = value;
+    const range = panel.querySelector('[data-css-range="' + property + '"]');
+    if (range) range.value = cssDebugRangeValue(value, range.min || 0);
+  }
+
+  function moveCssDebugOverlayPreview(rect, dx, dy, width, height) {
+    const overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
+    if (!overlay || !rect) return;
+    overlay.style.display = 'block';
+    overlay.style.left = Math.round(rect.x + dx) + 'px';
+    overlay.style.top = Math.round(rect.y + dy) + 'px';
+    overlay.style.width = Math.max(1, Math.round(width ?? rect.width)) + 'px';
+    overlay.style.height = Math.max(1, Math.round(height ?? rect.height)) + 'px';
+  }
+
+  function resetCssDebugPreview() {
+    if (!cssDebugState?.element) return;
+    cssDebugState.element.style.cssText = cssDebugState.originalInlineCssText || '';
+    cssDebugState.previewStyles = {};
+    cssDebugState.activeProperties = new Set();
+    cssDebugState.interactions = [];
+    cssDebugState.primaryInteraction = null;
+    removeCssDebugOverlay();
+    if (activeElement === cssDebugState.element) highlightElement(activeElement);
+  }
+
+  function applyCssDebugValue(property, value) {
+    if (!cssDebugState?.element) return;
+    const nextValue = String(value || '').trim();
+    if (nextValue) cssDebugState.element.style.setProperty(property, nextValue);
+    else cssDebugState.element.style.removeProperty(property);
+    const preview = cssDebugComputedStyles(cssDebugState.element);
+    cssDebugState.previewStyles[property] = property === 'transform'
+      ? (cssDebugState.element.style.getPropertyValue('transform') || '')
+      : (preview[property] || '');
+    cssDebugState.activeProperties.add(property);
+    if (activeElement === cssDebugState.element) highlightElement(activeElement);
+    updateCssDebugOverlay();
+  }
+
+  function beginCssDebugInteraction(event) {
+    if (!cssDebugState?.element) return;
+    const handle = event.currentTarget?.getAttribute?.('data-css-debug-handle') || 'move';
+    const rect = cssDebugRect(cssDebugState.element);
+    const inlineTransform = cssDebugState.element.style.getPropertyValue('transform') || '';
+    const translate = cssDebugTranslateFromTransform(inlineTransform);
+    cssDebugState.drag = {
+      handle,
+      rectBefore: rect,
+      startX: event.clientX,
+      startY: event.clientY,
+      width: rect.width,
+      height: rect.height,
+      transformBase: cssDebugTransformBase(inlineTransform),
+      translateX: translate.x,
+      translateY: translate.y,
+      lastDx: 0,
+      lastDy: 0
+    };
+    try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch {}
+    document.addEventListener('pointermove', moveCssDebugInteraction, true);
+    document.addEventListener('pointerup', endCssDebugInteraction, true);
+    document.addEventListener('pointercancel', cancelCssDebugInteraction, true);
+    event.preventDefault();
+  }
+
+  function moveCssDebugInteraction(event) {
+    const drag = cssDebugState?.drag;
+    if (!drag) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    drag.lastDx = dx;
+    drag.lastDy = dy;
+    const panel = cssDebugPanel();
+    if (drag.handle === 'move') {
+      const transform = cssDebugPreviewTransform(drag.transformBase, drag.translateX + dx, drag.translateY + dy);
+      applyCssDebugValue('transform', transform);
+      moveCssDebugOverlayPreview(drag.rectBefore, dx, dy);
+    } else {
+      let nextWidth = drag.width;
+      let nextHeight = drag.height;
+      if (drag.handle === 'e' || drag.handle === 'se') {
+        const value = Math.max(1, Math.round(drag.width + dx)) + 'px';
+        nextWidth = Math.max(1, Math.round(drag.width + dx));
+        applyCssDebugValue('width', value);
+        syncCssDebugControl(panel, 'width', value);
+      }
+      if (drag.handle === 's' || drag.handle === 'se') {
+        const value = Math.max(1, Math.round(drag.height + dy)) + 'px';
+        nextHeight = Math.max(1, Math.round(drag.height + dy));
+        applyCssDebugValue('height', value);
+        syncCssDebugControl(panel, 'height', value);
+      }
+      moveCssDebugOverlayPreview(drag.rectBefore, 0, 0, nextWidth, nextHeight);
+    }
+    if (panel) {
+      if (cssDebugState.changedOnly && drag.handle !== 'move') renderCssDebugControls(panel);
+      else renderCssDebugDiff(panel);
+    }
+    event.preventDefault();
+  }
+
+  function finishCssDebugInteraction(cancelled) {
+    const drag = cssDebugState?.drag;
+    if (!drag) return;
+    document.removeEventListener('pointermove', moveCssDebugInteraction, true);
+    document.removeEventListener('pointerup', endCssDebugInteraction, true);
+    document.removeEventListener('pointercancel', cancelCssDebugInteraction, true);
+    cssDebugState.drag = null;
+    if (cancelled) return;
+    const rectAfter = cssDebugRect(cssDebugState.element);
+    const delta = {
+      x: Math.round((rectAfter.x - drag.rectBefore.x) * 10) / 10,
+      y: Math.round((rectAfter.y - drag.rectBefore.y) * 10) / 10,
+      width: Math.round((rectAfter.width - drag.rectBefore.width) * 10) / 10,
+      height: Math.round((rectAfter.height - drag.rectBefore.height) * 10) / 10
+    };
+    const interaction = {
+      type: drag.handle === 'move' ? 'move' : 'resize',
+      handle: drag.handle,
+      properties: drag.handle === 'move' ? ['transform'] : (drag.handle === 'e' ? ['width'] : (drag.handle === 's' ? ['height'] : ['width', 'height'])),
+      rectBefore: drag.rectBefore,
+      rectAfter,
+      delta,
+      strategy: drag.handle === 'move' ? 'transform-preview' : 'inline-style',
+      timestamp: Date.now()
+    };
+    cssDebugState.interactions = [...(cssDebugState.interactions || []), interaction].slice(-8);
+    cssDebugState.primaryInteraction = interaction;
+    const panel = cssDebugPanel();
+    if (panel) renderCssDebugControls(panel);
+  }
+
+  function endCssDebugInteraction() {
+    finishCssDebugInteraction(false);
+  }
+
+  function cancelCssDebugInteraction() {
+    finishCssDebugInteraction(true);
+  }
+
+  function cssDebugRect(el) {
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x * 10) / 10,
+      y: Math.round(rect.y * 10) / 10,
+      width: Math.round(rect.width * 10) / 10,
+      height: Math.round(rect.height * 10) / 10
+    };
+  }
+
+  function cssDebugText(el) {
+    return (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120);
+  }
+
+  function cssDebugElementSnapshot(el, includeStyles) {
+    if (!el) return null;
+    const computed = window.getComputedStyle(el);
+    const styles = includeStyles ? {
+      display: computed.getPropertyValue('display') || '',
+      position: computed.getPropertyValue('position') || '',
+      width: computed.getPropertyValue('width') || '',
+      height: computed.getPropertyValue('height') || '',
+      gap: computed.getPropertyValue('gap') || '',
+      'grid-template-columns': computed.getPropertyValue('grid-template-columns') || '',
+      'flex-direction': computed.getPropertyValue('flex-direction') || '',
+      'align-items': computed.getPropertyValue('align-items') || '',
+      'justify-content': computed.getPropertyValue('justify-content') || '',
+      padding: computed.getPropertyValue('padding') || ''
+    } : undefined;
+    return {
+      selector: selectorFor(el),
+      tagName: el.tagName.toLowerCase(),
+      className: typeof el.className === 'string' ? el.className : '',
+      text: cssDebugText(el),
+      rect: cssDebugRect(el),
+      ...(styles ? { styles } : {})
+    };
+  }
+
+  function cssDebugLayoutSnapshot(el) {
+    const parent = el.parentElement;
+    const siblings = parent ? Array.from(parent.children).filter((item) => item !== el).slice(0, 4) : [];
+    const children = Array.from(el.children).slice(0, 6);
+    return {
+      parent: parent ? cssDebugElementSnapshot(parent, true) : null,
+      siblings: siblings.map((item) => cssDebugElementSnapshot(item, false)),
+      children: children.map((item) => cssDebugElementSnapshot(item, false))
+    };
+  }
+
+  function cssDebugRectChanged(before, after, keys) {
+    if (!before || !after) return false;
+    return keys.some((key) => Math.abs((before[key] || 0) - (after[key] || 0)) > 0.5);
+  }
+
+  function cssDebugElementEffect(before, after) {
+    if (!before || !after) return null;
+    return {
+      selector: before.selector,
+      tagName: before.tagName,
+      className: before.className,
+      text: before.text,
+      beforeRect: before.rect,
+      afterRect: after.rect,
+      sizeChanged: cssDebugRectChanged(before.rect, after.rect, ['width', 'height']),
+      positionChanged: cssDebugRectChanged(before.rect, after.rect, ['x', 'y'])
+    };
+  }
+
+  function cssDebugLayoutContext() {
+    if (!cssDebugState?.element) return undefined;
+    const before = cssDebugState.originalLayout || cssDebugLayoutSnapshot(cssDebugState.element);
+    const after = cssDebugLayoutSnapshot(cssDebugState.element);
+    return {
+      parent: after.parent || before.parent || undefined,
+      siblings: before.siblings.map((item, index) => cssDebugElementEffect(item, after.siblings[index])).filter(Boolean),
+      children: before.children.map((item, index) => cssDebugElementEffect(item, after.children[index])).filter(Boolean)
+    };
+  }
+
+  function cssDebugColorToHex(value) {
+    const match = String(value || '').match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/i);
+    if (!match) return '#ffffff';
+    return '#' + [match[1], match[2], match[3]].map((item) => {
+      return Math.max(0, Math.min(255, Number(item))).toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function cssDebugRangeValue(value, fallback) {
+    const match = String(value || '').match(/-?\\d+(?:\\.\\d+)?/);
+    if (!match) return String(fallback);
+    return match[0];
+  }
+
+  function cssDebugControlHtml(property, value) {
+    const label = property;
+    const range = CSS_DEBUG_RANGE[property];
+    const select = CSS_DEBUG_SELECT_OPTIONS[property];
+    const previewValue = escapeHtml(value || '');
+    if (select) {
+      return '<label class="ui-inspect-css-row" data-css-property="' + escapeHtml(property) + '">' +
+        '<span>' + escapeHtml(label) + '</span>' +
+        '<select data-css-input="' + escapeHtml(property) + '">' +
+          select.map((item) => '<option value="' + escapeHtml(item) + '"' + (item === value ? ' selected' : '') + '>' + escapeHtml(item || 'auto') + '</option>').join('') +
+        '</select>' +
+      '</label>';
+    }
+    if (property.includes('color')) {
+      return '<label class="ui-inspect-css-row ui-inspect-css-row-color" data-css-property="' + escapeHtml(property) + '">' +
+        '<span>' + escapeHtml(label) + '</span>' +
+        '<input type="color" data-css-color="' + escapeHtml(property) + '" value="' + escapeHtml(cssDebugColorToHex(value)) + '" />' +
+        '<input type="text" data-css-input="' + escapeHtml(property) + '" value="' + previewValue + '" placeholder="rgb(...) / #fff" />' +
+      '</label>';
+    }
+    return '<label class="ui-inspect-css-row" data-css-property="' + escapeHtml(property) + '">' +
+      '<span>' + escapeHtml(label) + '</span>' +
+      (range ? '<input type="range" data-css-range="' + escapeHtml(property) + '" min="' + range.min + '" max="' + range.max + '" step="' + (range.step || 1) + '" value="' + escapeHtml(cssDebugRangeValue(value, range.min)) + '" />' : '') +
+      '<input type="text" data-css-input="' + escapeHtml(property) + '" value="' + previewValue + '" placeholder="auto" />' +
+    '</label>';
+  }
+
+  function cssDebugFilteredGroups() {
+    if (!cssDebugState?.changedOnly) return CSS_DEBUG_GROUPS;
+    const active = cssDebugState.activeProperties || new Set();
+    return CSS_DEBUG_GROUPS
+      .map((group) => ({ ...group, open: true, properties: group.properties.filter((property) => active.has(property)) }))
+      .filter((group) => group.properties.length);
+  }
+
+  function renderCssDebugControls(panel) {
+    const box = panel.querySelector('.ui-inspect-css-groups');
+    if (!box || !cssDebugState) return;
+    const styles = cssDebugPreviewStyles();
+    const groups = cssDebugFilteredGroups();
+    box.innerHTML = groups.length ? groups.map((group) => (
+      '<details class="ui-inspect-css-group"' + (group.open ? ' open' : '') + '>' +
+        '<summary class="ui-inspect-css-group-title">' + escapeHtml(group.title) + '</summary>' +
+        group.properties.map((property) => cssDebugControlHtml(property, styles[property] || '')).join('') +
+      '</details>'
+    )).join('') : '<div class="ui-inspect-css-empty ui-inspect-css-empty-controls">还没有主动改动。先调一个属性，或关闭“只看已改”。</div>';
+    const toggle = panel.querySelector('[data-action="toggle-changed-only"]');
+    if (toggle) {
+      toggle.textContent = cssDebugState.changedOnly ? '显示全部' : '只看已改';
+      toggle.setAttribute('aria-pressed', cssDebugState.changedOnly ? 'true' : 'false');
+    }
+    wireCssDebugControls(panel);
+    renderCssDebugDiff(panel);
+    renderCssDebugInteraction(panel);
+  }
+
+  function renderCssDebugDiff(panel) {
+    const diffEl = panel.querySelector('.ui-inspect-css-diff');
+    if (!diffEl || !cssDebugState) return;
+    const previewStyles = cssDebugPreviewStyles();
+    const diff = cssDebugChangedStyles(cssDebugState.originalStyles, previewStyles, cssDebugState.activeProperties);
+    const effects = cssDebugComputedEffects(cssDebugState.originalStyles, previewStyles, cssDebugState.activeProperties).self;
+    const layout = cssDebugLayoutContext();
+    const keys = Object.keys(diff);
+    const effectKeys = Object.keys(effects);
+    const moved = (layout?.siblings || []).filter((item) => item.sizeChanged || item.positionChanged).length;
+    const childChanged = (layout?.children || []).filter((item) => item.sizeChanged || item.positionChanged).length;
+    diffEl.innerHTML = [
+      '<div class="ui-inspect-css-diff-title">主动改动</div>',
+      keys.length
+      ? keys.map((key) => '<div><code>' + escapeHtml(key) + '</code><span>' + escapeHtml(diff[key].originalValue || 'auto') + '</span><strong>→</strong><span>' + escapeHtml(diff[key].previewValue || 'auto') + '</span></div>').join('')
+      : '<div class="ui-inspect-css-empty">还没有样式改动。</div>',
+      effectKeys.length
+        ? '<div class="ui-inspect-css-effect"><b>连带影响</b><span>' + escapeHtml(effectKeys.slice(0, 4).join(', ') + (effectKeys.length > 4 ? ' 等' : '')) + '</span></div>'
+        : '',
+      layout?.parent
+        ? '<div class="ui-inspect-css-effect"><b>父级布局</b><span>' + escapeHtml((layout.parent.styles?.display || 'block') + (layout.parent.styles?.gap ? ' · gap ' + layout.parent.styles.gap : '')) + '</span></div>'
+        : '',
+      moved || childChanged
+        ? '<div class="ui-inspect-css-warning"><b>布局提醒</b><span>' + escapeHtml((moved ? moved + ' 个兄弟元素受影响' : '') + (moved && childChanged ? '，' : '') + (childChanged ? childChanged + ' 个子元素受影响' : '')) + '</span></div>'
+        : ''
+    ].filter(Boolean).join('');
+    renderCssDebugInteraction(panel);
+  }
+
+  function renderCssDebugInteraction(panel) {
+    const el = panel.querySelector('.ui-inspect-css-interaction');
+    if (!el || !cssDebugState) return;
+    const item = cssDebugState.primaryInteraction;
+    if (!item) {
+      el.innerHTML = '<b>拖拽记录</b><span>暂无</span>';
+      return;
+    }
+    const delta = item.delta || {};
+    const parts = [];
+    if (Math.abs(delta.x || 0) > 0.5 || Math.abs(delta.y || 0) > 0.5) parts.push('x ' + (delta.x || 0) + 'px, y ' + (delta.y || 0) + 'px');
+    if (Math.abs(delta.width || 0) > 0.5) parts.push('w ' + delta.width + 'px');
+    if (Math.abs(delta.height || 0) > 0.5) parts.push('h ' + delta.height + 'px');
+    el.innerHTML = '<b>拖拽记录</b><span>' + escapeHtml((item.type === 'move' ? '移动' : '缩放') + ' · ' + item.handle + (parts.length ? ' · ' + parts.join(' · ') : '')) + '</span>';
+  }
+
+  function wireCssDebugControls(panel) {
+    Array.from(panel.querySelectorAll('[data-css-input]')).forEach((input) => {
+      input.addEventListener('input', () => {
+        const property = input.getAttribute('data-css-input');
+        if (!property) return;
+        applyCssDebugValue(property, input.value);
+        const row = input.closest('[data-css-property]');
+        const range = row?.querySelector('[data-css-range="' + property + '"]');
+        if (range) range.value = cssDebugRangeValue(input.value, range.min || 0);
+        const color = row?.querySelector('[data-css-color="' + property + '"]');
+        if (color) color.value = cssDebugColorToHex(input.value);
+        renderCssDebugDiff(panel);
+      });
+    });
+    Array.from(panel.querySelectorAll('[data-css-color]')).forEach((input) => {
+      input.addEventListener('input', () => {
+        const property = input.getAttribute('data-css-color');
+        if (!property) return;
+        const row = input.closest('[data-css-property]');
+        const text = row?.querySelector('[data-css-input="' + property + '"]');
+        if (text) text.value = input.value;
+        applyCssDebugValue(property, input.value);
+        renderCssDebugDiff(panel);
+      });
+    });
+    Array.from(panel.querySelectorAll('[data-css-range]')).forEach((range) => {
+      range.addEventListener('input', () => {
+        const property = range.getAttribute('data-css-range');
+        if (!property) return;
+        const config = CSS_DEBUG_RANGE[property] || { unit: '' };
+        const value = range.value + (config.unit || '');
+        const row = range.closest('[data-css-property]');
+        const input = row?.querySelector('[data-css-input="' + property + '"]');
+        if (input) input.value = value;
+        applyCssDebugValue(property, value);
+        renderCssDebugDiff(panel);
+      });
+    });
+  }
+
+  function makeCssDebugPayload(instruction) {
+    const primary = selectedTargets[0]?.selection;
+    if (!primary || !cssDebugState) return null;
+    const previewStyles = cssDebugPreviewStyles();
+    const changedStyles = cssDebugChangedStyles(cssDebugState.originalStyles, previewStyles, cssDebugState.activeProperties);
+    const computedEffects = cssDebugComputedEffects(cssDebugState.originalStyles, previewStyles, cssDebugState.activeProperties);
+    const layoutContext = cssDebugLayoutContext();
+    const cssDebug = {
+      originalStyles: cssDebugState.originalStyles,
+      originalInlineStyles: cssDebugState.originalInlineStyles,
+      previewStyles,
+      changedStyles,
+      computedEffects,
+      layoutContext,
+      interactions: cssDebugState.interactions || [],
+      primaryInteraction: cssDebugState.primaryInteraction || null
+    };
+    return {
+      ...primary,
+      id: 'selection-' + Date.now(),
+      sessionId: activePanelSessionId,
+      timestamp: Date.now(),
+      mode: 'css-debug',
+      instruction: 'CSS 调试：请根据用户在浏览器中预览得到的样式 diff，结合源码线索把改动落到项目样式中。优先修改源码里的 class/style，不要直接照搬 inline style，注意布局影响范围。\\n\\n用户补充：' + (instruction || '无'),
+      note: instruction || '',
+      targets: [{
+        ...selectedTargets[0],
+        cssDebug
+      }],
+      cssDebug
+    };
+  }
+
+  function makePanelDraggable(panel) {
+    const handle = panel.querySelector('.ui-inspect-head');
+    if (!handle) return;
+    let drag = null;
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.target?.closest?.('button')) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+    handle.addEventListener('pointermove', (event) => {
+      if (!drag) return;
+      const left = Math.min(Math.max(8, drag.left + event.clientX - drag.x), window.innerWidth - panel.offsetWidth - 8);
+      const top = Math.min(Math.max(8, drag.top + event.clientY - drag.y), window.innerHeight - panel.offsetHeight - 8);
+      panel.style.left = Math.round(left) + 'px';
+      panel.style.top = Math.round(top) + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    });
+    handle.addEventListener('pointerup', () => { drag = null; });
+    handle.addEventListener('pointercancel', () => { drag = null; });
+  }
+
+  function openCssDebugPanel(element, sessionId) {
+    element = elementFromNode(element);
+    if (!element) return;
+    removePanel();
+    setEnabled(false);
+    activeTaskMode = 'css-debug';
+    activePanelSessionId = sessionId || activePanelSessionId || 'session-' + Date.now();
+    activeElement = element;
+    const selection = selectionPayloadFor(element, '', activePanelSessionId);
+    selectedTargets = [targetFromSelection(selection, '')];
+    cssDebugState = {
+      element,
+      originalInlineCssText: element.style.cssText || '',
+      originalInlineStyles: cssDebugInlineStyles(element),
+      originalStyles: cssDebugComputedStyles(element),
+      previewStyles: {},
+      activeProperties: new Set(),
+      changedOnly: false,
+      originalLayout: cssDebugLayoutSnapshot(element),
+      interactions: [],
+      primaryInteraction: null,
+      drag: null
+    };
+    highlightElement(element);
+    document.documentElement.setAttribute('data-ui-inspect-css-debug', 'true');
+    const panel = document.createElement('div');
+    panel.id = PANEL_ID;
+    panel.dataset.mode = 'css-debug';
+    panel.innerHTML = [
+      '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · CSS 调试</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-status">预览中 · 不会写入源码</div>',
+      '<div class="ui-inspect-target">' + escapeHtml(describeSelection(selection)) + '</div>',
+      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
+      '<div class="ui-inspect-css-groups"></div>',
+      '<div class="ui-inspect-css-diff"></div>',
+      '<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>',
+      '<label class="ui-inspect-field-label" for="ui-inspect-css-note">补充说明，可选</label>',
+      '<textarea id="ui-inspect-css-note" placeholder="例如：保持按钮高度不变，只让视觉更柔和"></textarea>',
+      '<div class="ui-inspect-actions">',
+        '<div class="ui-inspect-actions-left"><button type="button" data-action="reset-css">Reset</button></div>',
+        '<div class="ui-inspect-actions-right"><button type="button" data-action="select">重选</button><button type="button" data-primary="true" data-action="send">发送 CSS diff</button></div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(panel);
+    placePanel(panel);
+    makePanelDraggable(panel);
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      panel.addEventListener(type, (event) => event.stopPropagation());
+    });
+    renderCssDebugControls(panel);
+    updateCssDebugOverlay();
+    const textarea = panel.querySelector('textarea');
+    panel.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
+    panel.querySelector('[data-action="reset-css"]').addEventListener('click', () => {
+      resetCssDebugPreview();
+      if (cssDebugState) cssDebugState.previewStyles = {};
+      renderCssDebugControls(panel);
+      updateCssDebugOverlay();
+      showToast('已恢复进入调试前的 inline style。', 'idle');
+    });
+    panel.querySelector('[data-action="toggle-changed-only"]').addEventListener('click', () => {
+      if (!cssDebugState) return;
+      cssDebugState.changedOnly = !cssDebugState.changedOnly;
+      renderCssDebugControls(panel);
+    });
+    panel.querySelector('[data-action="select"]').addEventListener('click', () => {
+      resetCssDebugPreview();
+      cssDebugState = null;
+      removeCssDebugOverlay();
+      document.documentElement.removeAttribute('data-ui-inspect-css-debug');
+      reselectSessionId = activePanelSessionId;
+      removePanel();
+      selectionMode = 'css-debug';
+      setEnabled(true);
+    });
+    panel.querySelector('[data-action="send"]').addEventListener('click', () => {
+      const payload = makeCssDebugPayload(textarea?.value.trim() || '');
+      const target = panel.querySelector('.ui-inspect-target');
+      if (!payload) {
+        if (target) target.textContent = '请先选择一个元素。';
+        return;
+      }
+      if (!Object.keys(payload.cssDebug.changedStyles || {}).length) {
+        if (target) target.textContent = '还没有样式改动，先调整一个属性再发送。';
+        return;
+      }
+      submitPayload(payload).then(() => {
+        const statusEl = panel.querySelector('.ui-inspect-status');
+        if (statusEl) statusEl.textContent = statusText('sent') + ' · CSS diff 已发送';
+        panel.dataset.sent = 'true';
+        Array.from(panel.querySelectorAll('input, select, textarea, button')).forEach((control) => {
+          if (!control.matches('[data-action="close"]')) control.disabled = true;
+        });
+        renderTargets(panel);
+        setEnabled(false);
+        removeCssDebugOverlay();
+      }).catch((err) => {
+        setDianaState('failed', 2200);
+        if (target) target.textContent = friendlyError(err, 'send');
+      });
+    });
+    textarea.focus();
+  }
+
   function openDebugPanel(options) {
     removePanel();
     setEnabled(false);
@@ -650,6 +1381,8 @@ ${sessionClientSource}
   document.addEventListener('pointerup', endDianaDrag, true);
   document.addEventListener('pointercancel', endDianaDrag, true);
   window.addEventListener('resize', refreshDianaPosition);
+  window.addEventListener('resize', updateCssDebugOverlay);
+  window.addEventListener('scroll', updateCssDebugOverlay, true);
 })();`;
 }
 //# sourceMappingURL=client-source.js.map

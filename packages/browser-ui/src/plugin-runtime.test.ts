@@ -40,6 +40,18 @@ describe('clientSource', () => {
     expect(result).toContain('/api/ui-inspect/diana');
     expect(result).not.toContain('/@ui-inspect/diana.webp');
   });
+
+  it('includes the CSS debug runtime mode', () => {
+    const result = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
+
+    expect(result).toContain("data-mode=\"css-debug\"");
+    expect(result).toContain("mode: 'css-debug'");
+    expect(result).toContain('changedStyles');
+    expect(result).toContain('resetCssDebugPreview');
+    expect(result).toContain('ui-inspect-css-overlay');
+    expect(result).toContain('primaryInteraction');
+    expect(result).toContain('interactions: cssDebugState.interactions || []');
+  });
 });
 
 describe('getDianaAssetPath', () => {

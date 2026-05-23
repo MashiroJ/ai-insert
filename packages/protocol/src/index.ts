@@ -139,7 +139,7 @@ export interface UiInspectDiagnostics {
   truncated?: boolean;
 }
 
-export type UiInspectSessionMode = 'source' | 'single' | 'batch' | 'troubleshoot';
+export type UiInspectSessionMode = 'source' | 'single' | 'batch' | 'troubleshoot' | 'css-debug';
 
 export interface UiInspectSelection {
   id: string;
@@ -200,6 +200,75 @@ export interface UiInspectTarget {
   diagnostics?: UiInspectDiagnostics;
 }
 
+export interface UiInspectCssDebugStyleChange {
+  originalValue: string | null;
+  previewValue: string | null;
+}
+
+export interface UiInspectCssDebugElementSnapshot {
+  selector: string;
+  tagName: string;
+  className: string;
+  text: string;
+  rect: UiInspectRect;
+  styles?: Record<string, string>;
+}
+
+export interface UiInspectCssDebugElementEffect {
+  selector: string;
+  tagName: string;
+  className: string;
+  text: string;
+  beforeRect: UiInspectRect;
+  afterRect: UiInspectRect;
+  sizeChanged: boolean;
+  positionChanged: boolean;
+}
+
+export interface UiInspectCssDebugComputedEffects {
+  self: Record<string, UiInspectCssDebugStyleChange>;
+}
+
+export interface UiInspectCssDebugLayoutContext {
+  parent?: UiInspectCssDebugElementSnapshot;
+  siblings: UiInspectCssDebugElementEffect[];
+  children: UiInspectCssDebugElementEffect[];
+}
+
+export interface UiInspectCssDebugInteraction {
+  type: 'panel-control' | 'resize' | 'move';
+  handle?: 'e' | 's' | 'se' | 'move';
+  properties: string[];
+  rectBefore: UiInspectRect;
+  rectAfter: UiInspectRect;
+  delta: { x: number; y: number; width: number; height: number };
+  strategy: 'inline-style' | 'transform-preview';
+  timestamp: number;
+}
+
+export interface UiInspectCssDebugSessionInfo {
+  id: string;
+  url: string;
+  title: string;
+  root: string | null;
+  timestamp: number;
+}
+
+export interface UiInspectCssDebugPayload {
+  selection: UiInspectSelection;
+  selectedElement: UiInspectDomSelection;
+  originalStyles: Record<string, string>;
+  previewStyles: Record<string, string>;
+  changedStyles: Record<string, UiInspectCssDebugStyleChange>;
+  computedEffects?: UiInspectCssDebugComputedEffects;
+  layoutContext?: UiInspectCssDebugLayoutContext;
+  interactions?: UiInspectCssDebugInteraction[];
+  primaryInteraction?: UiInspectCssDebugInteraction;
+  note?: string;
+  sourceHints?: UiInspectSourceHint[];
+  session: UiInspectCssDebugSessionInfo;
+}
+
 export type UiInspectTaskStatus = 'draft' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';
 
 export type UiInspectMessageRole = 'user' | 'assistant';
@@ -222,6 +291,7 @@ export interface UiInspectSession {
   selection: UiInspectSelection | null;
   targets?: UiInspectTarget[];
   diagnostics?: UiInspectDiagnostics;
+  cssDebug?: UiInspectCssDebugPayload;
   messages: UiInspectMessage[];
 }
 

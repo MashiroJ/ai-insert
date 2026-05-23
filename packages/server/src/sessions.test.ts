@@ -4,6 +4,7 @@ import {
   normalizeTaskStatus,
   normalizeSessionMode,
   normalizeDiagnostics,
+  normalizeCssDebugPayload,
   normalizeTargets,
   selectionResponse,
   createMessage,
@@ -67,6 +68,7 @@ describe('normalizeSessionMode', () => {
     expect(normalizeSessionMode('single')).toBe('single');
     expect(normalizeSessionMode('batch')).toBe('batch');
     expect(normalizeSessionMode('troubleshoot')).toBe('troubleshoot');
+    expect(normalizeSessionMode('css-debug')).toBe('css-debug');
   });
 
   it('returns undefined for invalid modes', () => {
@@ -91,6 +93,168 @@ describe('normalizeDiagnostics', () => {
     expect(normalizeDiagnostics({})).toBeUndefined();
     expect(normalizeDiagnostics(null)).toBeUndefined();
     expect(normalizeDiagnostics(undefined)).toBeUndefined();
+  });
+});
+
+describe('normalizeCssDebugPayload', () => {
+  it('normalizes css debug payload with style diffs and session info', () => {
+    const sel = makeSelection({ note: 'make it calmer' });
+    const result = normalizeCssDebugPayload({
+      originalStyles: {
+        padding: '8px',
+        opacity: 1,
+      },
+      previewStyles: {
+        padding: '16px',
+        opacity: '0.8',
+      },
+      changedStyles: {
+        padding: {
+          originalValue: '8px',
+          previewValue: '16px',
+        },
+        opacity: {
+          originalValue: 1,
+          previewValue: '0.8',
+        },
+      },
+      computedEffects: {
+        self: {
+          width: {
+            from: '320px',
+            to: '304px',
+          },
+        },
+      },
+      layoutContext: {
+        parent: {
+          selector: '.grid',
+          tagName: 'section',
+          className: 'grid',
+          text: 'Cards',
+          rect: { x: 0, y: 0, width: 720, height: 160 },
+          styles: { display: 'grid', gap: '16px' },
+        },
+        siblings: [{
+          selector: '.card:nth-child(2)',
+          tagName: 'article',
+          className: 'card',
+          text: 'Sibling',
+          beforeRect: { x: 360, y: 0, width: 320, height: 80 },
+          afterRect: { x: 372, y: 0, width: 320, height: 80 },
+        }],
+        children: [],
+      },
+      sourceHints: [{ kind: 'style', file: 'src/App.css', line: 12, column: 3, confidence: 0.9, reason: 'matched selector' }],
+      session: {
+        id: 'sess-1',
+        root: '/project',
+      },
+    }, sel);
+
+    expect(result).toBeDefined();
+    expect(result!.selection.id).toBe('sel-1');
+    expect(result!.selectedElement.selector).toBe('button.btn');
+    expect(result!.originalStyles).toEqual({ padding: '8px', opacity: '1' });
+    expect(result!.previewStyles.padding).toBe('16px');
+    expect(result!.changedStyles.padding).toEqual({ originalValue: '8px', previewValue: '16px' });
+    expect(result!.changedStyles.opacity).toEqual({ originalValue: '1', previewValue: '0.8' });
+    expect(result!.computedEffects!.self.width).toEqual({ originalValue: '320px', previewValue: '304px' });
+    expect(result!.layoutContext!.parent!.styles!.display).toBe('grid');
+    expect(result!.layoutContext!.siblings[0]).toMatchObject({
+      selector: '.card:nth-child(2)',
+      sizeChanged: false,
+      positionChanged: true,
+    });
+    expect(result!.note).toBe('make it calmer');
+    expect(result!.sourceHints).toHaveLength(1);
+    expect(result!.session).toMatchObject({
+      id: 'sess-1',
+      url: 'http://localhost:5173',
+      title: 'Test Page',
+      root: '/project',
+    });
+  });
+
+  it('normalizes css debug interactions and primary interaction', () => {
+    const sel = makeSelection();
+    const interactions = Array.from({ length: 22 }, (_, index) => ({
+      type: index === 0 ? 'move' : index === 1 ? 'resize' : 'unknown',
+      handle: index === 0 ? 'move' : index === 1 ? 'se' : 'bad',
+      properties: ['transform', index, null, 'width'],
+      rectBefore: { x: 'bad', y: 20, width: 80, height: 30 },
+      rectAfter: { x: 15, y: 25, width: 90, height: 35 },
+      delta: { x: 5, y: 5, width: 10, height: 5 },
+      strategy: index === 0 ? 'transform-preview' : 'bad',
+      timestamp: index === 0 ? 1234 : 'bad',
+      extra: 'drop me',
+    }));
+
+    const result = normalizeCssDebugPayload({
+      interactions,
+      primaryInteraction: {
+        type: 'move',
+        handle: 'move',
+        properties: ['transform'],
+        rectBefore: { x: 10, y: 20, width: 80, height: 30 },
+        rectAfter: { x: 18, y: 24, width: 80, height: 30 },
+        delta: { x: 8, y: 4, width: 0, height: 0 },
+        strategy: 'transform-preview',
+        timestamp: 5678,
+        extra: 'drop me too',
+      },
+    }, sel);
+
+    expect(result).toBeDefined();
+    expect(result!.interactions).toHaveLength(20);
+    expect(result!.interactions![0]).toEqual({
+      type: 'move',
+      handle: 'move',
+      properties: ['transform', 'width'],
+      rectBefore: { x: 0, y: 20, width: 80, height: 30 },
+      rectAfter: { x: 15, y: 25, width: 90, height: 35 },
+      delta: { x: 5, y: 5, width: 10, height: 5 },
+      strategy: 'transform-preview',
+      timestamp: 1234,
+    });
+    expect(result!.interactions![2]).toMatchObject({
+      type: 'panel-control',
+      handle: undefined,
+      properties: ['transform', 'width'],
+      strategy: 'inline-style',
+    });
+    expect(result!.primaryInteraction).toEqual({
+      type: 'move',
+      handle: 'move',
+      properties: ['transform'],
+      rectBefore: { x: 10, y: 20, width: 80, height: 30 },
+      rectAfter: { x: 18, y: 24, width: 80, height: 30 },
+      delta: { x: 8, y: 4, width: 0, height: 0 },
+      strategy: 'transform-preview',
+      timestamp: 5678,
+    });
+    expect(result!.primaryInteraction).not.toHaveProperty('extra');
+  });
+
+  it('keeps old css debug payloads compatible when interactions are omitted', () => {
+    const result = normalizeCssDebugPayload({
+      originalStyles: { padding: '8px' },
+      previewStyles: { padding: '12px' },
+      changedStyles: {
+        padding: {
+          originalValue: '8px',
+          previewValue: '12px',
+        },
+      },
+    }, makeSelection());
+
+    expect(result).toBeDefined();
+    expect(result!.interactions).toBeUndefined();
+    expect(result!.primaryInteraction).toBeUndefined();
+  });
+
+  it('returns undefined for missing css debug payload', () => {
+    expect(normalizeCssDebugPayload(undefined, makeSelection())).toBeUndefined();
   });
 });
 
@@ -186,6 +350,69 @@ describe('upsertSessionFromSelection', () => {
       expect(session!.status).toBe('sent');
       expect(session!.messages).toHaveLength(1);
       expect(session!.messages[0].role).toBe('user');
+    } finally {
+      rmSync(FIXTURE_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('stores css debug payload on the session and selection response', () => {
+    mkdirSync(FIXTURE_DIR, { recursive: true });
+    try {
+      const state = new ServerState();
+      const sel = makeSelection({ source: { root: FIXTURE_DIR, file: 'App.vue', line: 1, column: null } });
+      state.setProjectRoot(FIXTURE_DIR);
+      const cssDebug = normalizeCssDebugPayload({
+        originalStyles: { 'border-radius': '4px' },
+        previewStyles: { 'border-radius': '12px' },
+        changedStyles: {
+          'border-radius': {
+            originalValue: '4px',
+            previewValue: '12px',
+          },
+        },
+      }, sel);
+
+      state.currentSelection = sel;
+      state.currentSelectionReceivedAt = Date.now();
+      upsertSessionFromSelection(sel, state, undefined, 'css-debug', undefined, cssDebug);
+
+      const session = state.sessions.get('sess-1');
+      expect(session).toBeDefined();
+      expect(session!.mode).toBe('css-debug');
+      expect(session!.cssDebug!.changedStyles['border-radius']).toEqual({ originalValue: '4px', previewValue: '12px' });
+
+      const response = selectionResponse(state);
+      expect(response.active).toBe(true);
+      expect(response.session!.mode).toBe('css-debug');
+      expect(response.session!.cssDebug!.previewStyles['border-radius']).toBe('12px');
+    } finally {
+      rmSync(FIXTURE_DIR, { recursive: true, force: true });
+    }
+  });
+
+  it('clears stale css debug payload when a session is updated without css debug data', () => {
+    mkdirSync(FIXTURE_DIR, { recursive: true });
+    try {
+      const state = new ServerState();
+      const sel = makeSelection({ source: { root: FIXTURE_DIR, file: 'App.vue', line: 1, column: null } });
+      state.setProjectRoot(FIXTURE_DIR);
+      const cssDebug = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: {
+          padding: {
+            originalValue: '8px',
+            previewValue: '16px',
+          },
+        },
+      }, sel);
+
+      upsertSessionFromSelection(sel, state, undefined, 'css-debug', undefined, cssDebug);
+      expect(state.sessions.get('sess-1')!.cssDebug).toBeDefined();
+
+      upsertSessionFromSelection(makeSelection({ instruction: 'ordinary selection' }), state, undefined, 'single');
+      expect(state.sessions.get('sess-1')!.mode).toBe('single');
+      expect(state.sessions.get('sess-1')!.cssDebug).toBeUndefined();
     } finally {
       rmSync(FIXTURE_DIR, { recursive: true, force: true });
     }

@@ -13,6 +13,7 @@ import {
   normalizeSelection,
   normalizeTargets,
   normalizeDiagnostics,
+  normalizeCssDebugPayload,
   normalizeSessionMode,
   normalizeTaskStatus,
   upsertSessionFromSelection,
@@ -203,10 +204,11 @@ export async function route(
     const targets = normalizeTargets(body && typeof body === 'object' ? (body as Record<string, unknown>).targets : undefined, selection);
     const mode = normalizeSessionMode(body && typeof body === 'object' ? (body as Record<string, unknown>).mode : undefined);
     const diagnostics = normalizeDiagnostics(body && typeof body === 'object' ? (body as Record<string, unknown>).diagnostics : undefined);
+    const cssDebug = normalizeCssDebugPayload(body && typeof body === 'object' ? (body as Record<string, unknown>).cssDebug : undefined, selection);
     state.setProjectRoot(selection.source.root);
     state.currentSelection = selection;
     state.currentSelectionReceivedAt = Date.now();
-    upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics);
+    upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics, cssDebug);
     emitSession(state.currentSelection.sessionId, state);
     sendJson(res, 200, { ok: true, selection: state.currentSelection });
     return;

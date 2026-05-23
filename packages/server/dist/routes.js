@@ -1,6 +1,6 @@
 import { sendJson, readJson, isLocalOrigin, applyCors } from './http.js';
 import { emitSession } from './sse.js';
-import { selectionResponse, normalizeSelection, normalizeTargets, normalizeDiagnostics, normalizeSessionMode, normalizeTaskStatus, upsertSessionFromSelection, appendMessage, appendAssistantMessage, } from './sessions.js';
+import { selectionResponse, normalizeSelection, normalizeTargets, normalizeDiagnostics, normalizeCssDebugPayload, normalizeSessionMode, normalizeTaskStatus, upsertSessionFromSelection, appendMessage, appendAssistantMessage, } from './sessions.js';
 import { detectEditors, detectEditor } from './editors.js';
 import { openSource } from './source.js';
 import { getVersion } from './version.js';
@@ -166,10 +166,11 @@ export async function route(req, res, state, closeServer) {
         const targets = normalizeTargets(body && typeof body === 'object' ? body.targets : undefined, selection);
         const mode = normalizeSessionMode(body && typeof body === 'object' ? body.mode : undefined);
         const diagnostics = normalizeDiagnostics(body && typeof body === 'object' ? body.diagnostics : undefined);
+        const cssDebug = normalizeCssDebugPayload(body && typeof body === 'object' ? body.cssDebug : undefined, selection);
         state.setProjectRoot(selection.source.root);
         state.currentSelection = selection;
         state.currentSelectionReceivedAt = Date.now();
-        upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics);
+        upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics, cssDebug);
         emitSession(state.currentSelection.sessionId, state);
         sendJson(res, 200, { ok: true, selection: state.currentSelection });
         return;
