@@ -22,6 +22,7 @@ const packages = [
   '@ui-inspect/webpack-plugin',
   '@ui-inspect/rspack-plugin',
   '@ui-inspect/rsbuild-plugin',
+  '@ui-inspect/next',
   '@ui-inspect/cli',
 ];
 

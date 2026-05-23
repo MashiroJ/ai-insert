@@ -26,9 +26,19 @@ describe('clientSource', () => {
     expect(result.trimEnd().endsWith('})();')).toBe(true);
   });
 
-  it('includes Diana sprite URL constant', () => {
+  it('keeps the default Diana sprite URL', () => {
     const result = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
     expect(result).toContain('/@ui-inspect/diana.webp');
+  });
+
+  it('embeds a custom Diana sprite URL', () => {
+    const result = clientSource({
+      daemonUrl: 'http://127.0.0.1:17321',
+      root: '/project',
+      dianaSpriteUrl: '/api/ui-inspect/diana',
+    });
+    expect(result).toContain('/api/ui-inspect/diana');
+    expect(result).not.toContain('/@ui-inspect/diana.webp');
   });
 });
 

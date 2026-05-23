@@ -8,6 +8,7 @@ import { sessionClientSource } from './client-modules/session-source.js';
 export interface ClientSourceOptions {
   daemonUrl: string;
   root: string;
+  dianaSpriteUrl?: string;
 }
 
 export function clientSource(options: ClientSourceOptions): string {
@@ -24,7 +25,7 @@ export function clientSource(options: ClientSourceOptions): string {
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
   const SOURCE_EDITOR_KEY = 'ui-inspect:source-editor';
-  const DIANA_SPRITE_URL = '/@ui-inspect/diana.webp';
+  const DIANA_SPRITE_URL = ${JSON.stringify(options.dianaSpriteUrl ?? '/@ui-inspect/diana.webp')};
   let enabled = false;
   let hovered = null;
   let activeElement = null;

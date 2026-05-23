@@ -13,6 +13,10 @@
       "types": "./dist/plugin-runtime.d.ts",
       "import": "./dist/plugin-runtime.js"
     },
+    "./client-source": {
+      "types": "./dist/client-source.d.ts",
+      "import": "./dist/client-source.js"
+    },
     "./diana": {
       "types": "./dist/diana/index.d.ts",
       "import": "./dist/diana/index.js"
