@@ -2,29 +2,58 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { inspectNextIntegration } from './next-integration.js';
+import { detectProject } from './project-detector.js';
 import { getVersion } from './version.js';
 const require = createRequire(import.meta.url);
-const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'];
+const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs', 'vite.config.cts'];
 const PACKAGE_VERSION = getVersion();
 const VITE_PLUGIN_SPEC = `@ui-inspect/vite-plugin@${PACKAGE_VERSION}`;
+const INTEGRATION_PACKAGES = {
+    vite: '@ui-inspect/vite-plugin',
+    next: '@ui-inspect/next',
+    rsbuild: '@ui-inspect/rsbuild-plugin',
+    rspack: '@ui-inspect/rspack-plugin',
+    webpack: '@ui-inspect/webpack-plugin',
+};
 export function ensureProjectIntegration({ project }) {
+    const detected = detectProject(project);
     const result = {
         project,
-        packageJson: existsSync(join(project, 'package.json')),
+        packageJson: detected.packageJson,
+        projectType: detected.kind,
+        router: null,
         viteConfig: null,
         installed: false,
         patched: false,
         alreadyConfigured: false,
         devOnly: true,
-        warnings: [],
+        packageName: null,
+        missing: [],
+        nextSteps: [],
+        warnings: [...detected.warnings],
     };
     if (!result.packageJson) {
-        result.warnings.push(`package.json not found: ${project}`);
+        result.nextSteps = manualIntegrationSteps();
         return result;
+    }
+    if (detected.kind === 'next') {
+        return ensureNextIntegration(project, detected.next?.router ?? 'unknown', result);
     }
     const configFile = findViteConfig(project);
     result.viteConfig = configFile;
+    if (detected.kind === 'vite')
+        result.packageName = INTEGRATION_PACKAGES.vite;
     if (!configFile) {
+        if (detected.kind === 'unknown') {
+            result.missing.push('project-integration');
+            result.nextSteps = manualIntegrationSteps();
+            result.warnings.push('frontend project type not detected; add ui-inspect manually for your framework.');
+            return result;
+        }
+        if (detected.kind !== 'vite') {
+            return ensureBundlerGuidance(detected.kind, detected.dependencies, result);
+        }
         if (!hasProjectDependency(project, '@ui-inspect/vite-plugin')) {
             const installed = installProjectPackages(project);
             result.installed = installed;
@@ -32,6 +61,8 @@ export function ensureProjectIntegration({ project }) {
                 result.warnings.push('failed to install @ui-inspect/vite-plugin into the project');
         }
         result.warnings.push('vite.config.ts/js/mts/mjs not found; add uiInspect() manually');
+        result.missing.push('vite-config');
+        result.nextSteps = viteManualSteps();
         return result;
     }
     const patch = patchViteConfigFile(configFile);
@@ -45,16 +76,64 @@ export function ensureProjectIntegration({ project }) {
         if (!installed)
             result.warnings.push('failed to install @ui-inspect/vite-plugin into the project');
     }
+    result.nextSteps = result.alreadyConfigured || result.patched
+        ? ['Start or keep using your frontend dev server, open the target page, then select an element with ui-inspect.']
+        : viteManualSteps();
     return result;
 }
-function hasProjectDependency(project, name) {
+function ensureNextIntegration(project, router, result) {
+    const integration = inspectNextIntegration(project, router);
+    result.projectType = 'next';
+    result.router = router;
+    result.packageName = INTEGRATION_PACKAGES.next;
+    result.snippets = flattenNextSnippets(integration);
+    result.missing = integration.missing;
+    result.alreadyConfigured = integration.missing.length === 0;
+    if (result.missing.length === 0) {
+        result.nextSteps = ['Start or keep using your Next.js dev server, open the target page, then select an element with ui-inspect.'];
+        return result;
+    }
+    result.nextSteps = nextIntegrationSteps(router, integration);
+    result.warnings.push('Next.js projects are not patched automatically; add the ui-inspect integration manually.');
+    return result;
+}
+function flattenNextSnippets(integration) {
+    const snippets = {
+        install: `pnpm add -D @ui-inspect/next@${PACKAGE_VERSION}`,
+    };
+    if (integration.snippets.appRouter) {
+        snippets.appLayout = integration.snippets.appRouter.script;
+        snippets.appRoute = `${integration.snippets.appRouter.route}\n`;
+    }
+    if (integration.snippets.pagesRouter) {
+        snippets.pagesApp = integration.snippets.pagesRouter.script;
+        snippets.pagesApi = `${integration.snippets.pagesRouter.route}\n`;
+    }
+    return snippets;
+}
+function ensureBundlerGuidance(kind, dependencies, result) {
+    const packageName = INTEGRATION_PACKAGES[kind];
+    result.packageName = packageName;
+    if (!dependencies[packageName])
+        result.missing.push(packageName);
+    result.missing.push(`${kind}-config`);
+    result.nextSteps = bundlerIntegrationSteps(kind, packageName);
+    result.warnings.push(`${kind} projects are not patched automatically; add the ui-inspect plugin manually.`);
+    return result;
+}
+function readProjectPackage(project) {
     try {
-        const packageJson = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'));
-        return Boolean(packageJson.dependencies?.[name] || packageJson.devDependencies?.[name]);
+        return JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'));
     }
     catch {
-        return false;
+        return null;
     }
+}
+function hasProjectDependency(project, name) {
+    return hasDependency(readProjectPackage(project), name);
+}
+function hasDependency(packageJson, name) {
+    return Boolean(packageJson?.dependencies?.[name] || packageJson?.devDependencies?.[name]);
 }
 function installProjectPackages(project) {
     const pluginSpec = process.env.UI_INSPECT_PROJECT_INSTALL_SOURCE === 'local'
@@ -133,6 +212,57 @@ function findViteConfig(project) {
             return file;
     }
     return null;
+}
+function nextIntegrationSteps(router, integration) {
+    const install = `Install package ${INTEGRATION_PACKAGES.next}: pnpm add -D @ui-inspect/next@${PACKAGE_VERSION}`;
+    const missing = `Missing: ${integration.missing.join(', ')}`;
+    if (router === 'app') {
+        return [
+            missing,
+            install,
+            'In app/layout.tsx or src/app/layout.tsx, render <UiInspectScript /> in the root layout body. Copy snippet "appLayout" if you need a starting point.',
+            'Create app/api/ui-inspect/diana/route.ts or src/app/api/ui-inspect/diana/route.ts for Diana. Copy snippet "appRoute".',
+        ];
+    }
+    if (router === 'pages') {
+        return [
+            missing,
+            install,
+            'In pages/_app.tsx or src/pages/_app.tsx, render <UiInspectScript /> alongside the page component. Copy snippet "pagesApp" if you need a starting point.',
+            'Create pages/api/ui-inspect/diana.ts or src/pages/api/ui-inspect/diana.ts for Diana. Copy snippet "pagesApi".',
+        ];
+    }
+    return [
+        missing,
+        install,
+        'For App Router, add <UiInspectScript /> to the root layout and add the Diana route handler from "@ui-inspect/next/app". Copy snippets "appLayout" and "appRoute".',
+        'For Pages Router, add <UiInspectScript /> to _app and add the Diana API handler from "@ui-inspect/next/pages". Copy snippets "pagesApp" and "pagesApi".',
+    ];
+}
+function bundlerIntegrationSteps(kind, packageName) {
+    if (kind === 'rsbuild') {
+        return [
+            `Install ${packageName}@${PACKAGE_VERSION} as a dev dependency.`,
+            'Import { pluginUiInspect } from "@ui-inspect/rsbuild-plugin" in rsbuild.config and add pluginUiInspect() to the plugins array.',
+        ];
+    }
+    return [
+        `Install ${packageName}@${PACKAGE_VERSION} as a dev dependency.`,
+        `Import { uiInspect } from "${packageName}" in ${kind}.config and add uiInspect() to the plugins array.`,
+    ];
+}
+function viteManualSteps() {
+    return [
+        `Install @ui-inspect/vite-plugin@${PACKAGE_VERSION} as a dev dependency.`,
+        'Import { uiInspect } from "@ui-inspect/vite-plugin" in vite.config and add uiInspect() to the plugins array.',
+    ];
+}
+function manualIntegrationSteps() {
+    return [
+        'Add the ui-inspect package for your frontend framework.',
+        'Mount the ui-inspect client script in development only.',
+        'Expose the Diana asset route expected by the client integration.',
+    ];
 }
 function patchViteConfigFile(file) {
     let content = readFileSync(file, 'utf8');
