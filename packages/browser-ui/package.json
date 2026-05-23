@@ -1,6 +1,6 @@
 {
   "name": "@ui-inspect/browser-ui",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -8,6 +8,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./plugin-runtime": {
+      "types": "./dist/plugin-runtime.d.ts",
+      "import": "./dist/plugin-runtime.js"
+    },
+    "./client-source": {
+      "types": "./dist/client-source.d.ts",
+      "import": "./dist/client-source.js"
     },
     "./diana": {
       "types": "./dist/diana/index.d.ts",
@@ -24,10 +32,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "!dist/**/*.test.*",
+    "!src/**/*.test.*",
+    "!src/**/*.test.*.map"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.mjs",
     "typecheck": "tsc --noEmit",
     "watch": "tsc --watch"
   },

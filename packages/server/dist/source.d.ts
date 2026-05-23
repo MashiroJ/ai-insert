@@ -8,3 +8,7 @@ export declare function openSource(value: unknown, projectRoot: string, requeste
     file?: string;
     error?: string;
 };
+export declare function sourceOpenCommand(editor: string, resolvedFile: string, line: number, column: number): {
+    command: string;
+    args: string[];
+};

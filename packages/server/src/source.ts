@@ -67,18 +67,22 @@ export function openSource(
   const line = typeof value.line === 'number' && Number.isFinite(value.line) && value.line > 0 ? Math.floor(value.line) : 1;
   const column = typeof value.column === 'number' && Number.isFinite(value.column) && value.column > 0 ? Math.floor(value.column) : 1;
   const editor = detectEditor(requestedEditor);
-  const target = `${resolvedFile}:${line}:${column}`;
-  const args = editor === 'open'
-    ? [resolvedFile]
-    : ['-g', target];
+  const { command, args } = sourceOpenCommand(editor, resolvedFile, line, column);
   try {
-    const child = spawn(editor, args, {
+    const child = spawn(command, args, {
       detached: true,
       stdio: 'ignore',
     });
     child.unref();
-    return { ok: true, editor, command: editor, args, file: resolvedFile };
+    return { ok: true, editor, command, args, file: resolvedFile };
   } catch (err) {
-    return { ok: false, editor, command: editor, args, file: resolvedFile, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, editor, command, args, file: resolvedFile, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+export function sourceOpenCommand(editor: string, resolvedFile: string, line: number, column: number): { command: string; args: string[] } {
+  if (editor === 'open') return { command: 'open', args: ['-t', resolvedFile] };
+  if (editor === 'start') return { command: 'cmd.exe', args: ['/c', 'start', '', resolvedFile] };
+  if (editor === 'xdg-open') return { command: 'xdg-open', args: [resolvedFile] };
+  return { command: editor, args: ['-g', `${resolvedFile}:${line}:${column}`] };
 }

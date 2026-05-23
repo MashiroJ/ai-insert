@@ -1,6 +1,6 @@
 {
   "name": "@ui-inspect/vite-plugin",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ui-inspect/browser-adapter": "workspace:*",
+    "@ui-inspect/browser-ui": "workspace:*",
     "@ui-inspect/protocol": "workspace:*"
   },
   "devDependencies": {

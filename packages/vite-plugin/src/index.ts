@@ -1,9 +1,7 @@
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { clientSource } from './client-source.js';
+import { clientSource, getDianaAssetPath } from '@ui-inspect/browser-ui/plugin-runtime';
 
 export interface UiInspectPluginOptions {
   daemonUrl?: string;
@@ -14,7 +12,6 @@ const CLIENT_PATH = '/@ui-inspect/client.js';
 const DIANA_PATH = '/@ui-inspect/diana.webp';
 const DEFAULT_DAEMON_URL = 'http://127.0.0.1:17321';
 const STATE_WATCH_IGNORES = ['**/.ui-inspect/**', '**/.ui-inspect/**/*'];
-const DIANA_ASSET_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../src/assets/diana/spritesheet.webp');
 
 export function uiInspect(options: UiInspectPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
@@ -47,7 +44,7 @@ export function uiInspect(options: UiInspectPluginOptions = {}): Plugin {
       });
       server.middlewares.use(DIANA_PATH, (_req, res) => {
         res.setHeader('content-type', 'image/webp');
-        res.end(readFileSync(DIANA_ASSET_FILE));
+        res.end(readFileSync(getDianaAssetPath()));
       });
     },
     transformIndexHtml(html) {

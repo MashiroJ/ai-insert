@@ -14,6 +14,9 @@ const packages = [
   '@ui-inspect/server',
   '@ui-inspect/vite-plugin',
   '@ui-inspect/webpack-plugin',
+  '@ui-inspect/rspack-plugin',
+  '@ui-inspect/rsbuild-plugin',
+  '@ui-inspect/next',
   '@ui-inspect/cli',
 ];
 
@@ -106,6 +109,65 @@ export default defineConfig({
 });
 \`\`\`
 
+### Rspack 项目接入
+
+\`\`\`bash
+npm install -D @ui-inspect/rspack-plugin@latest
+\`\`\`
+
+\`\`\`ts
+import { defineConfig } from '@rspack/cli';
+import { uiInspect } from '@ui-inspect/rspack-plugin';
+
+export default defineConfig({
+  plugins: [uiInspect()],
+});
+\`\`\`
+
+### Rsbuild 项目接入
+
+\`\`\`bash
+npm install -D @ui-inspect/rsbuild-plugin@latest
+\`\`\`
+
+\`\`\`ts
+import { defineConfig } from '@rsbuild/core';
+import { pluginUiInspect } from '@ui-inspect/rsbuild-plugin';
+
+export default defineConfig({
+  plugins: [pluginUiInspect()],
+});
+\`\`\`
+
+### Next.js 项目接入
+
+\`\`\`bash
+npm install -D @ui-inspect/next@latest
+\`\`\`
+
+App Router 在 \`app/layout.tsx\` 中加入：
+
+\`\`\`tsx
+import { UiInspectScript } from '@ui-inspect/next';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <UiInspectScript />
+      </body>
+    </html>
+  );
+}
+\`\`\`
+
+并添加 \`app/api/ui-inspect/diana/route.ts\`：
+
+\`\`\`ts
+export { GET } from '@ui-inspect/next/app';
+\`\`\`
+
 ## 本地 tgz 安装
 
 如果你需要使用当前 release 目录里的 tgz 包：
@@ -113,9 +175,12 @@ export default defineConfig({
 \`\`\`bash
 npm install -g ./ui-inspect-protocol-${version}.tgz ./ui-inspect-server-${version}.tgz ./ui-inspect-cli-${version}.tgz
 npm install -D ./ui-inspect-protocol-${version}.tgz ./ui-inspect-vite-plugin-${version}.tgz
+npm install -D ./ui-inspect-rspack-plugin-${version}.tgz
+npm install -D ./ui-inspect-rsbuild-plugin-${version}.tgz
+npm install -D ./ui-inspect-next-${version}.tgz
 \`\`\`
 
-第一条命令用于安装 MCP CLI；第二条命令需要在目标 Vite 项目目录里执行。
+第一条命令用于安装 MCP CLI；后面的命令按目标项目构建工具选择执行。
 
 ## 使用
 
