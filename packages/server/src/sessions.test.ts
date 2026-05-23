@@ -271,8 +271,14 @@ describe('normalizeSelection', () => {
     expect(normalizeSelection(sel).framework).toBe('vue3');
   });
 
-  it('defaults non-vue3 frameworks to dom', () => {
+  it('preserves recognized framework strings', () => {
     const sel = makeSelection({ framework: 'react' });
+    expect(normalizeSelection(sel).framework).toBe('react');
+  });
+
+  it('defaults missing framework to dom', () => {
+    const sel = makeSelection() as unknown as Record<string, unknown>;
+    delete sel.framework;
     expect(normalizeSelection(sel).framework).toBe('dom');
   });
 

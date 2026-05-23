@@ -2,13 +2,15 @@
 
 这份文档写给 AI coding agent。用户要求接入或使用 ui-inspect 时，请按这里的流程处理。
 
-## 固定触发语
+## 触发语
 
 ```text
 启用 ui-inspect
 ```
 
-用户说这句话时，不要先搜索业务功能，也不要自行猜测页面结构。直接启动 ui-inspect 工作流。
+也支持 `使用 ui-inspect`、`调用 ui-inspect`、`启动 ui-inspect`、`打开 UI 检查`、`开启 UI 检查`、`start ui-inspect`、`enable ui-inspect`、`use ui-inspect` 等表达。
+
+用户明确要求启动、启用、使用、调用或打开 ui-inspect 时，不要先搜索业务功能，也不要自行猜测页面结构。直接启动 ui-inspect 工作流。只有用户单独提到 `ui-inspect` 并且是在询问文档、安装、报错或一般信息时，不要自动触发工作流。
 
 ## 接入项目
 
@@ -20,7 +22,7 @@
 
 ## 使用流程
 
-1. 用户说 `启用 ui-inspect` 时，调用 `start_ui_inspect`。
+1. 用户明确要求启动、启用、使用、调用或打开 ui-inspect 时，调用 `start_ui_inspect`。
 2. 根据返回的项目识别结果、接入状态和下一步提示，判断是否还缺插件、组件或 API route。
 3. 提醒用户自己启动前端项目，并打开目标页面。
 4. 调用 `wait_for_frontend_request` 等待浏览器任务。

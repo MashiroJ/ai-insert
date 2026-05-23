@@ -188,10 +188,10 @@ yarn dev
 Open the page, then tell your AI coding agent:
 
 ```text
-启用 ui-inspect
+start ui-inspect
 ```
 
-The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. You can then use Diana in the browser to select elements and send requests.
+You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, or `启用 ui-inspect`. The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. You can then use Diana in the browser to select elements and send requests.
 
 ## Diana Features
 

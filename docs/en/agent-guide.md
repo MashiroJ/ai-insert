@@ -2,13 +2,15 @@
 
 This guide is for AI coding agents. Follow it when a user asks you to integrate or use ui-inspect.
 
-## Trigger Phrase
+## Trigger Phrases
 
 ```text
-启用 ui-inspect
+start ui-inspect
 ```
 
-When the user says this, do not search the business feature first and do not guess the page structure. Start the ui-inspect workflow.
+Also support `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, `启用 ui-inspect`, `使用 ui-inspect`, `调用 ui-inspect`, and `打开 UI 检查`.
+
+When the user explicitly asks to start, enable, use, invoke, launch, or open ui-inspect, do not search the business feature first and do not guess the page structure. Start the ui-inspect workflow. Do not auto-trigger on the bare word `ui-inspect` when the user is asking about docs, installation, errors, or general information.
 
 ## Integrating a Project
 
@@ -20,7 +22,7 @@ When the user says this, do not search the business feature first and do not gue
 
 ## Runtime Workflow
 
-1. When the user says `启用 ui-inspect`, call `start_ui_inspect`.
+1. When the user explicitly asks to start, enable, use, invoke, launch, or open ui-inspect, call `start_ui_inspect`.
 2. Read the returned project detection result, integration status, and next steps.
 3. Ask the user to start their frontend dev server and open the target page.
 4. Call `wait_for_frontend_request`.

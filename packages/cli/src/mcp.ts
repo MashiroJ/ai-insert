@@ -46,7 +46,7 @@ const WAIT_POLL_INTERVAL_MS = 1000;
 const TOOL_DEFS = [
   {
     name: 'start_ui_inspect',
-    description: 'Start or verify ui-inspect for a local frontend project. Canonical trigger phrase: "启用 ui-inspect". Also use this for "enable ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Ensures the local daemon, detects the project integration status, and returns framework-specific next steps. Vite projects may be auto-installed/patched; Next.js projects return manual App Router or Pages Router instructions. It never starts the user project dev server and never opens the browser.',
+    description: 'Start or verify ui-inspect for a local frontend project. Use this when the user asks to start, enable, launch, open, use, invoke, or turn on ui-inspect, including "start ui-inspect", "enable ui-inspect", "use ui-inspect", "启用 ui-inspect", "使用 ui-inspect", "调用 ui-inspect", "打开 UI 检查", or requests to connect browser element selection to an MCP coding agent. Do not trigger on the bare word "ui-inspect" when the user is only asking about docs, installation, errors, or general information. Ensures the local daemon, detects the project integration status, and returns framework-specific next steps. Vite projects may be auto-installed/patched; Next.js projects return manual App Router or Pages Router instructions. It never starts the user project dev server and never opens the browser.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -77,7 +77,7 @@ const TOOL_DEFS = [
   },
   {
     name: 'wait_for_frontend_request',
-    description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for the canonical "启用 ui-inspect" flow, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run.',
+    description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for start/enable/use/invoke ui-inspect flows, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -191,8 +191,9 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
       instructions: [
         'ui-inspect is a universal MCP context bridge for local frontend inspection.',
         'Treat "ui-inspect", "UI inspect", "UI 检查", and "界面检查" as user-facing aliases for ui-inspect.',
-        'Canonical user trigger phrase: "启用 ui-inspect". When the user says this exact phrase, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
-        'When the user asks to enable ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
+        'Trigger phrases include "start ui-inspect", "enable ui-inspect", "use ui-inspect", "launch ui-inspect", "turn on ui-inspect", "启用 ui-inspect", "使用 ui-inspect", "调用 ui-inspect", "启动 ui-inspect", and "打开 UI 检查". When the user asks for one of these actions, call start_ui_inspect immediately, tell the user to select an element and click Send in the browser panel, then call wait_for_frontend_request and continue editing when it returns.',
+        'Do not trigger the workflow on the bare word "ui-inspect" when the user is only asking about docs, installation, errors, or general information.',
+        'When the user asks to start, enable, use, invoke, or open ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
         'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
         'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
         'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',

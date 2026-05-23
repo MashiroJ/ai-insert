@@ -191,7 +191,7 @@ yarn dev
 启用 ui-inspect
 ```
 
-agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待浏览器任务。然后你就可以在页面中通过 Diana 选择元素并发送需求。
+你也可以说 `使用 ui-inspect`、`调用 ui-inspect`、`启动 ui-inspect`、`打开 UI 检查` 或 `start ui-inspect`。agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待浏览器任务。然后你就可以在页面中通过 Diana 选择元素并发送需求。
 
 ## Diana 功能
 

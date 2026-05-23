@@ -90,10 +90,10 @@ npm run dev
 Then open the page and tell your AI agent:
 
 ```text
-启用 ui-inspect
+start ui-inspect
 ```
 
-The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. Diana will appear in the browser, and you can select elements or send CSS/debug tasks.
+You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, or `启用 ui-inspect`. The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. Diana will appear in the browser, and you can select elements or send CSS/debug tasks.
 
 ## Documentation
 

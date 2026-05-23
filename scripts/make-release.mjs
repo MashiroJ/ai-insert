@@ -190,7 +190,7 @@ npm install -D ./ui-inspect-next-${version}.tgz
 启用 ui-inspect
 \`\`\`
 
-agent 应调用 \`start_ui_inspect\`，再调用 \`wait_for_frontend_request\` 等待用户在浏览器面板里选择元素并点击发送。
+也可以说 \`使用 ui-inspect\`、\`调用 ui-inspect\`、\`启动 ui-inspect\`、\`打开 UI 检查\`、\`start ui-inspect\` 或 \`enable ui-inspect\`。agent 应调用 \`start_ui_inspect\`，再调用 \`wait_for_frontend_request\` 等待用户在浏览器面板里选择元素并点击发送。
 
 \`start_ui_inspect\` 只启动/复用 ui-inspect daemon 并检查 Vite 插件接入，不会启动用户项目 dev server，也不会打开浏览器。用户需要用项目自己的命令启动目标前端系统。
 

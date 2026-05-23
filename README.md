@@ -93,7 +93,7 @@ npm run dev
 启用 ui-inspect
 ```
 
-agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request`。随后 Diana 会出现在浏览器里，你可以选择元素、发送 CSS 调试任务或问题排查任务。
+你也可以说 `使用 ui-inspect`、`调用 ui-inspect`、`启动 ui-inspect`、`打开 UI 检查` 或 `start ui-inspect`。agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request`。随后 Diana 会出现在浏览器里，你可以选择元素、发送 CSS 调试任务或问题排查任务。
 
 ## 文档导航
 
