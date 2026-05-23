@@ -20,6 +20,8 @@ const packages = [
   '@ui-inspect/server',
   '@ui-inspect/vite-plugin',
   '@ui-inspect/webpack-plugin',
+  '@ui-inspect/rspack-plugin',
+  '@ui-inspect/rsbuild-plugin',
   '@ui-inspect/cli',
 ];
 
