@@ -438,10 +438,10 @@ ${taskPanelClientSource}
     const panelWidth = panel.offsetWidth || Math.min(420, viewportWidth - margin * 2);
     const panelHeight = panel.offsetHeight || Math.min(360, viewportHeight - margin * 2);
     const candidates = [
-      { name: 'left-top', left: anchorRect.left - panelWidth - gap, top: anchorRect.top - panelHeight - gap },
-      { name: 'left-bottom', left: anchorRect.left - panelWidth - gap, top: anchorRect.bottom + gap },
-      { name: 'right-top', left: anchorRect.right + gap, top: anchorRect.top - panelHeight - gap },
-      { name: 'right-bottom', left: anchorRect.right + gap, top: anchorRect.bottom + gap }
+      { name: 'left-top', left: anchorRect.left - panelWidth - gap, top: anchorRect.bottom - panelHeight },
+      { name: 'left-bottom', left: anchorRect.left - panelWidth - gap, top: anchorRect.top },
+      { name: 'right-top', left: anchorRect.right + gap, top: anchorRect.bottom - panelHeight },
+      { name: 'right-bottom', left: anchorRect.right + gap, top: anchorRect.top }
     ];
     const scored = candidates.map((item) => {
       const overflowX = Math.max(0, margin - item.left) + Math.max(0, item.left + panelWidth - (viewportWidth - margin));
@@ -1322,6 +1322,7 @@ ${taskPanelClientSource}
       }
       updateTroubleshootSendState(panel);
     }
+    placePanel(panel);
     if (activePanelSessionId && activeSessionData) startSessionStream(activePanelSessionId);
     textarea.focus();
     select.addEventListener('click', () => {
