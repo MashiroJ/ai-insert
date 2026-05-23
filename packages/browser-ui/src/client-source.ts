@@ -39,6 +39,7 @@ export function clientSource(options: ClientSourceOptions): string {
   let selectionMode = 'batch';
   let activeTaskMode = 'batch';
   let dianaResetTimer = null;
+  let dianaHintTimer = null;
   let menuHideTimer = null;
   let dianaDrag = null;
   let suppressDianaClick = false;
@@ -216,6 +217,7 @@ ${selectionClientSource}
   function openModeMenu() {
     if (enabled) return;
     cancelModeMenuClose();
+    hideDianaHint();
     const existingMenu = document.getElementById(MENU_ID);
     if (existingMenu) return;
     const existingPanel = document.getElementById(PANEL_ID);
@@ -421,16 +423,44 @@ ${selectionClientSource}
 ${taskPanelClientSource}
 
     function placePanel(panel) {
-    if (!panel || !activeElement) return;
-    const rect = activeElement.getBoundingClientRect();
-    panel.style.left = '';
-    panel.style.right = '16px';
-    panel.style.bottom = window.innerWidth <= 520 ? '72px' : '54px';
-    if (window.innerWidth <= 720) return;
-    if (rect.left > window.innerWidth / 2) {
-      panel.style.left = '16px';
-      panel.style.right = 'auto';
-    }
+    if (!panel) return;
+    const anchor = document.getElementById(TOGGLE_ID);
+    const margin = 12;
+    const gap = 12;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const anchorRect = anchor?.getBoundingClientRect?.() || {
+      left: viewportWidth - 84,
+      right: viewportWidth - 12,
+      top: viewportHeight - 90,
+      bottom: viewportHeight - 12,
+      width: 72,
+      height: 78
+    };
+    panel.style.left = '0px';
+    panel.style.top = '0px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.dataset.placement = 'left-top';
+    const panelWidth = panel.offsetWidth || Math.min(420, viewportWidth - margin * 2);
+    const panelHeight = panel.offsetHeight || Math.min(360, viewportHeight - margin * 2);
+    const candidates = [
+      { name: 'left-top', left: anchorRect.left - panelWidth - gap, top: anchorRect.top - panelHeight - gap },
+      { name: 'left-bottom', left: anchorRect.left - panelWidth - gap, top: anchorRect.bottom + gap },
+      { name: 'right-top', left: anchorRect.right + gap, top: anchorRect.top - panelHeight - gap },
+      { name: 'right-bottom', left: anchorRect.right + gap, top: anchorRect.bottom + gap }
+    ];
+    const scored = candidates.map((item) => {
+      const overflowX = Math.max(0, margin - item.left) + Math.max(0, item.left + panelWidth - (viewportWidth - margin));
+      const overflowY = Math.max(0, margin - item.top) + Math.max(0, item.top + panelHeight - (viewportHeight - margin));
+      return { ...item, score: overflowX + overflowY * 1.4 };
+    }).sort((a, b) => a.score - b.score);
+    const best = scored[0];
+    const left = Math.min(Math.max(margin, best.left), Math.max(margin, viewportWidth - panelWidth - margin));
+    const top = Math.min(Math.max(margin, best.top), Math.max(margin, viewportHeight - panelHeight - margin));
+    panel.style.left = Math.round(left) + 'px';
+    panel.style.top = Math.round(top) + 'px';
+    panel.dataset.placement = best.name;
   }
 
   async function openSourceConfirmPanel(selection) {
@@ -533,8 +563,8 @@ ${taskPanelClientSource}
 
   const CSS_DEBUG_GROUPS = [
     { title: 'Spacing', properties: ['margin', 'padding', 'gap'], open: true },
-    { title: 'Typography', properties: ['font-size', 'font-weight', 'line-height', 'color'], open: true },
-    { title: 'Visual', properties: ['background-color', 'border', 'border-radius', 'box-shadow', 'opacity'], open: true },
+    { title: 'Typography', properties: ['font-size', 'font-weight', 'line-height', 'color'], open: false },
+    { title: 'Visual', properties: ['background-color', 'border', 'border-radius', 'box-shadow', 'opacity'], open: false },
     { title: 'Size', properties: ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height'], open: false },
     { title: 'Layout', properties: ['display', 'flex-direction', 'align-items', 'justify-content', 'transform'], open: false }
   ];
@@ -1161,6 +1191,7 @@ ${taskPanelClientSource}
       panel.addEventListener(type, (event) => event.stopPropagation());
     });
     renderCssDebugControls(panel);
+    placePanel(panel);
     updateCssDebugOverlay();
     const textarea = panel.querySelector('textarea');
     panel.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
@@ -1168,6 +1199,7 @@ ${taskPanelClientSource}
       resetCssDebugPreview();
       if (cssDebugState) cssDebugState.previewStyles = {};
       renderCssDebugControls(panel);
+      placePanel(panel);
       updateCssDebugOverlay();
       showToast('已恢复进入调试前的 inline style。', 'idle');
     });
@@ -1175,6 +1207,7 @@ ${taskPanelClientSource}
       if (!cssDebugState) return;
       cssDebugState.changedOnly = !cssDebugState.changedOnly;
       renderCssDebugControls(panel);
+      placePanel(panel);
     });
     panel.querySelector('[data-action="select"]').addEventListener('click', () => {
       resetCssDebugPreview();
