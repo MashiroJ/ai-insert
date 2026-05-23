@@ -1,60 +1,52 @@
+<div align="center">
+
 # ui-inspect
 
-> Let AI coding agents understand the frontend page you are looking at.
->
-> 让 AI coding agent 看懂你正在看的前端页面。
+### 让 AI coding agent 看懂你正在看的前端页面
 
-ui-inspect is a browser inspection and MCP context bridge for frontend development. It turns a selected page element, CSS tweak, runtime issue, or batch UI request into structured context an AI agent can act on: DOM, styles, component hints, source hints, notes, diagnostics, and session state.
+[![npm cli](https://img.shields.io/npm/v/@ui-inspect/cli?label=%40ui-inspect%2Fcli&color=2f6fed)](https://www.npmjs.com/package/@ui-inspect/cli)
+[![MCP](https://img.shields.io/badge/MCP-ready-22c55e)](https://modelcontextprotocol.io/)
+[![Vite](https://img.shields.io/badge/Vite-supported-646cff)](docs/zh-CN/getting-started.md)
+[![Next.js](https://img.shields.io/badge/Next.js-supported-111111)](docs/zh-CN/getting-started.md)
 
-ui-inspect 是一个面向前端开发的浏览器检查与 MCP 上下文桥接工具。它把你在浏览器里点选的元素、CSS 调试、运行时报错或批量 UI 需求，转成 AI 能直接处理的结构化上下文：DOM、样式、组件信息、源码线索、用户备注、诊断日志和会话状态。
+简体中文 · [English](README.en.md)
 
-It does not depend on a specific AI product. Any MCP-capable coding agent can use it.
+[快速开始](docs/zh-CN/getting-started.md) · [Agent 使用指南](docs/zh-CN/agent-guide.md) · [MCP 与 CLI 参考](docs/zh-CN/reference.md)
+
+</div>
+
+---
+
+## 项目介绍
+
+ui-inspect 是一个面向前端开发的浏览器检查与 MCP 上下文桥接工具。
+
+当你在浏览器里点选真实元素时，它能把截图无法表达的上下文交给 AI：DOM 结构、计算样式、组件信息、源码线索、console 诊断、CSS 调试 diff、用户备注和任务会话。
 
 它不绑定某个 AI 产品。只要你的 coding agent 支持 MCP，就可以接入。
 
-## Documentation / 文档
+## 为什么需要它
 
-| English | 简体中文 |
+前端开发里最难和 AI 描述的，往往不是需求本身，而是：
+
+> “我要改页面上的这一块，但我很难把这一块说清楚。”
+
+ui-inspect 让浏览器可以把真实页面上下文交给你的 AI agent，少一点猜测，多一点可执行的信息。
+
+## 核心功能
+
+| 功能 | 发送给 AI 的上下文 |
 | --- | --- |
-| [Getting Started](docs/en/getting-started.md) | [快速开始](docs/zh-CN/getting-started.md) |
-| [Agent Guide](docs/en/agent-guide.md) | [Agent 使用指南](docs/zh-CN/agent-guide.md) |
-| [MCP and CLI Reference](docs/en/reference.md) | [MCP 与 CLI 参考](docs/zh-CN/reference.md) |
-| [Maintainer Guide](docs/en/maintainer.md) | [维护者指南](docs/zh-CN/maintainer.md) |
-| [Release Flow](docs/release-flow.md) | [发布流程](docs/release-flow.md) |
+| 元素选择 | DOM、selector、尺寸、计算样式、源码线索 |
+| 源码线索 | 组件名、文件候选、附近源码上下文 |
+| 批量调整 | 多个目标元素，以及每个目标自己的备注 |
+| CSS 调试 | 样式 diff、拖拽意图、布局上下文、连带计算变化 |
+| 问题排查 | 用户确认过的 console 错误、警告和异常 |
+| Diana 助手 | 浏览器悬浮入口、工具面板、历史记录和任务状态 |
 
-## What It Does / 它能做什么
+## 快速开始
 
-- Select a real DOM element in the browser and send source-aware context to AI.
-- Multi-select several UI targets, add notes per target, and send them as one task.
-- Debug CSS visually: adjust properties, drag position or size, then send the style diff.
-- Capture confirmed console diagnostics for runtime debugging.
-- Use Diana, a movable browser-side assistant, to open tools, send tasks, and view status.
-
-- 在浏览器中点选真实 DOM 元素，把带源码线索的上下文发给 AI。
-- 多选多个 UI 目标，给每个目标写备注，再作为一个任务发送。
-- 可视化调试 CSS：调整属性、拖拽位置或尺寸，再发送样式 diff。
-- 选择并确认 console 诊断信息，用于运行时问题排查。
-- 通过可拖动的 Diana 悬浮入口打开工具、发送任务、查看状态。
-
-## Supported Integrations / 支持的接入方式
-
-| Frontend stack | Package | Status |
-| --- | --- | --- |
-| Vite | `@ui-inspect/vite-plugin` | Recommended, most verified |
-| Next.js | `@ui-inspect/next` | Recommended, App Router / Pages Router |
-| Webpack | `@ui-inspect/webpack-plugin` | Available |
-| Rspack | `@ui-inspect/rspack-plugin` | Available |
-| Rsbuild | `@ui-inspect/rsbuild-plugin` | Available |
-
-Vite is the smoothest path today. Next.js is supported through `UiInspectScript` plus a Diana API route, so it works with both Webpack dev and Turbopack dev.
-
-Vite 是当前最顺滑的入口。Next.js 通过 `UiInspectScript` 加 Diana API route 接入，因此可以同时覆盖 Webpack dev 和 Turbopack dev。
-
-## Quick Start / 快速开始
-
-Add ui-inspect to your MCP client:
-
-在 MCP client 中加入 ui-inspect：
+### 1. 添加 MCP server
 
 ```json
 {
@@ -67,9 +59,9 @@ Add ui-inspect to your MCP client:
 }
 ```
 
-Then install the integration package for your frontend project. For example, Vite:
+### 2. 添加前端项目接入
 
-然后在你的前端项目中安装对应接入包。以 Vite 为例：
+以 Vite 为例：
 
 ```bash
 npm install -D @ui-inspect/vite-plugin@latest
@@ -85,73 +77,67 @@ export default defineConfig({
 });
 ```
 
-Start your app with its normal dev command, open the page, then tell your AI agent:
+Next.js、Webpack、Rspack、Rsbuild 接入见 [快速开始](docs/zh-CN/getting-started.md)。
 
-按项目原本的 dev 命令启动应用并打开页面，然后对 AI agent 说：
+### 3. 启动项目并告诉 AI
+
+按项目原本方式启动：
+
+```bash
+npm run dev
+```
+
+然后打开页面，对 AI agent 说：
 
 ```text
 启用 ui-inspect
 ```
 
-For Next.js, Webpack, Rspack, and Rsbuild setup, see [Getting Started](docs/en/getting-started.md) or [快速开始](docs/zh-CN/getting-started.md).
+agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request`。随后 Diana 会出现在浏览器里，你可以选择元素、发送 CSS 调试任务或问题排查任务。
 
-Next.js、Webpack、Rspack、Rsbuild 的接入方式见 [Getting Started](docs/en/getting-started.md) 或 [快速开始](docs/zh-CN/getting-started.md)。
+## 文档导航
 
-## Packages / 包
+| 文档 | 说明 |
+| --- | --- |
+| [快速开始](docs/zh-CN/getting-started.md) | MCP 配置和各类前端项目接入 |
+| [Agent 使用指南](docs/zh-CN/agent-guide.md) | AI agent 如何使用 ui-inspect 的标准流程 |
+| [MCP 与 CLI 参考](docs/zh-CN/reference.md) | MCP tools、CLI 命令、本地数据 |
+| [维护者指南](docs/zh-CN/maintainer.md) | 开发、检查、发布前验收 |
+| [发布流程](docs/release-flow.md) | dev / release / main 分支发布规则 |
 
-User-facing packages:
-
-用户通常直接安装：
-
-```text
-@ui-inspect/cli
-@ui-inspect/vite-plugin
-@ui-inspect/next
-@ui-inspect/webpack-plugin
-@ui-inspect/rspack-plugin
-@ui-inspect/rsbuild-plugin
-```
-
-Runtime and internal packages:
-
-运行时与内部包：
+## 工作原理
 
 ```text
-@ui-inspect/protocol
-@ui-inspect/shared
-@ui-inspect/server
-@ui-inspect/browser-adapter
-@ui-inspect/browser-ui
+Browser page
+  -> Diana browser UI
+  -> local ui-inspect daemon
+  -> MCP server
+  -> AI coding agent
+  -> source code changes in your workspace
 ```
 
-## Safety / 安全边界
+浏览器端只负责采集上下文和预览样式变化，不会直接修改源码。真正的代码修改由正在等待任务的 AI agent 完成。
 
-ui-inspect does not directly modify source code from the browser. It stores browser-side context in a local daemon, then an MCP-capable AI agent reads that context and edits code in your workspace.
+## 安全边界
 
-ui-inspect 不会从浏览器直接修改源码。浏览器只把上下文保存到本地 daemon；真正的代码修改由支持 MCP 的 AI agent 在你的工作区完成。
+- ui-inspect 不会从浏览器直接修改源码。
+- 运行时诊断会先展示给用户确认。
+- 不会自动发送 cookies、localStorage、网络请求正文或截图。
+- 会话历史保存在本地 `<project>/.ui-inspect/sessions.json`。
 
-Diagnostics are shown for confirmation before sending. ui-inspect does not automatically send cookies, localStorage, request bodies, or screenshots.
+## Roadmap
 
-诊断日志会先展示给用户确认。ui-inspect 不会自动发送 cookies、localStorage、网络请求正文或截图。
+- 更顺滑的 Next.js 接入引导和项目识别。
+- 更精确的 CSS 调试意图建模。
+- 更丰富的项目检测和接入提示。
+- 更适合复杂页面的 Diana 面板交互。
 
-## Local Data / 本地数据
+## 参与贡献
 
-Session history is stored in the target project:
+欢迎提交 issue、想法和 PR。
 
-会话历史保存在目标项目：
+这个项目的目标很简单：让前端页面和 AI coding agent 之间的沟通少一点猜测，多一点真实上下文。
 
-```text
-<project>/.ui-inspect/sessions.json
-```
-
-You usually should not commit `.ui-inspect/`.
-
-通常不需要提交 `.ui-inspect/`。
-
-```gitignore
-.ui-inspect/
-```
-
-## Repository / 仓库
+## 仓库
 
 [github.com/MashiroJ/ui-inspect](https://github.com/MashiroJ/ui-inspect)
