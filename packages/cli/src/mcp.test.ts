@@ -1,6 +1,75 @@
 import { describe, expect, it } from 'vitest';
 import type { UiInspectSelection, UiInspectSession } from '@ui-inspect/protocol';
-import { latestFrontendRequest } from './mcp.js';
+import { getMcpToolDefinition, latestFrontendRequest, normalizeCompleteFrontendRequestArgs } from './mcp.js';
+
+describe('complete_frontend_request tool', () => {
+  it('exposes the required completion-and-wait schema', () => {
+    const tool = getMcpToolDefinition('complete_frontend_request') as {
+      inputSchema?: unknown;
+    } | undefined;
+    const schema = tool?.inputSchema as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    } | undefined;
+
+    expect(tool).toBeTruthy();
+    expect(schema?.required).toEqual(['sessionId', 'content', 'afterRequestId']);
+    expect(Object.keys(schema?.properties || {})).toEqual(expect.arrayContaining([
+      'sessionId',
+      'content',
+      'afterRequestId',
+      'status',
+      'timeoutMs',
+      'context',
+      'sinceTimestamp',
+    ]));
+  });
+
+  it('defaults completion status to done', () => {
+    const result = normalizeCompleteFrontendRequestArgs({
+      sessionId: ' session-1 ',
+      content: ' finished ',
+      afterRequestId: ' message:msg-1 ',
+    }, 100_000);
+
+    expect(result).toEqual({
+      sessionId: 'session-1',
+      content: 'finished',
+      afterRequestId: 'message:msg-1',
+      status: 'done',
+      context: 80,
+      timeoutMs: 600_000,
+      sinceTimestamp: 70_000,
+    });
+  });
+
+  it('accepts failed as a completion status', () => {
+    const result = normalizeCompleteFrontendRequestArgs({
+      sessionId: 'session-1',
+      content: 'could not apply safely',
+      afterRequestId: 'selection:sel-1',
+      status: 'failed',
+    }, 100_000);
+
+    expect(result.status).toBe('failed');
+  });
+
+  it('requires afterRequestId to avoid replaying the same request', () => {
+    expect(() => normalizeCompleteFrontendRequestArgs({
+      sessionId: 'session-1',
+      content: 'finished',
+    }, 100_000)).toThrow('afterRequestId is required');
+  });
+
+  it('rejects non-terminal completion statuses', () => {
+    expect(() => normalizeCompleteFrontendRequestArgs({
+      sessionId: 'session-1',
+      content: 'finished',
+      afterRequestId: 'message:msg-1',
+      status: 'working',
+    }, 100_000)).toThrow('status must be done or failed');
+  });
+});
 
 describe('latestFrontendRequest', () => {
   it('returns a user message request when one exists', () => {

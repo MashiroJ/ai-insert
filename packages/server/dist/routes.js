@@ -102,14 +102,25 @@ export async function route(req, res, state, closeServer) {
         const role = roleValue === 'user' ? 'user' : 'assistant';
         const modeValue = body && typeof body === 'object' ? body.mode : null;
         const mode = modeValue === 'append' ? 'append' : 'create';
-        const sessionId = state.currentSelection?.sessionId;
+        const sessionIdValue = body && typeof body === 'object' ? body.sessionId : null;
+        const sessionId = typeof sessionIdValue === 'string' && sessionIdValue.trim()
+            ? sessionIdValue.trim()
+            : state.currentSelection?.sessionId;
         if (!sessionId) {
             sendJson(res, 409, { error: 'no active session' });
             return;
         }
+        const session = state.sessions.get(sessionId);
+        if (!session) {
+            sendJson(res, 404, { error: 'session not found' });
+            return;
+        }
+        const selectionId = state.currentSelection?.sessionId === sessionId
+            ? state.currentSelection?.id ?? session.selection?.id ?? null
+            : session.selection?.id ?? null;
         const message = mode === 'append' && role === 'assistant'
-            ? appendAssistantMessage(sessionId, content, state.currentSelection?.id ?? null, state)
-            : appendMessage(sessionId, role, content, state.currentSelection?.id ?? null, state);
+            ? appendAssistantMessage(sessionId, content, selectionId, state)
+            : appendMessage(sessionId, role, content, selectionId, state);
         emitSession(sessionId, state);
         sendJson(res, 200, { ok: true, message, session: state.sessions.get(sessionId) ?? null });
         return;

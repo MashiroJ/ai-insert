@@ -75,13 +75,13 @@ export async function postMessage(
   content: string,
   role: UiInspectMessageRole = 'assistant',
   daemonUrl = DEFAULT_DAEMON_URL,
-  options: { mode?: 'append' } = {},
+  options: { mode?: 'append'; sessionId?: string } = {},
 ): Promise<UiInspectMessage> {
   const parsed = parseDaemonUrl(daemonUrl);
   const resp = await fetch(`${parsed}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ role, content, mode: options.mode }),
+    body: JSON.stringify({ role, content, mode: options.mode, sessionId: options.sessionId }),
   });
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
   const payload = (await resp.json()) as { message: UiInspectMessage };

@@ -58,7 +58,7 @@ export async function postMessage(content, role = 'assistant', daemonUrl = DEFAU
     const resp = await fetch(`${parsed}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ role, content, mode: options.mode }),
+        body: JSON.stringify({ role, content, mode: options.mode, sessionId: options.sessionId }),
     });
     if (!resp.ok)
         throw new Error(`daemon ${resp.status}: ${await resp.text()}`);

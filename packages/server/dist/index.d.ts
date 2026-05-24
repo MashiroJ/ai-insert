@@ -11,6 +11,7 @@ export declare function fetchSelection(daemonUrl?: string): Promise<UiInspectSel
 export declare function fetchSessions(daemonUrl?: string): Promise<UiInspectSessionsResponse>;
 export declare function postMessage(content: string, role?: UiInspectMessageRole, daemonUrl?: string, options?: {
     mode?: 'append';
+    sessionId?: string;
 }): Promise<UiInspectMessage>;
 export declare function clearSelection(daemonUrl?: string): Promise<void>;
 export declare function fetchHealth(daemonUrl?: string): Promise<UiInspectHealthResponse>;

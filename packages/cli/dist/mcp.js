@@ -11,6 +11,7 @@ const SERVER_VERSION = getVersion();
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const WAIT_POLL_INTERVAL_MS = 1000;
+const COMPLETE_FRONTEND_REQUEST_STATUSES = ['done', 'failed'];
 const TOOL_DEFS = [
     {
         name: 'start_ui_inspect',
@@ -45,7 +46,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'wait_for_frontend_request',
-        description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for start/enable/use/invoke ui-inspect flows, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run. After processing a task and calling reply_to_user, call this tool again with the afterRequestId from the previous response to wait for the next browser task.',
+        description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for start/enable/use/invoke ui-inspect flows, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run. For continuous browser work, finish each returned task with complete_frontend_request instead of reply_to_user.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -134,7 +135,7 @@ const TOOL_DEFS = [
     },
     {
         name: 'reply_to_user',
-        description: 'Send an assistant reply into the current ui-inspect browser panel after modifying code, so the user can continue the same debug conversation.',
+        description: 'Send an assistant reply into the current ui-inspect browser panel for progress or confirmation. For final task completion in the continuous browser loop, prefer complete_frontend_request so the agent immediately waits for the next browser request.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -153,7 +154,56 @@ const TOOL_DEFS = [
             openWorldHint: false,
         },
     },
+    {
+        name: 'complete_frontend_request',
+        description: 'Complete the current ui-inspect browser request, send the final browser-panel reply, then immediately wait for the next browser request. Use this as the final step after handling a wait_for_frontend_request result so the user can keep sending tasks from the browser without returning to chat.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                sessionId: {
+                    type: 'string',
+                    description: 'Current ui-inspect session id from the browser request being completed.',
+                },
+                content: {
+                    type: 'string',
+                    description: 'Final reply shown in the browser panel for the current request.',
+                },
+                afterRequestId: {
+                    type: 'string',
+                    description: 'Cursor from the current request, usually nextCursor.afterRequestId. Required to avoid consuming the same browser request again.',
+                },
+                status: {
+                    type: 'string',
+                    enum: ['done', 'failed'],
+                    description: 'Final task status for the current request. Defaults to done.',
+                },
+                timeoutMs: {
+                    type: 'number',
+                    description: 'Maximum time to wait for the next browser request in milliseconds. Defaults to 600000 and is capped at 600000.',
+                },
+                context: {
+                    type: 'number',
+                    description: 'Number of source lines before and after the selected source line for the next request. Defaults to 80.',
+                },
+                sinceTimestamp: {
+                    type: 'number',
+                    description: 'Fallback timestamp filter used only when the cursor is unknown. Defaults to now minus 30 seconds.',
+                },
+            },
+            required: ['sessionId', 'content', 'afterRequestId'],
+            additionalProperties: false,
+        },
+        annotations: {
+            title: 'Complete request and wait',
+            readOnlyHint: false,
+            idempotentHint: false,
+            openWorldHint: false,
+        },
+    },
 ];
+export function getMcpToolDefinition(name) {
+    return TOOL_DEFS.find((tool) => tool.name === name);
+}
 export async function runMcpStdio({ daemonUrl }) {
     const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, {
         capabilities: { tools: {} },
@@ -164,11 +214,12 @@ export async function runMcpStdio({ daemonUrl }) {
             'Do not trigger the workflow on the bare word "ui-inspect" when the user is only asking about docs, installation, errors, or general information.',
             'When the user asks to start, enable, use, invoke, or open ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
             'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
-            'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, treat it as a valid browser task even if message.content is empty or auto-generated. Inspect the returned source, targetSources, targets, and session, call update_ui_task_status with "working", edit code according to the user instruction, selected element, and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
-            'Continuous browser task loop: after processing a browser task and calling reply_to_user, you MUST immediately call wait_for_frontend_request again, passing afterRequestId from the previous response\'s nextCursor.afterRequestId. This enables the user to send multiple tasks in a row from the browser Diana panel without returning to the chat. Keep looping until: the user explicitly asks to stop, wait_for_frontend_request times out, or the current task requires user confirmation before continuing.',
+            'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, treat it as a valid browser task even if message.content is empty or auto-generated. Inspect the returned source, targetSources, targets, and session, call update_ui_task_status with "working", then edit code according to the user instruction, selected element, and per-target notes.',
+            'Continuous browser task loop: after processing a browser task, the final step MUST be complete_frontend_request with session.id, a concise completion reply, and afterRequestId from the current response\'s nextCursor.afterRequestId. This marks the current task done or failed, replies in the browser panel, and waits for the next browser task. If complete_frontend_request returns ok: true with a new requestId, immediately process that next task and finish it with complete_frontend_request again. Keep looping until: the user explicitly asks to stop, complete_frontend_request or wait_for_frontend_request times out, or the current task requires user confirmation before continuing.',
+            'Use reply_to_user only for mid-task progress, user confirmation, or intentional one-off replies that should not continue waiting. Do not use reply_to_user as the final completion step for browser tasks when you can call complete_frontend_request.',
             'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
             'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
-            'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then update_ui_task_status with "done" and reply_to_user so the browser panel reflects completion.',
+            'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
             'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
             'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
         ].join('\n'),
@@ -250,6 +301,31 @@ export async function runMcpStdio({ daemonUrl }) {
                     message: await postMessage(args.content.trim(), 'assistant', daemonUrl),
                 });
             }
+            if (name === 'complete_frontend_request') {
+                const input = normalizeCompleteFrontendRequestArgs(args);
+                const statusResult = await updateTaskStatus(daemonUrl, input.sessionId, input.status);
+                const replyMessage = await postMessage(input.content, 'assistant', daemonUrl, { sessionId: input.sessionId });
+                const nextRequest = await waitForFrontendRequest({
+                    daemonUrl,
+                    context: input.context,
+                    timeoutMs: input.timeoutMs,
+                    sinceTimestamp: input.sinceTimestamp,
+                    afterRequestId: input.afterRequestId,
+                });
+                if (nextRequest.timedOut) {
+                    await shutdownAfterTimeout(daemonUrl);
+                }
+                return textResult({
+                    completed: {
+                        ok: true,
+                        sessionId: input.sessionId,
+                        status: input.status,
+                        replyMessage,
+                        statusResult,
+                    },
+                    ...nextRequest,
+                });
+            }
             throw new Error(`Unknown tool: ${name}`);
         }
         catch (err) {
@@ -260,6 +336,34 @@ export async function runMcpStdio({ daemonUrl }) {
         }
     });
     await server.connect(new StdioServerTransport());
+}
+export function normalizeCompleteFrontendRequestArgs(args, now = Date.now()) {
+    const sessionId = requiredTrimmedString(args.sessionId, 'sessionId');
+    const content = requiredTrimmedString(args.content, 'content');
+    const afterRequestId = requiredTrimmedString(args.afterRequestId, 'afterRequestId');
+    const status = typeof args.status === 'string' && args.status.trim()
+        ? args.status.trim()
+        : 'done';
+    if (!COMPLETE_FRONTEND_REQUEST_STATUSES.includes(status)) {
+        throw new Error('status must be done or failed');
+    }
+    return {
+        sessionId,
+        content,
+        afterRequestId,
+        status: status,
+        context: contextLines(args.context),
+        timeoutMs: waitTimeoutMs(args.timeoutMs),
+        sinceTimestamp: typeof args.sinceTimestamp === 'number' && Number.isFinite(args.sinceTimestamp)
+            ? args.sinceTimestamp
+            : now - 30_000,
+    };
+}
+function requiredTrimmedString(value, name) {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new Error(`${name} is required`);
+    }
+    return value.trim();
 }
 async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTimestamp, afterRequestId, }) {
     const deadline = Date.now() + timeoutMs;
