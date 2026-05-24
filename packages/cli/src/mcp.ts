@@ -37,6 +37,7 @@ interface ToolArgs {
   status?: unknown;
   timeoutMs?: unknown;
   sinceTimestamp?: unknown;
+  afterRequestId?: unknown;
 }
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -77,7 +78,7 @@ const TOOL_DEFS = [
   },
   {
     name: 'wait_for_frontend_request',
-    description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for start/enable/use/invoke ui-inspect flows, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run.',
+    description: 'Wait for the user to select a frontend element and click Send in the ui-inspect browser panel. Use immediately after start_ui_inspect for start/enable/use/invoke ui-inspect flows, so browser Send can continue the current AI conversation. Defaults to a 10 minute timeout; on timeout this tool shuts down the ui-inspect daemon and MCP process for this run. After processing a task and calling reply_to_user, call this tool again with the afterRequestId from the previous response to wait for the next browser task.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -92,6 +93,10 @@ const TOOL_DEFS = [
         sinceTimestamp: {
           type: 'number',
           description: 'Only return user messages at or after this Unix timestamp in milliseconds. Defaults to now minus 30 seconds to avoid missing quick browser sends.',
+        },
+        afterRequestId: {
+          type: 'string',
+          description: 'Request cursor returned by the previous wait_for_frontend_request call. When provided, only newer browser requests are returned. Pass the nextCursor.afterRequestId value from the previous response.',
         },
       },
       additionalProperties: false,
@@ -196,6 +201,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'When the user asks to start, enable, use, invoke, or open ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
         'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
         'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, treat it as a valid browser task even if message.content is empty or auto-generated. Inspect the returned source, targetSources, targets, and session, call update_ui_task_status with "working", edit code according to the user instruction, selected element, and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
+        'Continuous browser task loop: after processing a browser task and calling reply_to_user, you MUST immediately call wait_for_frontend_request again, passing afterRequestId from the previous response\'s nextCursor.afterRequestId. This enables the user to send multiple tasks in a row from the browser Diana panel without returning to the chat. Keep looping until: the user explicitly asks to stop, wait_for_frontend_request times out, or the current task requires user confirmation before continuing.',
         'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
         'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then update_ui_task_status with "done" and reply_to_user so the browser panel reflects completion.',
@@ -244,7 +250,10 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         const sinceTimestamp = typeof args.sinceTimestamp === 'number' && Number.isFinite(args.sinceTimestamp)
           ? args.sinceTimestamp
           : Date.now() - 30_000;
-        const result = await waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTimestamp });
+        const afterRequestId = typeof args.afterRequestId === 'string' && args.afterRequestId.trim()
+          ? args.afterRequestId.trim()
+          : undefined;
+        const result = await waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTimestamp, afterRequestId });
         if (result.timedOut) {
           await shutdownAfterTimeout(daemonUrl);
         }
@@ -294,15 +303,17 @@ async function waitForFrontendRequest({
   context,
   timeoutMs,
   sinceTimestamp,
+  afterRequestId,
 }: {
   daemonUrl: string;
   context: number;
   timeoutMs: number;
   sinceTimestamp: number;
+  afterRequestId?: string;
 }) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() <= deadline) {
-    const match = latestFrontendRequest(await fetchSessions(daemonUrl), sinceTimestamp);
+    const match = latestFrontendRequest(await fetchSessions(daemonUrl), sinceTimestamp, afterRequestId);
     if (match) {
       const claimed = await updateTaskStatus(daemonUrl, match.session.id, 'claimed').catch(() => null) as { session?: UiInspectSession } | null;
       const session = claimed?.session || match.session;
@@ -318,6 +329,8 @@ async function waitForFrontendRequest({
       return {
         ok: true,
         timedOut: false,
+        requestId: match.requestId,
+        nextCursor: { afterRequestId: match.requestId },
         message: match.message,
         session,
         selection: session.selection,
@@ -453,33 +466,90 @@ async function updateTaskStatus(daemonUrl: string, sessionId: string, status: st
 export function latestFrontendRequest(
   payload: { sessions: UiInspectSession[] },
   sinceTimestamp: number,
-): { session: UiInspectSession; message: UiInspectMessage } | null {
-  let latest: { session: UiInspectSession; message: UiInspectMessage; timestamp: number } | null = null;
+  afterRequestId?: string,
+): { session: UiInspectSession; message: UiInspectMessage; requestId: string } | null {
+  interface FrontendRequest {
+    requestId: string;
+    timestamp: number;
+    session: UiInspectSession;
+    message: UiInspectMessage;
+  }
+
+  const cursorFound = afterRequestId ? parseCursorTimestamp(afterRequestId, payload.sessions) : null;
+
+  const candidates: FrontendRequest[] = [];
+
   for (const session of payload.sessions) {
-    let sessionUserMessage: UiInspectMessage | null = null;
     for (const message of session.messages) {
       if (message.role !== 'user') continue;
-      if (message.timestamp < sinceTimestamp) continue;
-      if (!sessionUserMessage || message.timestamp > sessionUserMessage.timestamp) {
-        sessionUserMessage = message;
-      }
-      if (!latest || message.timestamp > latest.timestamp) {
-        latest = { session, message, timestamp: message.timestamp };
-      }
+      candidates.push({
+        requestId: `message:${message.id}`,
+        timestamp: message.timestamp,
+        session,
+        message,
+      });
     }
-    if (sessionUserMessage) continue;
 
-    const selectionTimestamp = session.selection?.timestamp || 0;
-    const requestTimestamp = Math.max(session.updatedAt || 0, selectionTimestamp);
-    if (session.selection && session.status === 'sent' && requestTimestamp >= sinceTimestamp && (!latest || requestTimestamp > latest.timestamp)) {
-      latest = {
+    if (session.selection && session.status === 'sent') {
+      const coveredByUserMessage = session.messages.some(
+        (m) => m.role === 'user' && m.selectionId === session.selection!.id,
+      );
+      if (coveredByUserMessage) continue;
+
+      const selectionTimestamp = session.selection.timestamp || 0;
+      const requestTimestamp = Math.max(session.updatedAt || 0, selectionTimestamp);
+      candidates.push({
+        requestId: `selection:${session.selection.id}`,
+        timestamp: requestTimestamp,
         session,
         message: syntheticSelectionMessage(session, requestTimestamp),
-        timestamp: requestTimestamp,
-      };
+      });
     }
   }
-  return latest ? { session: latest.session, message: latest.message } : null;
+
+  candidates.sort((a, b) => a.timestamp - b.timestamp || (a.requestId < b.requestId ? -1 : a.requestId > b.requestId ? 1 : 0));
+
+  if (afterRequestId) {
+    const cursorIndex = candidates.findIndex((c) => c.requestId === afterRequestId);
+    if (cursorIndex >= 0) {
+      const remaining = candidates.slice(cursorIndex + 1);
+      return remaining.length > 0
+        ? { session: remaining[0].session, message: remaining[0].message, requestId: remaining[0].requestId }
+        : null;
+    }
+    const effectiveSince = cursorFound ?? sinceTimestamp;
+    const afterCursor = candidates.filter((c) => c.timestamp > effectiveSince);
+    return afterCursor.length > 0
+      ? { session: afterCursor[0].session, message: afterCursor[0].message, requestId: afterCursor[0].requestId }
+      : null;
+  }
+
+  const filtered = candidates.filter((c) => c.timestamp >= sinceTimestamp);
+  return filtered.length > 0
+    ? { session: filtered[0].session, message: filtered[0].message, requestId: filtered[0].requestId }
+    : null;
+}
+
+function parseCursorTimestamp(cursor: string, sessions: UiInspectSession[]): number | null {
+  if (cursor.startsWith('message:')) {
+    const msgId = cursor.slice('message:'.length);
+    for (const session of sessions) {
+      for (const message of session.messages) {
+        if (message.id === msgId) return message.timestamp;
+      }
+    }
+    return null;
+  }
+  if (cursor.startsWith('selection:')) {
+    const selId = cursor.slice('selection:'.length);
+    for (const session of sessions) {
+      if (session.selection?.id === selId) {
+        return Math.max(session.updatedAt || 0, session.selection.timestamp || 0);
+      }
+    }
+    return null;
+  }
+  return null;
 }
 
 function syntheticSelectionMessage(session: UiInspectSession, timestamp: number): UiInspectMessage {
