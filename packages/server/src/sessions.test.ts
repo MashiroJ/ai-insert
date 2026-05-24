@@ -423,4 +423,24 @@ describe('upsertSessionFromSelection', () => {
       rmSync(FIXTURE_DIR, { recursive: true, force: true });
     }
   });
+
+  it('accepts 8-direction resize handles in css debug interactions', () => {
+    const sel = makeSelection();
+    const allHandles = ['e', 's', 'se', 'nw', 'n', 'ne', 'w', 'sw', 'move'];
+    for (const handle of allHandles) {
+      const result = normalizeCssDebugPayload({
+        interactions: [{
+          type: handle === 'move' ? 'move' : 'resize',
+          handle,
+          properties: ['width'],
+          rectBefore: { x: 0, y: 0, width: 100, height: 50 },
+          rectAfter: { x: 0, y: 0, width: 120, height: 50 },
+          delta: { x: 0, y: 0, width: 20, height: 0 },
+          strategy: 'inline-style',
+          timestamp: Date.now(),
+        }],
+      }, sel);
+      expect(result!.interactions![0].handle).toBe(handle);
+    }
+  });
 });

@@ -9,7 +9,15 @@ export type CssDebugChangedStyles = Record<string, CssDebugChangedStyle>;
 
 export const CSS_DEBUG_PROPERTIES = [
   'margin',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
   'padding',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
   'gap',
   'width',
   'height',
@@ -24,6 +32,7 @@ export const CSS_DEBUG_PROPERTIES = [
   'font-size',
   'font-weight',
   'line-height',
+  'letter-spacing',
   'color',
   'background-color',
   'border',

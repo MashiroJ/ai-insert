@@ -48,7 +48,15 @@ describe('createCssDebugDiff', () => {
   it('tracks supported MVP properties', () => {
     expect(CSS_DEBUG_PROPERTIES).toEqual([
       'margin',
+      'margin-top',
+      'margin-right',
+      'margin-bottom',
+      'margin-left',
       'padding',
+      'padding-top',
+      'padding-right',
+      'padding-bottom',
+      'padding-left',
       'gap',
       'width',
       'height',
@@ -63,6 +71,7 @@ describe('createCssDebugDiff', () => {
       'font-size',
       'font-weight',
       'line-height',
+      'letter-spacing',
       'color',
       'background-color',
       'border',
@@ -71,5 +80,63 @@ describe('createCssDebugDiff', () => {
       'opacity',
       'transform',
     ]);
+  });
+
+  it('captures keyboard nudge properties in changedStyles', () => {
+    const diff = createCssDebugDiff(
+      {
+        'margin-top': '0px',
+        'margin-right': '0px',
+        'margin-bottom': '0px',
+        'margin-left': '0px',
+        'padding-top': '0px',
+        'padding-right': '0px',
+        'padding-bottom': '0px',
+        'padding-left': '0px',
+        'letter-spacing': '0px',
+        width: '100px',
+      },
+      {
+        'margin-top': '1px',
+        'margin-right': '0px',
+        'margin-bottom': '0px',
+        'margin-left': '0px',
+        'padding-top': '0px',
+        'padding-right': '0px',
+        'padding-bottom': '0px',
+        'padding-left': '2px',
+        'letter-spacing': '0.5px',
+        width: '100px',
+      },
+    );
+
+    expect(diff).toEqual({
+      'margin-top': { originalValue: '0px', previewValue: '1px' },
+      'padding-left': { originalValue: '0px', previewValue: '2px' },
+      'letter-spacing': { originalValue: '0px', previewValue: '0.5px' },
+    });
+  });
+
+  it('separates keyboard nudge active properties from side effects', () => {
+    const original = {
+      'margin-top': '0px',
+      'padding-left': '0px',
+      'letter-spacing': '0px',
+      width: '200px',
+      height: '40px',
+    };
+    const preview = {
+      'margin-top': '3px',
+      'padding-left': '5px',
+      'letter-spacing': '1px',
+      width: '192px',
+      height: '48px',
+    };
+
+    const diff = createCssDebugDiff(original, preview, ['margin-top', 'padding-left', 'letter-spacing']);
+    expect(Object.keys(diff)).toEqual(['margin-top', 'padding-left', 'letter-spacing']);
+
+    const effects = createCssDebugComputedEffects(original, preview, ['margin-top', 'padding-left', 'letter-spacing']);
+    expect(Object.keys(effects.self)).toEqual(['width', 'height']);
   });
 });

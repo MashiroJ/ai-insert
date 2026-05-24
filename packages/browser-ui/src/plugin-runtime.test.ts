@@ -70,3 +70,25 @@ describe('getDianaAssetPath', () => {
     expect(path.endsWith('.webp')).toBe(true);
   });
 });
+
+describe('clientSource CSS debug features', () => {
+  const src = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
+
+  it('includes 8-direction resize handle markup', () => {
+    for (const handle of ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']) {
+      expect(src).toContain(`data-css-debug-handle="${handle}"`);
+    }
+  });
+
+  it('includes box model visualization styles', () => {
+    expect(src).toContain('ui-inspect-box-model-margin');
+    expect(src).toContain('ui-inspect-box-model-padding');
+  });
+
+  it('keeps keyboard nudge properties visible in changed-only mode', () => {
+    expect(src).toContain("changedOnlyProperties: ['margin-top'");
+    expect(src).toContain("'padding-left']");
+    expect(src).toContain("changedOnlyProperties: ['letter-spacing']");
+    expect(src).toContain('...(group.changedOnlyProperties || [])');
+  });
+});

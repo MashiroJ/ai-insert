@@ -237,7 +237,7 @@ export interface UiInspectCssDebugLayoutContext {
 
 export interface UiInspectCssDebugInteraction {
   type: 'panel-control' | 'resize' | 'move';
-  handle?: 'e' | 's' | 'se' | 'move';
+  handle?: 'e' | 's' | 'se' | 'nw' | 'n' | 'ne' | 'w' | 'sw' | 'move';
   properties: string[];
   rectBefore: UiInspectRect;
   rectAfter: UiInspectRect;

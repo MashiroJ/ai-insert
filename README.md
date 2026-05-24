@@ -2,7 +2,7 @@
 
 # ui-inspect
 
-### 让 AI coding agent 看懂你正在看的前端页面
+### 把浏览器里的真实前端上下文交给 AI coding agent
 
 [![npm cli](https://img.shields.io/npm/v/@ui-inspect/cli?label=%40ui-inspect%2Fcli&color=2f6fed)](https://www.npmjs.com/package/@ui-inspect/cli)
 [![MCP](https://img.shields.io/badge/MCP-ready-22c55e)](https://modelcontextprotocol.io/)
@@ -17,36 +17,39 @@
 
 ---
 
-## 项目介绍
+## ui-inspect 是什么
 
-ui-inspect 是一个面向前端开发的浏览器检查与 MCP 上下文桥接工具。
+ui-inspect 是一个通用的 MCP 前端检查桥。
 
-当你在浏览器里点选真实元素时，它能把截图无法表达的上下文交给 AI：DOM 结构、计算样式、组件信息、源码线索、console 诊断、CSS 调试 diff、用户备注和任务会话。
+它让你在浏览器里点选真实页面元素，然后把 AI 很难从截图或文字里猜出来的上下文交给 coding agent：DOM、selector、组件和源码线索、计算样式、CSS diff、console 诊断、多元素备注、任务会话状态。
 
-它不绑定某个 AI 产品。只要你的 coding agent 支持 MCP，就可以接入。
+它不绑定某个 IDE 或 AI 产品。Cursor、Claude Code、Codex CLI、OpenCode，以及其他支持 MCP 的 agent，都可以通过同一套工具读取这些上下文。
 
-## 为什么需要它
+## 它解决什么问题
 
-前端开发里最难和 AI 描述的，往往不是需求本身，而是：
+前端开发里经常出现这种沟通成本：
 
-> “我要改页面上的这一块，但我很难把这一块说清楚。”
+> “帮我改页面中间那个卡片，但不是整个模块，是标题下面偏右那块。”
 
-ui-inspect 让浏览器可以把真实页面上下文交给你的 AI agent，少一点猜测，多一点可执行的信息。
+人能看懂，AI 通常只能猜。ui-inspect 的目标是把“我正在看的这一块”变成 agent 可以直接处理的结构化上下文，让它少猜一点，多改对一点。
 
-## 核心功能
+## 核心能力
 
-| 功能 | 发送给 AI 的上下文 |
+| 能力 | 说明 |
 | --- | --- |
-| 元素选择 | DOM、selector、尺寸、计算样式、源码线索 |
-| 源码线索 | 组件名、文件候选、附近源码上下文 |
-| 批量调整 | 多个目标元素，以及每个目标自己的备注 |
-| CSS 调试 | 样式 diff、拖拽意图、布局上下文、连带计算变化 |
-| 问题排查 | 用户确认过的 console 错误、警告和异常 |
-| Diana 助手 | 浏览器悬浮入口、工具面板、历史记录和任务状态 |
+| 元素选择 | 采集 DOM、selector、尺寸、文本、计算样式、组件和源码线索 |
+| 源码定位 | 从浏览器选中元素后，给 agent 文件路径、行号和附近源码上下文 |
+| 批量标注 | 连续选择多个元素，为每个目标补充独立备注后一起发送 |
+| 问题排查 | 发送用户确认过的 console error、warning、异常和运行时摘要 |
+| CSS Debug | 在浏览器中预览样式变化，发送 changed styles、拖拽意图和布局影响 |
+| MCP loop | agent 处理完当前浏览器任务后，可继续等待下一条 Send |
+| Diana 面板 | 浏览器悬浮入口，支持模式切换、历史记录、任务状态和消息回写 |
 
 ## 快速开始
 
-### 1. 添加 MCP server
+### 1. 配置 MCP server
+
+在你的 MCP client 中加入：
 
 ```json
 {
@@ -59,9 +62,18 @@ ui-inspect 让浏览器可以把真实页面上下文交给你的 AI agent，少
 }
 ```
 
-### 2. 添加前端项目接入
+TOML 风格配置：
 
-以 Vite 为例：
+```toml
+[mcp_servers.ui-inspect]
+type = "stdio"
+command = "npx"
+args = ["-y", "@ui-inspect/cli@latest", "mcp"]
+```
+
+### 2. 在前端项目中接入插件
+
+Vite：
 
 ```bash
 npm install -D @ui-inspect/vite-plugin@latest
@@ -77,33 +89,83 @@ export default defineConfig({
 });
 ```
 
-Next.js、Webpack、Rspack、Rsbuild 接入见 [快速开始](docs/zh-CN/getting-started.md)。
+Next.js、Webpack、Rspack、Rsbuild 的接入方式见 [快速开始](docs/zh-CN/getting-started.md)。
 
-### 3. 启动项目并告诉 AI
+### 3. 启动你的前端项目
 
-按项目原本方式启动：
+按项目原本的方式启动 dev server：
 
 ```bash
 npm run dev
 ```
 
-然后打开页面，对 AI agent 说：
+然后在 agent 对话里说：
 
 ```text
 启用 ui-inspect
 ```
 
-你也可以说 `使用 ui-inspect`、`调用 ui-inspect`、`启动 ui-inspect`、`打开 UI 检查` 或 `start ui-inspect`。agent 应调用 `start_ui_inspect`，再调用 `wait_for_frontend_request`。随后 Diana 会出现在浏览器里，你可以选择元素、发送 CSS 调试任务或问题排查任务。
+也可以说：
 
-## 文档导航
+```text
+使用 ui-inspect
+调用 ui-inspect
+启动 ui-inspect
+打开 UI 检查
+start ui-inspect
+enable ui-inspect
+```
 
-| 文档 | 说明 |
+agent 应该调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待浏览器任务。页面里出现 Diana 后，你就可以在浏览器中选择元素并 Send。
+
+## 推荐的 Agent 工作流
+
+一次启用后，推荐让 agent 进入连续处理模式：
+
+```text
+启用 ui-inspect，并持续处理我从浏览器发送的任务。
+```
+
+标准流程：
+
+```text
+start_ui_inspect
+  -> wait_for_frontend_request
+  -> 读取上下文并修改源码
+  -> complete_frontend_request
+  -> 自动等待下一条浏览器任务
+```
+
+`complete_frontend_request` 会完成当前任务、把结果回写到浏览器面板，并继续等待下一条 Send。这样你不需要每次都回到聊天里说“我已经发了”。
+
+MCP 协议本身不会让 server 主动唤醒 agent；ui-inspect 采用的是长等待工具加完成出口的 MCP loop。是否持续处理，最终仍取决于 agent 是否遵守工具说明。
+
+## CSS Debug
+
+CSS Debug 适合“不确定该调哪个 CSS 属性，但想先在浏览器里试一试”的场景。
+
+它支持：
+
+- 拖拽移动元素，记录 `transform` 预览意图。
+- 8 方向 resize：`nw / n / ne / w / e / sw / s / se`。
+- 从左侧或上方 resize 时自动补偿位移，尽量保持对边或对角固定。
+- 键盘微调：`Shift + Arrow` 调 margin，`Alt + Arrow` 调 padding，`Shift + Alt + Arrow` 调字体大小或字间距。
+- 盒模型可视化：在 overlay 中查看 margin 和 padding 区域。
+- 发送 CSS diff：包含主动改动、拖拽记录、布局上下文和连带计算变化。
+
+浏览器端只预览 inline style，不会直接写源码。真正的代码修改由 MCP agent 根据 diff 和源码上下文完成。
+
+## 支持的接入方式
+
+| 场景 | 包 |
 | --- | --- |
-| [快速开始](docs/zh-CN/getting-started.md) | MCP 配置和各类前端项目接入 |
-| [Agent 使用指南](docs/zh-CN/agent-guide.md) | AI agent 如何使用 ui-inspect 的标准流程 |
-| [MCP 与 CLI 参考](docs/zh-CN/reference.md) | MCP tools、CLI 命令、本地数据 |
-| [维护者指南](docs/zh-CN/maintainer.md) | 开发、检查、发布前验收 |
-| [发布流程](docs/release-flow.md) | dev / release / main 分支发布规则 |
+| MCP server / CLI | `@ui-inspect/cli` |
+| Vite | `@ui-inspect/vite-plugin` |
+| Next.js | `@ui-inspect/next` |
+| Webpack | `@ui-inspect/webpack-plugin` |
+| Rspack | `@ui-inspect/rspack-plugin` |
+| Rsbuild | `@ui-inspect/rsbuild-plugin` |
+| 协议类型 | `@ui-inspect/protocol` |
 
 ## 工作原理
 
@@ -111,32 +173,43 @@ npm run dev
 Browser page
   -> Diana browser UI
   -> local ui-inspect daemon
-  -> MCP server
+  -> MCP tools
   -> AI coding agent
   -> source code changes in your workspace
 ```
 
-浏览器端只负责采集上下文和预览样式变化，不会直接修改源码。真正的代码修改由正在等待任务的 AI agent 完成。
+浏览器负责采集上下文和展示状态，daemon 负责本地会话与源码读取，MCP tools 负责把这些信息交给 agent。ui-inspect 不启动 Claude、Codex、Cursor 或 OpenCode 进程，也不做 IDE 专属 runner。
 
 ## 安全边界
 
-- ui-inspect 不会从浏览器直接修改源码。
-- 运行时诊断会先展示给用户确认。
+- 不会从浏览器直接修改源码。
 - 不会自动发送 cookies、localStorage、网络请求正文或截图。
-- 会话历史保存在本地 `<project>/.ui-inspect/sessions.json`。
+- console 诊断需要用户确认后才会进入任务上下文。
+- 会话历史保存在当前项目的 `<project>/.ui-inspect/sessions.json`。
+- daemon 默认只服务本地开发场景，插件和 MCP server 都应该在可信工作区中使用。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [快速开始](docs/zh-CN/getting-started.md) | MCP 配置和各类前端项目接入 |
+| [Agent 使用指南](docs/zh-CN/agent-guide.md) | agent 如何正确调用 MCP tools |
+| [MCP 与 CLI 参考](docs/zh-CN/reference.md) | tools、命令、本地数据和协议说明 |
+| [维护者指南](docs/zh-CN/maintainer.md) | 本地开发、检查和发布前验收 |
+| [发布流程](docs/release-flow.md) | dev、release、main 分支发布规则 |
 
 ## Roadmap
 
-- 更顺滑的 Next.js 接入引导和项目识别。
-- 更精确的 CSS 调试意图建模。
-- 更丰富的项目检测和接入提示。
-- 更适合复杂页面的 Diana 面板交互。
+- 更好的 React、Vue、Next.js 源码定位提示。
+- 更完整的 CSS Debug 意图建模和可视化。
+- 更稳定的复杂页面批量选择体验。
+- 更清晰的 MCP client 配置生成和排错提示。
 
 ## 参与贡献
 
 欢迎提交 issue、想法和 PR。
 
-这个项目的目标很简单：让前端页面和 AI coding agent 之间的沟通少一点猜测，多一点真实上下文。
+ui-inspect 的目标很朴素：让你在浏览器里看到的前端事实，成为 AI coding agent 能真正使用的上下文。
 
 ## 仓库
 

@@ -181,7 +181,10 @@ ${selectionClientSource}
     const menu = document.getElementById(MENU_ID);
     if (menu) menu.remove();
     const existing = document.getElementById(PANEL_ID);
-    if (existing) existing.remove();
+    if (existing) {
+      existing.dispatchEvent(new CustomEvent('ui-inspect-cleanup'));
+      existing.remove();
+    }
     const sidebar = document.getElementById(BATCH_SIDEBAR_ID);
     if (sidebar) sidebar.remove();
   }
@@ -530,7 +533,15 @@ ${taskPanelClientSource}
 
   const CSS_DEBUG_PROPERTIES = [
     'margin',
+    'margin-top',
+    'margin-right',
+    'margin-bottom',
+    'margin-left',
     'padding',
+    'padding-top',
+    'padding-right',
+    'padding-bottom',
+    'padding-left',
     'gap',
     'width',
     'height',
@@ -545,6 +556,7 @@ ${taskPanelClientSource}
     'font-size',
     'font-weight',
     'line-height',
+    'letter-spacing',
     'color',
     'background-color',
     'border',
@@ -555,8 +567,13 @@ ${taskPanelClientSource}
   ];
 
   const CSS_DEBUG_GROUPS = [
-    { title: 'Spacing', properties: ['margin', 'padding', 'gap'], open: true },
-    { title: 'Typography', properties: ['font-size', 'font-weight', 'line-height', 'color'], open: false },
+    {
+      title: 'Spacing',
+      properties: ['margin', 'padding', 'gap'],
+      changedOnlyProperties: ['margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left'],
+      open: true
+    },
+    { title: 'Typography', properties: ['font-size', 'font-weight', 'line-height', 'color'], changedOnlyProperties: ['letter-spacing'], open: false },
     { title: 'Visual', properties: ['background-color', 'border', 'border-radius', 'box-shadow', 'opacity'], open: false },
     { title: 'Size', properties: ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height'], open: false },
     { title: 'Layout', properties: ['display', 'flex-direction', 'align-items', 'justify-content', 'transform'], open: false }
@@ -641,10 +658,17 @@ ${taskPanelClientSource}
       overlay = document.createElement('div');
       overlay.id = CSS_DEBUG_OVERLAY_ID;
       overlay.innerHTML = [
+        '<div class="ui-inspect-box-model ui-inspect-box-model-margin"></div>',
+        '<div class="ui-inspect-box-model ui-inspect-box-model-padding"></div>',
+        '<button type="button" data-css-debug-handle="nw" aria-label="左上调整"></button>',
+        '<button type="button" data-css-debug-handle="n" aria-label="上方调整高度"></button>',
+        '<button type="button" data-css-debug-handle="ne" aria-label="右上调整"></button>',
+        '<button type="button" data-css-debug-handle="w" aria-label="左侧调整宽度"></button>',
         '<button type="button" data-css-debug-handle="move" aria-label="移动选中元素"></button>',
-        '<button type="button" data-css-debug-handle="e" aria-label="向右调整宽度"></button>',
-        '<button type="button" data-css-debug-handle="s" aria-label="向下调整高度"></button>',
-        '<button type="button" data-css-debug-handle="se" aria-label="调整宽度和高度"></button>'
+        '<button type="button" data-css-debug-handle="e" aria-label="右侧调整宽度"></button>',
+        '<button type="button" data-css-debug-handle="sw" aria-label="左下调整"></button>',
+        '<button type="button" data-css-debug-handle="s" aria-label="下方调整高度"></button>',
+        '<button type="button" data-css-debug-handle="se" aria-label="右下调整宽度和高度"></button>'
       ].join('');
       document.body.appendChild(overlay);
       ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
@@ -670,6 +694,35 @@ ${taskPanelClientSource}
     overlay.style.top = Math.round(rect.top) + 'px';
     overlay.style.width = Math.max(1, Math.round(rect.width)) + 'px';
     overlay.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+    const showBoxModel = cssDebugState.showBoxModel;
+    const marginEl = overlay.querySelector('.ui-inspect-box-model-margin');
+    const paddingEl = overlay.querySelector('.ui-inspect-box-model-padding');
+    if (marginEl) marginEl.style.display = showBoxModel ? 'block' : 'none';
+    if (paddingEl) paddingEl.style.display = showBoxModel ? 'block' : 'none';
+    if (showBoxModel && cssDebugState.element) {
+      const computed = window.getComputedStyle(cssDebugState.element);
+      const mt = parseFloat(computed.marginTop) || 0;
+      const mr = parseFloat(computed.marginRight) || 0;
+      const mb = parseFloat(computed.marginBottom) || 0;
+      const ml = parseFloat(computed.marginLeft) || 0;
+      const pt = parseFloat(computed.paddingTop) || 0;
+      const pr = parseFloat(computed.paddingRight) || 0;
+      const pb = parseFloat(computed.paddingBottom) || 0;
+      const pl = parseFloat(computed.paddingLeft) || 0;
+      if (marginEl) {
+        marginEl.style.left = Math.round(-ml) + 'px';
+        marginEl.style.top = Math.round(-mt) + 'px';
+        marginEl.style.width = Math.round(rect.width + ml + mr) + 'px';
+        marginEl.style.height = Math.round(rect.height + mt + mb) + 'px';
+      }
+      if (paddingEl) {
+        paddingEl.style.left = '0px';
+        paddingEl.style.top = '0px';
+        paddingEl.style.width = Math.round(rect.width) + 'px';
+        paddingEl.style.height = Math.round(rect.height) + 'px';
+        paddingEl.style.borderWidth = Math.round(pt) + 'px ' + Math.round(pr) + 'px ' + Math.round(pb) + 'px ' + Math.round(pl) + 'px';
+      }
+    }
   }
 
   function cssDebugTranslateFromTransform(value) {
@@ -775,26 +828,59 @@ ${taskPanelClientSource}
     drag.lastDx = dx;
     drag.lastDy = dy;
     const panel = cssDebugPanel();
-    if (drag.handle === 'move') {
+    const h = drag.handle;
+    const affectsLeft = h === 'nw' || h === 'w' || h === 'sw';
+    const affectsTop = h === 'nw' || h === 'n' || h === 'ne';
+    const affectsRight = h === 'ne' || h === 'e' || h === 'se';
+    const affectsBottom = h === 'sw' || h === 's' || h === 'se';
+    if (h === 'move') {
       const transform = cssDebugPreviewTransform(drag.transformBase, drag.translateX + dx, drag.translateY + dy);
       applyCssDebugValue('transform', transform);
       moveCssDebugOverlayPreview(drag.rectBefore, dx, dy);
     } else {
       let nextWidth = drag.width;
       let nextHeight = drag.height;
-      if (drag.handle === 'e' || drag.handle === 'se') {
-        const value = Math.max(1, Math.round(drag.width + dx)) + 'px';
+      let effectiveDx = 0;
+      let effectiveDy = 0;
+      let translateX = drag.translateX;
+      let translateY = drag.translateY;
+      if (affectsRight) {
         nextWidth = Math.max(1, Math.round(drag.width + dx));
+        const value = nextWidth + 'px';
         applyCssDebugValue('width', value);
         syncCssDebugControl(panel, 'width', value);
       }
-      if (drag.handle === 's' || drag.handle === 'se') {
-        const value = Math.max(1, Math.round(drag.height + dy)) + 'px';
+      if (affectsLeft) {
+        const maxDx = drag.width - 1;
+        effectiveDx = Math.min(dx, maxDx);
+        nextWidth = Math.max(1, Math.round(drag.width - effectiveDx));
+        const value = nextWidth + 'px';
+        applyCssDebugValue('width', value);
+        syncCssDebugControl(panel, 'width', value);
+        translateX = drag.translateX + effectiveDx;
+      }
+      if (affectsBottom) {
         nextHeight = Math.max(1, Math.round(drag.height + dy));
+        const value = nextHeight + 'px';
         applyCssDebugValue('height', value);
         syncCssDebugControl(panel, 'height', value);
       }
-      moveCssDebugOverlayPreview(drag.rectBefore, 0, 0, nextWidth, nextHeight);
+      if (affectsTop) {
+        const maxDy = drag.height - 1;
+        effectiveDy = Math.min(dy, maxDy);
+        nextHeight = Math.max(1, Math.round(drag.height - effectiveDy));
+        const value = nextHeight + 'px';
+        applyCssDebugValue('height', value);
+        syncCssDebugControl(panel, 'height', value);
+        translateY = drag.translateY + effectiveDy;
+      }
+      if (affectsLeft || affectsTop) {
+        const transform = cssDebugPreviewTransform(drag.transformBase, translateX, translateY);
+        applyCssDebugValue('transform', transform);
+      }
+      const previewDx = affectsLeft ? effectiveDx : 0;
+      const previewDy = affectsTop ? effectiveDy : 0;
+      moveCssDebugOverlayPreview(drag.rectBefore, previewDx, previewDy, nextWidth, nextHeight);
     }
     if (panel) {
       if (cssDebugState.changedOnly && drag.handle !== 'move') renderCssDebugControls(panel);
@@ -821,11 +907,11 @@ ${taskPanelClientSource}
     const interaction = {
       type: drag.handle === 'move' ? 'move' : 'resize',
       handle: drag.handle,
-      properties: drag.handle === 'move' ? ['transform'] : (drag.handle === 'e' ? ['width'] : (drag.handle === 's' ? ['height'] : ['width', 'height'])),
+      properties: drag.handle === 'move' ? ['transform'] : (drag.handle === 'e' ? ['width'] : (drag.handle === 'w' ? ['width', 'transform'] : (drag.handle === 's' ? ['height'] : (drag.handle === 'n' ? ['height', 'transform'] : (drag.handle === 'se' ? ['width', 'height'] : ['width', 'height', 'transform']))))),
       rectBefore: drag.rectBefore,
       rectAfter,
       delta,
-      strategy: drag.handle === 'move' ? 'transform-preview' : 'inline-style',
+      strategy: drag.handle === 'move' || drag.handle === 'nw' || drag.handle === 'w' || drag.handle === 'sw' || drag.handle === 'n' || drag.handle === 'ne' ? 'transform-preview' : 'inline-style',
       timestamp: Date.now()
     };
     cssDebugState.interactions = [...(cssDebugState.interactions || []), interaction].slice(-8);
@@ -967,7 +1053,10 @@ ${taskPanelClientSource}
     if (!cssDebugState?.changedOnly) return CSS_DEBUG_GROUPS;
     const active = cssDebugState.activeProperties || new Set();
     return CSS_DEBUG_GROUPS
-      .map((group) => ({ ...group, open: true, properties: group.properties.filter((property) => active.has(property)) }))
+      .map((group) => {
+        const properties = [...group.properties, ...(group.changedOnlyProperties || [])].filter((property) => active.has(property));
+        return { ...group, open: true, properties };
+      })
       .filter((group) => group.properties.length);
   }
 
@@ -1155,7 +1244,8 @@ ${taskPanelClientSource}
       originalLayout: cssDebugLayoutSnapshot(element),
       interactions: [],
       primaryInteraction: null,
-      drag: null
+      drag: null,
+      showBoxModel: false
     };
     highlightElement(element);
     document.documentElement.setAttribute('data-ui-inspect-css-debug', 'true');
@@ -1166,7 +1256,7 @@ ${taskPanelClientSource}
       '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · CSS 调试</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-status">预览中 · 不会写入源码</div>',
       '<div class="ui-inspect-target">' + escapeHtml(describeSelection(selection)) + '</div>',
-      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
+      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-box-model" aria-pressed="false">盒模型</button><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
       '<div class="ui-inspect-css-groups"></div>',
       '<div class="ui-inspect-css-diff"></div>',
       '<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>',
@@ -1186,6 +1276,58 @@ ${taskPanelClientSource}
     renderCssDebugControls(panel);
     placePanel(panel);
     updateCssDebugOverlay();
+    function handleCssDebugKeydown(event) {
+      if (!cssDebugState?.element) return;
+      if (cssDebugPanel()?.dataset?.sent === 'true') return;
+      if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT')) return;
+      const el = cssDebugState.element;
+      const sideMap = { ArrowUp: 'top', ArrowDown: 'bottom', ArrowLeft: 'left', ArrowRight: 'right' };
+      const side = sideMap[event.key];
+      if (!side) return;
+      const isNegative = event.key === 'ArrowUp' || event.key === 'ArrowLeft';
+      const delta = isNegative ? -1 : 1;
+      if (event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        const prop = 'margin-' + side;
+        const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+        const next = current + delta;
+        applyCssDebugValue(prop, next + 'px');
+        syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
+      } else if (event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        const prop = 'padding-' + side;
+        const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+        const next = Math.max(0, current + delta);
+        applyCssDebugValue(prop, next + 'px');
+        syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
+      } else if (event.shiftKey && event.altKey) {
+        event.preventDefault();
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          const prop = 'font-size';
+          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 16;
+          const next = Math.max(8, current + delta);
+          applyCssDebugValue(prop, next + 'px');
+          syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          const prop = 'letter-spacing';
+          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+          const next = current + delta * 0.5;
+          applyCssDebugValue(prop, next + 'px');
+          syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
+        }
+      } else {
+        return;
+      }
+      const panel = cssDebugPanel();
+      if (panel) {
+        renderCssDebugDiff(panel);
+        updateCssDebugOverlay();
+      }
+    }
+    document.addEventListener('keydown', handleCssDebugKeydown, true);
+    panel.addEventListener('ui-inspect-cleanup', () => {
+      document.removeEventListener('keydown', handleCssDebugKeydown, true);
+    });
     const textarea = panel.querySelector('textarea');
     panel.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
     panel.querySelector('[data-action="reset-css"]').addEventListener('click', () => {
@@ -1195,6 +1337,15 @@ ${taskPanelClientSource}
       placePanel(panel);
       updateCssDebugOverlay();
       showToast('已恢复进入调试前的 inline style。', 'idle');
+    });
+    panel.querySelector('[data-action="toggle-box-model"]').addEventListener('click', () => {
+      if (!cssDebugState) return;
+      cssDebugState.showBoxModel = !cssDebugState.showBoxModel;
+      const btn = panel.querySelector('[data-action="toggle-box-model"]');
+      if (btn) btn.setAttribute('aria-pressed', cssDebugState.showBoxModel ? 'true' : 'false');
+      if (btn) btn.style.borderColor = cssDebugState.showBoxModel ? '#60a5fa' : '';
+      if (btn) btn.style.background = cssDebugState.showBoxModel ? 'rgba(37, 99, 235, 0.28)' : '';
+      updateCssDebugOverlay();
     });
     panel.querySelector('[data-action="toggle-changed-only"]').addEventListener('click', () => {
       if (!cssDebugState) return;

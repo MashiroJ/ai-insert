@@ -235,7 +235,7 @@ function normalizeCssDebugInteractionType(value) {
     return value === 'resize' || value === 'move' ? value : 'panel-control';
 }
 function normalizeCssDebugInteractionHandle(value) {
-    return value === 'e' || value === 's' || value === 'se' || value === 'move' ? value : undefined;
+    return value === 'e' || value === 's' || value === 'se' || value === 'nw' || value === 'n' || value === 'ne' || value === 'w' || value === 'sw' || value === 'move' ? value : undefined;
 }
 function normalizeCssDebugInteractionProperties(value) {
     if (!Array.isArray(value))

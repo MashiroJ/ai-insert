@@ -255,7 +255,7 @@ function normalizeCssDebugInteractionType(value: unknown): UiInspectCssDebugInte
 }
 
 function normalizeCssDebugInteractionHandle(value: unknown): UiInspectCssDebugInteraction['handle'] {
-  return value === 'e' || value === 's' || value === 'se' || value === 'move' ? value : undefined;
+  return value === 'e' || value === 's' || value === 'se' || value === 'nw' || value === 'n' || value === 'ne' || value === 'w' || value === 'sw' || value === 'move' ? value : undefined;
 }
 
 function normalizeCssDebugInteractionProperties(value: unknown): string[] {

@@ -726,9 +726,27 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: ew-resize;
 }
 
+#ui-inspect-css-overlay [data-css-debug-handle="w"] {
+  top: 50%;
+  left: -6px;
+  width: 12px;
+  height: 32px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
 #ui-inspect-css-overlay [data-css-debug-handle="s"] {
   left: 50%;
   bottom: -6px;
+  width: 32px;
+  height: 12px;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+
+#ui-inspect-css-overlay [data-css-debug-handle="n"] {
+  left: 50%;
+  top: -6px;
   width: 32px;
   height: 12px;
   transform: translateX(-50%);
@@ -741,6 +759,69 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   width: 14px;
   height: 14px;
   cursor: nwse-resize;
+}
+
+#ui-inspect-css-overlay [data-css-debug-handle="sw"] {
+  left: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  cursor: nesw-resize;
+}
+
+#ui-inspect-css-overlay [data-css-debug-handle="ne"] {
+  right: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  cursor: nesw-resize;
+}
+
+#ui-inspect-css-overlay [data-css-debug-handle="nw"] {
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+}
+
+#ui-inspect-css-overlay .ui-inspect-box-model {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+#ui-inspect-css-overlay .ui-inspect-box-model-margin {
+  border: 1px dashed rgba(255, 100, 200, 0.6);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 100, 200, 0.08) 3px,
+    rgba(255, 100, 200, 0.08) 6px
+  );
+}
+
+#ui-inspect-css-overlay .ui-inspect-box-model-padding {
+  border: 1px dashed rgba(160, 100, 255, 0.6);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(160, 100, 255, 0.08) 3px,
+    rgba(160, 100, 255, 0.08) 6px
+  );
+}
+
+#ui-inspect-css-overlay .ui-inspect-box-model-label {
+  position: absolute;
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(15, 23, 42, 0.62);
+  padding: 1px 3px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 #ui-inspect-panel .ui-inspect-css-interaction {

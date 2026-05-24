@@ -196,6 +196,15 @@ npm install -D ./ui-inspect-next-${version}.tgz
 
 ## ${version} 能力
 
+- MCP 支持 \`complete_frontend_request\`，agent 完成当前浏览器任务后可自动进入下一轮等待。
+- \`wait_for_frontend_request\` 和 \`complete_frontend_request\` 默认返回 compact 响应，减少大型源码内容对 MCP host 的压力。
+- Cursor 等 MCP host 会优先从工作区环境变量识别项目根目录，减少错误 patch 到 CLI 启动目录的概率。
+- CSS 调试支持 8 方向 resize：nw、n、ne、w、e、sw、s、se。
+- CSS 调试支持拖拽移动、左/上方向 resize 位移补偿、盒模型可视化和键盘微调。
+- 键盘微调支持 Shift+Arrow 调 margin、Alt+Arrow 调 padding、Shift+Alt+Arrow 调字体大小或字间距。
+- CSS diff 会采集 margin/padding 的方向属性和 letter-spacing，发送 payload 时不会漏掉键盘微调。
+- CSS 调试发送后会锁定预览输入，并清理键盘监听，避免任务发送后继续改动 inline style。
+- server/protocol 可识别完整的 CSS debug handle 集合，并保留拖拽意图给 MCP agent。
 - Diana 作为默认悬浮入口，替代原来的文字按钮。
 - Diana 的 9 组素材动作已映射到待机、移动、扫描、写入、休息、失败、待命、执行和读取数据状态。
 - 拖动 Diana 时会优先播放移动动作，不再被待命、扫描、读取等状态动画覆盖。
