@@ -9,6 +9,8 @@ export function uiInspect(options = {}) {
     let config;
     const enabled = options.enabled ?? true;
     const isEnabledForCurrentCommand = () => enabled && config?.command === 'serve';
+    let cachedClientScript = null;
+    let cachedDianaBuffer = null;
     return {
         name: 'ui-inspect',
         apply: 'serve',
@@ -28,16 +30,21 @@ export function uiInspect(options = {}) {
                 return;
             const stateDir = join(config.root, '.ui-inspect');
             server.watcher.unwatch([stateDir, join(stateDir, '**')]);
+            cachedClientScript = clientSource({
+                daemonUrl: options.daemonUrl ?? process.env.UI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL,
+                root: config.root,
+            });
+            try {
+                cachedDianaBuffer = readFileSync(getDianaAssetPath());
+            }
+            catch { /* sprite optional */ }
             server.middlewares.use(CLIENT_PATH, (_req, res) => {
                 res.setHeader('content-type', 'application/javascript; charset=utf-8');
-                res.end(clientSource({
-                    daemonUrl: options.daemonUrl ?? process.env.UI_INSPECT_DAEMON_URL ?? DEFAULT_DAEMON_URL,
-                    root: config.root,
-                }));
+                res.end(cachedClientScript);
             });
             server.middlewares.use(DIANA_PATH, (_req, res) => {
                 res.setHeader('content-type', 'image/webp');
-                res.end(readFileSync(getDianaAssetPath()));
+                res.end(cachedDianaBuffer ?? Buffer.alloc(0));
             });
         },
         transformIndexHtml(html) {

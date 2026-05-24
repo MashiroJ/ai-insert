@@ -16,24 +16,37 @@ function loadBrowserRuntime() {
     browserRuntime = browserRuntime || import(browserRuntimeSpecifier);
     return browserRuntime;
 }
+const clientScriptCache = new Map();
+let cachedDianaBuffer = null;
+function clientScriptKey(daemonUrl, root) {
+    return `${daemonUrl}\0${root}`;
+}
 async function sendClientScript(res, options) {
-    const { clientSource } = await loadBrowserRuntime();
-    const clientScript = clientSource({
-        daemonUrl: options.daemonUrl,
-        root: options.root,
-    });
+    const key = clientScriptKey(options.daemonUrl, options.root);
+    let script = clientScriptCache.get(key);
+    if (script === undefined) {
+        const { clientSource } = await loadBrowserRuntime();
+        script = clientSource({
+            daemonUrl: options.daemonUrl,
+            root: options.root,
+        });
+        clientScriptCache.set(key, script);
+    }
     res.setHeader('content-type', 'application/javascript; charset=utf-8');
-    res.end(clientScript);
+    res.end(script);
 }
 async function sendDianaAsset(res) {
-    const { getDianaAssetPath } = await loadBrowserRuntime();
-    let dianaBuffer = null;
-    try {
-        dianaBuffer = readFileSync(getDianaAssetPath());
+    if (cachedDianaBuffer === null) {
+        const { getDianaAssetPath } = await loadBrowserRuntime();
+        try {
+            cachedDianaBuffer = readFileSync(getDianaAssetPath());
+        }
+        catch {
+            cachedDianaBuffer = Buffer.alloc(0);
+        }
     }
-    catch { /* sprite optional */ }
     res.setHeader('content-type', 'image/webp');
-    res.end(dianaBuffer ?? Buffer.alloc(0));
+    res.end(cachedDianaBuffer);
 }
 class RsbuildUiInspectRspackPlugin {
     constructor(options) {

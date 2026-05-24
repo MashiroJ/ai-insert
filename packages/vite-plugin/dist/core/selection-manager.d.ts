@@ -50,6 +50,9 @@ export declare class SelectionManager {
     private hoveredElement;
     private activeElement;
     private frameworkAdapter;
+    private rafId;
+    private scrollHandler;
+    private resizeHandler;
     constructor(options: SelectionManagerOptions);
     /**
      * Set the framework adapter for component info extraction
@@ -153,6 +156,10 @@ export declare class SelectionManager {
      * Escape CSS identifiers
      */
     private cssEscape;
+    /**
+     * Keep highlight position in sync during scroll and resize using rAF throttle
+     */
+    private startPositionTracker;
     /**
      * Destroy the selection manager
      */

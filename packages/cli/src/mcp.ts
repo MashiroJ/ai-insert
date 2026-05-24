@@ -195,7 +195,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'Do not trigger the workflow on the bare word "ui-inspect" when the user is only asking about docs, installation, errors, or general information.',
         'When the user asks to start, enable, use, invoke, or open ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
         'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
-        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns a request, inspect the returned source, targetSources, and session, call update_ui_task_status with "working", edit code according to the user instruction and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
+        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, treat it as a valid browser task even if message.content is empty or auto-generated. Inspect the returned source, targetSources, targets, and session, call update_ui_task_status with "working", edit code according to the user instruction, selected element, and per-target notes, then call update_ui_task_status with "done" and reply_to_user with a short status asking whether the user wants more changes.',
         'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
         'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then update_ui_task_status with "done" and reply_to_user so the browser panel reflects completion.',
@@ -302,7 +302,7 @@ async function waitForFrontendRequest({
 }) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() <= deadline) {
-    const match = latestUserMessage(await fetchSessions(daemonUrl), sinceTimestamp);
+    const match = latestFrontendRequest(await fetchSessions(daemonUrl), sinceTimestamp);
     if (match) {
       const claimed = await updateTaskStatus(daemonUrl, match.session.id, 'claimed').catch(() => null) as { session?: UiInspectSession } | null;
       const session = claimed?.session || match.session;
@@ -450,21 +450,58 @@ async function updateTaskStatus(daemonUrl: string, sessionId: string, status: st
   return await resp.json();
 }
 
-function latestUserMessage(
+export function latestFrontendRequest(
   payload: { sessions: UiInspectSession[] },
   sinceTimestamp: number,
 ): { session: UiInspectSession; message: UiInspectMessage } | null {
-  let latest: { session: UiInspectSession; message: UiInspectMessage } | null = null;
+  let latest: { session: UiInspectSession; message: UiInspectMessage; timestamp: number } | null = null;
   for (const session of payload.sessions) {
+    let sessionUserMessage: UiInspectMessage | null = null;
     for (const message of session.messages) {
       if (message.role !== 'user') continue;
       if (message.timestamp < sinceTimestamp) continue;
-      if (!latest || message.timestamp > latest.message.timestamp) {
-        latest = { session, message };
+      if (!sessionUserMessage || message.timestamp > sessionUserMessage.timestamp) {
+        sessionUserMessage = message;
+      }
+      if (!latest || message.timestamp > latest.timestamp) {
+        latest = { session, message, timestamp: message.timestamp };
       }
     }
+    if (sessionUserMessage) continue;
+
+    const selectionTimestamp = session.selection?.timestamp || 0;
+    const requestTimestamp = Math.max(session.updatedAt || 0, selectionTimestamp);
+    if (session.selection && session.status === 'sent' && requestTimestamp >= sinceTimestamp && (!latest || requestTimestamp > latest.timestamp)) {
+      latest = {
+        session,
+        message: syntheticSelectionMessage(session, requestTimestamp),
+        timestamp: requestTimestamp,
+      };
+    }
   }
-  return latest;
+  return latest ? { session: latest.session, message: latest.message } : null;
+}
+
+function syntheticSelectionMessage(session: UiInspectSession, timestamp: number): UiInspectMessage {
+  const selection = session.selection;
+  const targetNotes = (session.targets || [])
+    .map((target, index) => {
+      const note = target.note || target.selection.note || '';
+      return note.trim() ? `${index + 1}. ${note.trim()}` : '';
+    })
+    .filter(Boolean);
+  const content = selection?.instruction
+    || selection?.note
+    || (targetNotes.length ? `Target notes:\n${targetNotes.join('\n')}` : '')
+    || 'Browser selection sent without additional user text.';
+  return {
+    id: `${session.id}:selection-request`,
+    sessionId: session.id,
+    role: 'user',
+    content,
+    timestamp,
+    selectionId: selection?.id ?? null,
+  };
 }
 
 async function readSourceIfAvailable(selection: UiInspectSelection | null, context: number) {

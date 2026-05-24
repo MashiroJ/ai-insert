@@ -12,9 +12,13 @@ export class SelectionManager {
     hoveredElement = null;
     activeElement = null;
     frameworkAdapter = null;
+    rafId = null;
+    scrollHandler = null;
+    resizeHandler = null;
     constructor(options) {
         this.options = options;
         this.ensureBox();
+        this.startPositionTracker();
     }
     /**
      * Set the framework adapter for component info extraction
@@ -72,8 +76,8 @@ export class SelectionManager {
             return;
         const rect = element.getBoundingClientRect();
         this.box.style.display = 'block';
-        this.box.style.left = `${rect.left + window.scrollX}px`;
-        this.box.style.top = `${rect.top + window.scrollY}px`;
+        this.box.style.left = `${rect.left}px`;
+        this.box.style.top = `${rect.top}px`;
         this.box.style.width = `${rect.width}px`;
         this.box.style.height = `${rect.height}px`;
     }
@@ -328,9 +332,44 @@ export class SelectionManager {
         return value.replace(/([^\w-])/g, '\\$1');
     }
     /**
+     * Keep highlight position in sync during scroll and resize using rAF throttle
+     */
+    startPositionTracker() {
+        let scheduled = false;
+        const tick = () => {
+            scheduled = false;
+            const target = this.hoveredElement ?? this.activeElement;
+            if (target && this.box && this.box.style.display !== 'none') {
+                this.highlightElement(target);
+            }
+        };
+        const schedule = () => {
+            if (!scheduled) {
+                scheduled = true;
+                this.rafId = requestAnimationFrame(tick);
+            }
+        };
+        this.scrollHandler = schedule;
+        this.resizeHandler = schedule;
+        window.addEventListener('scroll', schedule, true);
+        window.addEventListener('resize', schedule);
+    }
+    /**
      * Destroy the selection manager
      */
     destroy() {
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        if (this.scrollHandler) {
+            window.removeEventListener('scroll', this.scrollHandler, true);
+            this.scrollHandler = null;
+        }
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+        }
         if (this.box && this.box.parentNode) {
             this.box.parentNode.removeChild(this.box);
         }

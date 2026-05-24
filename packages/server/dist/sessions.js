@@ -25,7 +25,7 @@ export function normalizeSelection(value) {
         timestamp: numberOr(input.timestamp, Date.now()),
         instruction: stringOr(input.instruction, ''),
         note: typeof input.note === 'string' ? input.note : undefined,
-        framework: input.framework === 'vue3' ? 'vue3' : 'dom',
+        framework: typeof input.framework === 'string' ? input.framework : 'dom',
         dom: input.dom,
         vue: input.vue ?? null,
         source: input.source,
