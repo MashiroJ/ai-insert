@@ -21,6 +21,8 @@ import {
 } from '@ui-inspect/server';
 
 import { getVersion } from './version.js';
+import { existsSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 
 const SERVER_NAME = 'ui-inspect';
 const SERVER_VERSION = getVersion();
@@ -38,6 +40,7 @@ interface ToolArgs {
   timeoutMs?: unknown;
   sinceTimestamp?: unknown;
   afterRequestId?: unknown;
+  responseMode?: unknown;
 }
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -110,6 +113,11 @@ const TOOL_DEFS = [
         afterRequestId: {
           type: 'string',
           description: 'Request cursor returned by the previous wait_for_frontend_request call. When provided, only newer browser requests are returned. Pass the nextCursor.afterRequestId value from the previous response.',
+        },
+        responseMode: {
+          type: 'string',
+          enum: ['compact', 'full'],
+          description: 'Return compact by default for MCP hosts such as Cursor. Use full only when raw session/source payload is required.',
         },
       },
       additionalProperties: false,
@@ -234,6 +242,11 @@ const TOOL_DEFS = [
           type: 'number',
           description: 'Fallback timestamp filter used only when the cursor is unknown. Defaults to now minus 30 seconds.',
         },
+        responseMode: {
+          type: 'string',
+          enum: ['compact', 'full'],
+          description: 'Return compact by default for MCP hosts such as Cursor. Use full only when raw session/source payload is required.',
+        },
       },
       required: ['sessionId', 'content', 'afterRequestId'],
       additionalProperties: false,
@@ -251,6 +264,25 @@ export function getMcpToolDefinition(name: string): unknown {
   return TOOL_DEFS.find((tool) => tool.name === name);
 }
 
+export function resolveProjectRoot(input: unknown, env: Record<string, string | undefined> = process.env, cwd = process.cwd(), pathDelimiter = delimiter): string {
+  if (typeof input === 'string' && input.trim()) return input.trim();
+
+  const raw = env.WORKSPACE_FOLDER_PATHS;
+  if (raw) {
+    const splitters = ['\n', ',', pathDelimiter];
+    let paths = [raw];
+    for (const splitter of splitters) {
+      paths = paths.flatMap((p) => p.split(splitter));
+    }
+    paths = paths.map((p) => p.trim()).filter(Boolean);
+    const withPackageJson = paths.find((p) => existsSync(join(p, 'package.json')));
+    if (withPackageJson) return withPackageJson;
+    if (paths.length > 0) return paths[0];
+  }
+
+  return cwd;
+}
+
 export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -263,13 +295,15 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'Do not trigger the workflow on the bare word "ui-inspect" when the user is only asking about docs, installation, errors, or general information.',
         'When the user asks to start, enable, use, invoke, or open ui-inspect or UI inspection, first call start_ui_inspect to silently start or verify the local daemon and project integration. Use its integration.projectType, missing, and nextSteps fields to guide setup instead of assuming Vite/Vue. Do not search the codebase for a ui-inspect feature first.',
         'start_ui_inspect never starts the user project dev server and must not open or refresh the browser. It may auto-patch supported Vite projects, but for Next.js and unknown projects it returns manual setup instructions. Tell the user to complete any returned setup steps, then start or keep using their frontend dev server, select an element, and click Send.',
-        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, treat it as a valid browser task even if message.content is empty or auto-generated. Inspect the returned source, targetSources, targets, and session, call update_ui_task_status with "working", then edit code according to the user instruction, selected element, and per-target notes.',
-        'Continuous browser task loop: after processing a browser task, the final step MUST be complete_frontend_request with session.id, a concise completion reply, and afterRequestId from the current response\'s nextCursor.afterRequestId. This marks the current task done or failed, replies in the browser panel, and waits for the next browser task. If complete_frontend_request returns ok: true with a new requestId, immediately process that next task and finish it with complete_frontend_request again. Keep looping until: the user explicitly asks to stop, complete_frontend_request or wait_for_frontend_request times out, or the current task requires user confirmation before continuing.',
+        'Interactive edit flow: after start_ui_inspect, call wait_for_frontend_request. When it returns ok: true, you have received a valid browser task even if message.content is empty or auto-generated. Do not tell the user to verify the dev server or browser panel. Inspect the returned contextSummary, targetsSummary, and session, call update_ui_task_status with "working", then edit code according to the user instruction, selected element, and per-target notes. When you need full source code or the complete targets list, use get_frontend_source or pass responseMode: "full".',
+        'Continuous browser task loop: after processing a browser task, the final step MUST be complete_frontend_request with session.id, a concise completion reply, and afterRequestId from the current response\'s nextCursor.afterRequestId. Do not call update_ui_task_status("done") before complete_frontend_request; complete_frontend_request already updates the final status. This marks the current task done or failed, replies in the browser panel, and waits for the next browser task. If complete_frontend_request returns ok: true with a new requestId, immediately process that next task and finish it with complete_frontend_request again. Keep looping until: the user explicitly asks to stop, complete_frontend_request or wait_for_frontend_request times out, or the current task requires user confirmation before continuing.',
         'Use reply_to_user only for mid-task progress, user confirmation, or intentional one-off replies that should not continue waiting. Do not use reply_to_user as the final completion step for browser tasks when you can call complete_frontend_request.',
-        'For batch mode, enumerate targets, targetSources, targetsSummary, and per-target notes. Do not only edit the first selection.',
+        'For batch mode, use targetsSummary for per-target notes. When you need the full targets array or per-target source code, use responseMode: "full" or call get_frontend_source.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
         'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
         'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
+        'When compact responses omit source.content, use get_frontend_source if you need the full source before editing.',
+        'If an MCP host stores large tool output in a file, read that file and continue processing the returned request.',
         'If wait_for_frontend_request times out after 10 minutes, it shuts down this ui-inspect run and you should tell the user the browser request expired.',
       ].join('\n'),
     },
@@ -282,7 +316,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
     const args = (request.params.arguments ?? {}) as ToolArgs;
     try {
       if (name === 'start_ui_inspect') {
-        const project = typeof args.project === 'string' && args.project.trim() ? args.project.trim() : process.cwd();
+        const project = resolveProjectRoot(args.project);
         await ensureDaemon({ daemonUrl, project });
         const integration = ensureProjectIntegration({ project });
         return textResult({
@@ -321,7 +355,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         if (result.timedOut) {
           await shutdownAfterTimeout(daemonUrl);
         }
-        return textResult(result);
+        return textResult(isCompactMode(args.responseMode) ? compactFrontendRequestResult(result) : result);
       }
       if (name === 'get_frontend_source') {
         const selection = await fetchSelection(daemonUrl);
@@ -364,7 +398,15 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         if (nextRequest.timedOut) {
           await shutdownAfterTimeout(daemonUrl);
         }
-        return textResult({
+        const compact = isCompactMode(args.responseMode);
+        return textResult(compact ? {
+          completed: {
+            ok: true,
+            sessionId: input.sessionId,
+            status: input.status,
+          },
+          ...compactFrontendRequestResult(nextRequest),
+        } : {
           completed: {
             ok: true,
             sessionId: input.sessionId,
@@ -578,6 +620,81 @@ function sourceLabel(selection: UiInspectSelection): string {
   const source = selection.source;
   if (!source?.file) return '';
   return `${source.file}${source.line ? `:${source.line}` : ''}`;
+}
+
+function compactSource(source: unknown): unknown {
+  if (!source || typeof source !== 'object') return source;
+  const { content, ...meta } = source as Record<string, unknown>;
+  return meta;
+}
+
+function compactSelection(selection: UiInspectSelection | null): unknown {
+  if (!selection) return null;
+  const component = selection.component;
+  return {
+    id: selection.id,
+    framework: selection.framework,
+    tagName: selection.dom?.tagName,
+    selector: selection.dom?.selector,
+    text: selection.dom?.text?.slice(0, 120),
+    componentName: component?.name || selection.vue?.componentName || null,
+    sourceFile: selection.source?.file || null,
+    sourceLine: selection.source?.line ?? null,
+  };
+}
+
+function summarizeCssDebug(cssDebug: unknown): string {
+  if (!cssDebug || typeof cssDebug !== 'object') return '';
+  const payload = cssDebug as Record<string, unknown>;
+  const changed = payload.changedStyles;
+  const interaction = payload.primaryInteraction;
+  const parts: string[] = [];
+  if (changed && typeof changed === 'object') {
+    parts.push(`changedStyles: ${Object.keys(changed as Record<string, unknown>).join(', ')}`);
+  }
+  if (interaction && typeof interaction === 'object') {
+    const i = interaction as Record<string, unknown>;
+    if (i.type) parts.push(`primaryInteraction: ${i.type}`);
+  }
+  if (payload.note) parts.push(String(payload.note));
+  return parts.length ? parts.join('; ') : '';
+}
+
+export function compactFrontendRequestResult(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== 'object') return result as Record<string, unknown>;
+  const r = result as Record<string, unknown>;
+
+  if (r.timedOut) return r;
+
+  const session = r.session as UiInspectSession | undefined;
+  const source = compactSource(r.source);
+
+  return {
+    ok: r.ok,
+    timedOut: false,
+    requestId: r.requestId,
+    nextCursor: r.nextCursor,
+    message: r.message,
+    session: session
+      ? { id: session.id, status: session.status, mode: session.mode, createdAt: session.createdAt, updatedAt: session.updatedAt }
+      : undefined,
+    selection: compactSelection(r.selection as UiInspectSelection | null),
+    targetCount: r.targetCount,
+    contextSummary: r.contextSummary,
+    targetsSummary: r.targetsSummary,
+    sourceHintSummary: r.sourceHintSummary,
+    runtimeSummary: r.runtimeSummary,
+    diagnosticsSummary: r.diagnostics
+      ? `runtimeEvents=${(r.diagnostics as { runtimeEvents?: unknown[] })?.runtimeEvents?.length ?? 0}, truncated=${(r.diagnostics as { truncated?: boolean })?.truncated ?? false}`
+      : undefined,
+    cssDebugSummary: r.cssDebug ? summarizeCssDebug(r.cssDebug) : undefined,
+    source,
+  };
+}
+
+function isCompactMode(responseMode: unknown): boolean {
+  if (typeof responseMode !== 'string') return true;
+  return responseMode.trim().toLowerCase() !== 'full';
 }
 
 async function updateTaskStatus(daemonUrl: string, sessionId: string, status: string): Promise<unknown> {

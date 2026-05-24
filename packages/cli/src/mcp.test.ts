@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UiInspectSelection, UiInspectSession } from '@ui-inspect/protocol';
-import { getMcpToolDefinition, latestFrontendRequest, normalizeCompleteFrontendRequestArgs } from './mcp.js';
+import { getMcpToolDefinition, latestFrontendRequest, normalizeCompleteFrontendRequestArgs, resolveProjectRoot, compactFrontendRequestResult } from './mcp.js';
 
 describe('complete_frontend_request tool', () => {
   it('exposes the required completion-and-wait schema', () => {
@@ -22,6 +22,7 @@ describe('complete_frontend_request tool', () => {
       'timeoutMs',
       'context',
       'sinceTimestamp',
+      'responseMode',
     ]));
   });
 
@@ -581,6 +582,274 @@ describe('latestFrontendRequest', () => {
     expect(result?.requestId).toBe('selection:selection-1');
     expect(result?.message.content).toContain('resize this');
     expect(result?.message.content).toContain('move that');
+  });
+});
+
+describe('resolveProjectRoot', () => {
+  it('prefers explicit project input', () => {
+    expect(resolveProjectRoot('/tmp/app', {}, '/')).toBe('/tmp/app');
+  });
+
+  it('trims explicit project input', () => {
+    expect(resolveProjectRoot('  /tmp/app  ', {}, '/')).toBe('/tmp/app');
+  });
+
+  it('ignores non-string input', () => {
+    expect(resolveProjectRoot(undefined, {}, '/fallback')).toBe('/fallback');
+    expect(resolveProjectRoot(42, {}, '/fallback')).toBe('/fallback');
+  });
+
+  it('uses WORKSPACE_FOLDER_PATHS when no explicit project', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: '/tmp/app' };
+    expect(resolveProjectRoot(undefined, env, '/fallback')).toBe('/tmp/app');
+  });
+
+  it('splits WORKSPACE_FOLDER_PATHS by comma', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: '/tmp/a,/tmp/b' };
+    expect(resolveProjectRoot(undefined, env, '/fallback')).toBe('/tmp/a');
+  });
+
+  it('splits WORKSPACE_FOLDER_PATHS by newline', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: '/tmp/a\n/tmp/b' };
+    expect(resolveProjectRoot(undefined, env, '/fallback')).toBe('/tmp/a');
+  });
+
+  it('splits WORKSPACE_FOLDER_PATHS by system path delimiter', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: '/tmp/a:/tmp/b' };
+    expect(resolveProjectRoot(undefined, env, '/fallback', ':')).toBe('/tmp/a');
+  });
+
+  it('splits WORKSPACE_FOLDER_PATHS by semicolon for Windows-style delimiter', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: 'C:\\a;C:\\b' };
+    expect(resolveProjectRoot(undefined, env, '/fallback', ';')).toBe('C:\\a');
+  });
+
+  it('trims WORKSPACE_FOLDER_PATHS entries', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: '  /tmp/a , /tmp/b  ' };
+    expect(resolveProjectRoot(undefined, env, '/fallback')).toBe('/tmp/a');
+  });
+
+  it('skips empty WORKSPACE_FOLDER_PATHS entries', () => {
+    const env = { WORKSPACE_FOLDER_PATHS: ',/tmp/b,' };
+    expect(resolveProjectRoot(undefined, env, '/fallback')).toBe('/tmp/b');
+  });
+
+  it('falls back to cwd when no env and no input', () => {
+    expect(resolveProjectRoot(undefined, {}, '/cwd')).toBe('/cwd');
+  });
+
+  it('picks first workspace with package.json over one without', async () => {
+    const { mkdir, writeFile, rm } = await import('node:fs/promises');
+    const tmp = `/tmp/ui-inspect-test-${Date.now()}`;
+    const noPackage = `${tmp}/no-package`;
+    const withPackage = `${tmp}/with-package`;
+    try {
+      await mkdir(noPackage, { recursive: true });
+      await mkdir(withPackage, { recursive: true });
+      await writeFile(`${withPackage}/package.json`, '{}');
+
+      const env = { WORKSPACE_FOLDER_PATHS: `${noPackage}:${withPackage}` };
+      expect(resolveProjectRoot(undefined, env, '/fallback', ':')).toBe(withPackage);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('returns first workspace when none have package.json', async () => {
+    const { mkdir, rm } = await import('node:fs/promises');
+    const tmp = `/tmp/ui-inspect-test-${Date.now()}`;
+    const a = `${tmp}/a`;
+    const b = `${tmp}/b`;
+    try {
+      await mkdir(a, { recursive: true });
+      await mkdir(b, { recursive: true });
+
+      const env = { WORKSPACE_FOLDER_PATHS: `${a}:${b}` };
+      expect(resolveProjectRoot(undefined, env, '/fallback', ':')).toBe(a);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('wait_for_frontend_request schema', () => {
+  it('includes responseMode property', () => {
+    const tool = getMcpToolDefinition('wait_for_frontend_request') as {
+      inputSchema?: unknown;
+    } | undefined;
+    const schema = tool?.inputSchema as {
+      properties?: Record<string, unknown>;
+    } | undefined;
+    expect(schema?.properties).toHaveProperty('responseMode');
+    const responseMode = schema?.properties?.responseMode as { type: string; enum: string[] };
+    expect(responseMode.type).toBe('string');
+    expect(responseMode.enum).toEqual(['compact', 'full']);
+  });
+});
+
+describe('complete_frontend_request schema', () => {
+  it('includes responseMode property', () => {
+    const tool = getMcpToolDefinition('complete_frontend_request') as {
+      inputSchema?: unknown;
+    } | undefined;
+    const schema = tool?.inputSchema as {
+      properties?: Record<string, unknown>;
+    } | undefined;
+    expect(schema?.properties).toHaveProperty('responseMode');
+    const responseMode = schema?.properties?.responseMode as { type: string; enum: string[] };
+    expect(responseMode.type).toBe('string');
+    expect(responseMode.enum).toEqual(['compact', 'full']);
+  });
+});
+
+describe('compactFrontendRequestResult', () => {
+  it('strips source.content from the result', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'test', role: 'user' },
+      session: { id: 'session-1', status: 'claimed', mode: 'single', createdAt: 1000, updatedAt: 2000 },
+      selection: {
+        id: 'sel-1',
+        framework: 'dom',
+        tagName: 'div',
+        selector: '#app',
+        text: 'hello',
+        componentName: null,
+        sourceFile: 'src/App.vue',
+        sourceLine: null,
+      },
+      targetCount: 0,
+      source: { file: 'src/App.vue', root: '/project', startLine: 1, endLine: 10, totalLines: 50, content: 'source code line 1\nsource code line 2' },
+      contextSummary: 'Element: div#app',
+      targetsSummary: 'No targets.',
+      sourceHintSummary: 'No source hints.',
+      runtimeSummary: 'No user-confirmed runtime diagnostics.',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+
+    expect(compact.ok).toBe(true);
+    expect(compact.requestId).toBe('message:msg-1');
+    expect(compact.nextCursor).toEqual({ afterRequestId: 'message:msg-1' });
+    const source = compact.source as Record<string, unknown>;
+    expect(source).not.toHaveProperty('content');
+    expect(source).toHaveProperty('file');
+    expect(source).toHaveProperty('root');
+    expect(source).toHaveProperty('startLine');
+    expect(source).toHaveProperty('endLine');
+    expect(source).toHaveProperty('totalLines');
+    expect(compact.targetSources).toBeUndefined();
+    expect(compact.targets).toBeUndefined();
+    expect(compact.diagnostics).toBeUndefined();
+  });
+
+  it('preserves key fields in compact result', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'make it wider', role: 'user' },
+      session: { id: 'session-1', status: 'claimed', mode: 'single', createdAt: 1000, updatedAt: 2000 },
+      selection: {
+        id: 'sel-1',
+        framework: 'vue',
+        tagName: 'div',
+        selector: '#app',
+        text: 'hello',
+        componentName: 'App',
+        sourceFile: 'src/App.vue',
+        sourceLine: 42,
+        component: { framework: 'vue', name: 'App', hierarchy: [] },
+        source: { file: 'src/App.vue', line: 42 },
+      },
+      targetCount: 2,
+      source: { file: 'src/App.vue', root: '/project', startLine: 40, endLine: 50, totalLines: 100, content: 'big source' },
+      contextSummary: 'Element: App · div#app · hello',
+      targetsSummary: '1. target1\n2. target2',
+      sourceHintSummary: 'hint1',
+      runtimeSummary: 'runtime diag',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+
+    expect(compact.ok).toBe(true);
+    expect(compact.requestId).toBe('message:msg-1');
+    expect(compact.nextCursor).toEqual({ afterRequestId: 'message:msg-1' });
+    expect((compact.message as Record<string, unknown>).content).toBe('make it wider');
+    expect((compact.session as Record<string, unknown>).id).toBe('session-1');
+    const sel = compact.selection as Record<string, unknown>;
+    expect(sel.componentName).toBe('App');
+    expect(sel.sourceFile).toBe('src/App.vue');
+    expect(compact.targetCount).toBe(2);
+    expect(compact.contextSummary).toBe('Element: App · div#app · hello');
+    expect(compact.targetsSummary).toBe('1. target1\n2. target2');
+  });
+
+  it('passes through timed-out results unchanged', () => {
+    const result = {
+      ok: false,
+      timedOut: true,
+      timeoutMs: 600000,
+      message: 'No browser request was sent within 600 seconds.',
+    };
+
+    const compact = compactFrontendRequestResult(result);
+    expect(compact).toEqual(result);
+  });
+
+  it('does not include batchContext, targets, targetSources, or diagnostics in compact', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'test', role: 'user' },
+      session: { id: 'session-1', status: 'claimed', mode: 'single', createdAt: 1000, updatedAt: 2000 },
+      selection: null,
+      targetCount: 0,
+      targets: [{ id: 't-1', note: 'test', selection: {} }],
+      source: null,
+      targetSources: [{ id: 't-1', source: { content: 'code' } }],
+      batchContext: { targetCount: 1 },
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+      diagnostics: { runtimeEvents: [{ message: 'err' }] },
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+
+    expect(compact.targets).toBeUndefined();
+    expect(compact.targetSources).toBeUndefined();
+    expect(compact.batchContext).toBeUndefined();
+    expect(compact.diagnostics).toBeUndefined();
+  });
+
+  it('includes diagnosticsSummary when diagnostics are present', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'test', role: 'user' },
+      session: { id: 'session-1', status: 'claimed', mode: 'single', createdAt: 1000, updatedAt: 2000 },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+      diagnostics: { runtimeEvents: [{ message: 'err1' }, { message: 'err2' }], truncated: false },
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    expect(compact.diagnosticsSummary).toBe('runtimeEvents=2, truncated=false');
   });
 });
 

@@ -14,6 +14,7 @@ export interface NormalizedCompleteFrontendRequestArgs {
     sinceTimestamp: number;
 }
 export declare function getMcpToolDefinition(name: string): unknown;
+export declare function resolveProjectRoot(input: unknown, env?: Record<string, string | undefined>, cwd?: string, pathDelimiter?: ";" | ":"): string;
 export declare function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void>;
 export declare function normalizeCompleteFrontendRequestArgs(args: {
     sessionId?: unknown;
@@ -24,6 +25,7 @@ export declare function normalizeCompleteFrontendRequestArgs(args: {
     timeoutMs?: unknown;
     sinceTimestamp?: unknown;
 }, now?: number): NormalizedCompleteFrontendRequestArgs;
+export declare function compactFrontendRequestResult(result: unknown): Record<string, unknown>;
 export declare function latestFrontendRequest(payload: {
     sessions: UiInspectSession[];
 }, sinceTimestamp: number, afterRequestId?: string): {
