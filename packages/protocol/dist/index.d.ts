@@ -220,12 +220,31 @@ export interface UiInspectCssDebugSessionInfo {
     root: string | null;
     timestamp: number;
 }
+export interface UiInspectCssDebugTarget {
+    id: string;
+    selection: UiInspectSelection;
+    selectedElement: UiInspectDomSelection;
+    originalStyles: Record<string, string>;
+    originalInlineStyles?: Record<string, string>;
+    previewStyles: Record<string, string>;
+    changedStyles: Record<string, UiInspectCssDebugStyleChange>;
+    computedEffects?: UiInspectCssDebugComputedEffects;
+    layoutContext?: UiInspectCssDebugLayoutContext;
+    interactions?: UiInspectCssDebugInteraction[];
+    primaryInteraction?: UiInspectCssDebugInteraction;
+    note?: string;
+    sourceHints?: UiInspectSourceHint[];
+}
 export interface UiInspectCssDebugPayload {
     selection: UiInspectSelection;
     selectedElement: UiInspectDomSelection;
     originalStyles: Record<string, string>;
     previewStyles: Record<string, string>;
     changedStyles: Record<string, UiInspectCssDebugStyleChange>;
+    batch?: boolean;
+    primaryTargetId?: string;
+    changedTargetCount?: number;
+    targets?: UiInspectCssDebugTarget[];
     computedEffects?: UiInspectCssDebugComputedEffects;
     layoutContext?: UiInspectCssDebugLayoutContext;
     interactions?: UiInspectCssDebugInteraction[];

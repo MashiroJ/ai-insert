@@ -440,6 +440,7 @@ async function waitForFrontendRequest({ daemonUrl, context, timeoutMs, sinceTime
                 sourceHintSummary: summarizeSourceHints(session.selection, session.targets || []),
                 runtimeSummary: summarizeDiagnostics(session.diagnostics || session.selection?.diagnostics),
                 diagnostics: session.diagnostics || session.selection?.diagnostics || null,
+                cssDebug: session.cssDebug || null,
             };
         }
         await sleep(WAIT_POLL_INTERVAL_MS);
@@ -577,20 +578,78 @@ function summarizeCssDebug(cssDebug) {
     if (!cssDebug || typeof cssDebug !== 'object')
         return '';
     const payload = cssDebug;
-    const changed = payload.changedStyles;
-    const interaction = payload.primaryInteraction;
     const parts = [];
-    if (changed && typeof changed === 'object') {
-        parts.push(`changedStyles: ${Object.keys(changed).join(', ')}`);
+    const targets = payload.targets;
+    if (Array.isArray(targets) && targets.length > 0) {
+        parts.push(`${targets.length} targets changed`);
+        for (const t of targets.slice(0, 5)) {
+            const sel = t.selection;
+            const dom = sel?.dom;
+            const tag = dom?.tagName ?? '?';
+            const text = String(dom?.text ?? '').slice(0, 30);
+            const changed = t.changedStyles;
+            const props = changed ? Object.keys(changed).join(', ') : '';
+            parts.push(`  ${tag}: ${text} → ${props}`);
+        }
     }
+    else {
+        const changed = payload.changedStyles;
+        if (changed && typeof changed === 'object') {
+            const entries = Object.entries(changed)
+                .map(([property, value]) => `${property}: ${String(value?.originalValue || 'auto')} -> ${String(value?.previewValue || 'auto')}`);
+            if (entries.length)
+                parts.push(`changedStyles: ${entries.join(', ')}`);
+        }
+    }
+    const interaction = payload.primaryInteraction;
     if (interaction && typeof interaction === 'object') {
         const i = interaction;
-        if (i.type)
-            parts.push(`primaryInteraction: ${i.type}`);
+        const label = [i.type, i.handle].filter(Boolean).join(' ');
+        if (label)
+            parts.push(`primaryInteraction: ${label}`);
+        if (i.delta && typeof i.delta === 'object') {
+            const delta = i.delta;
+            parts.push(`delta: x=${delta.x ?? 0}, y=${delta.y ?? 0}, w=${delta.width ?? 0}, h=${delta.height ?? 0}`);
+        }
     }
     if (payload.note)
         parts.push(String(payload.note));
     return parts.length ? parts.join('; ') : '';
+}
+function compactCssDebug(cssDebug) {
+    if (!cssDebug || typeof cssDebug !== 'object')
+        return undefined;
+    const payload = cssDebug;
+    const result = {
+        changedStyles: payload.changedStyles,
+        computedEffects: payload.computedEffects,
+        layoutContext: payload.layoutContext,
+        interactions: Array.isArray(payload.interactions) ? payload.interactions.slice(-8) : payload.interactions,
+        primaryInteraction: payload.primaryInteraction,
+        note: payload.note,
+        sourceHints: payload.sourceHints,
+    };
+    if (typeof payload.batch === 'boolean')
+        result.batch = payload.batch;
+    if (typeof payload.primaryTargetId === 'string')
+        result.primaryTargetId = payload.primaryTargetId;
+    if (typeof payload.changedTargetCount === 'number')
+        result.changedTargetCount = payload.changedTargetCount;
+    if (Array.isArray(payload.targets)) {
+        result.targets = payload.targets.map((t) => ({
+            id: t.id,
+            selection: compactSelection((t.selection ?? null)),
+            selectedElement: t.selectedElement,
+            changedStyles: t.changedStyles,
+            computedEffects: t.computedEffects,
+            layoutContext: t.layoutContext,
+            interactions: Array.isArray(t.interactions) ? t.interactions.slice(-4) : t.interactions,
+            primaryInteraction: t.primaryInteraction,
+            note: t.note,
+            sourceHints: t.sourceHints,
+        }));
+    }
+    return result;
 }
 export function compactFrontendRequestResult(result) {
     if (!result || typeof result !== 'object')
@@ -600,6 +659,7 @@ export function compactFrontendRequestResult(result) {
         return r;
     const session = r.session;
     const source = compactSource(r.source);
+    const cssDebug = r.cssDebug || session?.cssDebug;
     return {
         ok: r.ok,
         timedOut: false,
@@ -618,7 +678,8 @@ export function compactFrontendRequestResult(result) {
         diagnosticsSummary: r.diagnostics
             ? `runtimeEvents=${r.diagnostics?.runtimeEvents?.length ?? 0}, truncated=${r.diagnostics?.truncated ?? false}`
             : undefined,
-        cssDebugSummary: r.cssDebug ? summarizeCssDebug(r.cssDebug) : undefined,
+        cssDebugSummary: cssDebug ? summarizeCssDebug(cssDebug) : undefined,
+        cssDebug: compactCssDebug(cssDebug),
         source,
     };
 }

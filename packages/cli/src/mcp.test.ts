@@ -851,6 +851,145 @@ describe('compactFrontendRequestResult', () => {
     const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
     expect(compact.diagnosticsSummary).toBe('runtimeEvents=2, truncated=false');
   });
+
+  it('includes CSS debug diff from the session in compact result', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'move logo', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          changedStyles: {
+            transform: { originalValue: 'none', previewValue: 'translate(-153px, -127px)' },
+            width: { originalValue: '140px', previewValue: '60px' },
+            height: { originalValue: '140px', previewValue: '66px' },
+          },
+          computedEffects: { self: {} },
+          layoutContext: { parent: { selector: '.brand-icon' }, siblings: [], children: [] },
+          interactions: [
+            { type: 'move', handle: 'move', delta: { x: -153, y: -127, width: 0, height: 0 } },
+            { type: 'resize', handle: 'se', delta: { x: 0, y: 0, width: -80, height: -74 } },
+          ],
+          primaryInteraction: { type: 'resize', handle: 'se', delta: { x: 0, y: 0, width: -80, height: -74 } },
+          note: '更改logo位置',
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+
+    expect(compact.cssDebugSummary).toContain('transform: none -> translate(-153px, -127px)');
+    expect(compact.cssDebugSummary).toContain('width: 140px -> 60px');
+    expect(compact.cssDebugSummary).toContain('primaryInteraction: resize se');
+    expect(cssDebug.changedStyles).toEqual((result.session.cssDebug as Record<string, unknown>).changedStyles);
+    expect(cssDebug.primaryInteraction).toEqual((result.session.cssDebug as Record<string, unknown>).primaryInteraction);
+    expect((compact.session as Record<string, unknown>)).not.toHaveProperty('cssDebug');
+  });
+
+  it('includes compact selection in each cssDebug target', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'multi-element css', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          batch: true,
+          primaryTargetId: 'css-el-1',
+          changedTargetCount: 2,
+          changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+          targets: [
+            {
+              id: 'css-el-1',
+              selectedElement: { selector: 'button.btn', tagName: 'button' },
+              selection: {
+                id: 'sel-1',
+                sessionId: 'session-1',
+                url: 'http://localhost:5173',
+                title: 'Test',
+                timestamp: 1000,
+                instruction: 'fix',
+                framework: 'dom',
+                dom: { selector: 'button.btn', tagName: 'button', id: '', className: 'btn', text: 'Click', outerHtml: '<button>Click</button>', rect: { x: 0, y: 0, width: 80, height: 30 }, styles: {} },
+                source: { root: '/project', file: 'src/App.vue', line: 42, column: 5 },
+              },
+              changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+            },
+            {
+              id: 'css-el-2',
+              selectedElement: { selector: 'h1.title', tagName: 'h1' },
+              selection: {
+                id: 'sel-2',
+                sessionId: 'session-1',
+                url: 'http://localhost:5173',
+                title: 'Test',
+                timestamp: 1000,
+                instruction: 'fix',
+                framework: 'dom',
+                dom: { selector: 'h1.title', tagName: 'h1', id: '', className: 'title', text: 'Hello', outerHtml: '<h1>Hello</h1>', rect: { x: 0, y: 0, width: 200, height: 40 }, styles: {} },
+                source: { root: '/project', file: 'src/App.vue', line: 10, column: 1 },
+              },
+              changedStyles: { 'font-size': { originalValue: '24px', previewValue: '32px' } },
+            },
+          ],
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+    expect(cssDebug.batch).toBe(true);
+    expect(cssDebug.changedTargetCount).toBe(2);
+
+    const targets = cssDebug.targets as Record<string, unknown>[];
+    expect(targets).toHaveLength(2);
+
+    const t1 = targets[0];
+    expect(t1.id).toBe('css-el-1');
+    expect(t1.changedStyles).toEqual({ padding: { originalValue: '8px', previewValue: '16px' } });
+    const sel1 = t1.selection as Record<string, unknown>;
+    expect(sel1.tagName).toBe('button');
+    expect(sel1.selector).toBe('button.btn');
+    expect(sel1.sourceFile).toBe('src/App.vue');
+    expect(sel1.sourceLine).toBe(42);
+
+    const t2 = targets[1];
+    expect(t2.id).toBe('css-el-2');
+    expect(t2.changedStyles).toEqual({ 'font-size': { originalValue: '24px', previewValue: '32px' } });
+    const sel2 = t2.selection as Record<string, unknown>;
+    expect(sel2.tagName).toBe('h1');
+    expect(sel2.selector).toBe('h1.title');
+    expect(sel2.sourceFile).toBe('src/App.vue');
+    expect(sel2.sourceLine).toBe(10);
+  });
 });
 
 function makeSession(overrides: Partial<UiInspectSession> = {}): UiInspectSession {

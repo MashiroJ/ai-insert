@@ -211,11 +211,17 @@ export async function route(
       return;
     }
     const body = await readJson(req);
+    const raw = body && typeof body === 'object' ? body as Record<string, unknown> : undefined;
     const selection = normalizeSelection(body);
-    const targets = normalizeTargets(body && typeof body === 'object' ? (body as Record<string, unknown>).targets : undefined, selection);
-    const mode = normalizeSessionMode(body && typeof body === 'object' ? (body as Record<string, unknown>).mode : undefined);
-    const diagnostics = normalizeDiagnostics(body && typeof body === 'object' ? (body as Record<string, unknown>).diagnostics : undefined);
-    const cssDebug = normalizeCssDebugPayload(body && typeof body === 'object' ? (body as Record<string, unknown>).cssDebug : undefined, selection);
+    const hasBodyTargets = Array.isArray(raw?.targets) && (raw.targets as unknown[]).length > 0;
+    const bodyTargets = hasBodyTargets ? normalizeTargets(raw.targets, selection) : undefined;
+    const mode = normalizeSessionMode(raw?.mode);
+    const diagnostics = normalizeDiagnostics(raw?.diagnostics);
+    const cssDebug = normalizeCssDebugPayload(raw?.cssDebug, selection);
+    const cssDebugTargets = Array.isArray(cssDebug?.targets) && cssDebug.targets.length > 0
+      ? normalizeTargets(cssDebug.targets.map((t) => ({ id: t.id, note: t.note ?? '', selection: t.selection ?? selection, cssDebug: t })), selection)
+      : undefined;
+    const targets = bodyTargets ?? cssDebugTargets ?? normalizeTargets(undefined, selection);
     state.setProjectRoot(selection.source.root);
     state.currentSelection = selection;
     state.currentSelectionReceivedAt = Date.now();

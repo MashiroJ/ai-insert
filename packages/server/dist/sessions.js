@@ -114,12 +114,20 @@ export function normalizeCssDebugPayload(value, fallback) {
         return undefined;
     const selection = isRecord(value.selection) ? normalizeSelection(value.selection) : fallback;
     const selectedElement = isRecord(value.selectedElement) ? value.selectedElement : selection.dom;
+    const batch = typeof value.batch === 'boolean' ? value.batch : undefined;
+    const primaryTargetId = typeof value.primaryTargetId === 'string' ? value.primaryTargetId : undefined;
+    const changedTargetCount = typeof value.changedTargetCount === 'number' ? value.changedTargetCount : undefined;
+    const targets = normalizeCssDebugTargets(value.targets, fallback);
     return {
         selection,
         selectedElement,
         originalStyles: normalizeStyleRecord(value.originalStyles),
         previewStyles: normalizeStyleRecord(value.previewStyles),
         changedStyles: normalizeStyleChanges(value.changedStyles),
+        ...(batch !== undefined ? { batch } : {}),
+        ...(primaryTargetId !== undefined ? { primaryTargetId } : {}),
+        ...(changedTargetCount !== undefined ? { changedTargetCount } : {}),
+        ...(targets.length > 0 ? { targets } : {}),
         computedEffects: normalizeCssDebugComputedEffects(value.computedEffects),
         layoutContext: normalizeCssDebugLayoutContext(value.layoutContext),
         interactions: normalizeCssDebugInteractions(value.interactions),
@@ -128,6 +136,30 @@ export function normalizeCssDebugPayload(value, fallback) {
         sourceHints: Array.isArray(value.sourceHints) ? value.sourceHints : selection.sourceHints,
         session: normalizeCssDebugSessionInfo(value.session, selection),
     };
+}
+function normalizeCssDebugTargets(value, fallback) {
+    if (!Array.isArray(value))
+        return [];
+    return value.slice(0, 20).map((item, index) => {
+        const input = isRecord(item) ? item : {};
+        const selection = isRecord(input.selection) ? normalizeSelection(input.selection) : fallback;
+        const selectedElement = isRecord(input.selectedElement) ? input.selectedElement : selection.dom;
+        return {
+            id: stringOr(input.id, `target-${Date.now()}-${index}`),
+            selection,
+            selectedElement,
+            originalStyles: normalizeStyleRecord(input.originalStyles),
+            originalInlineStyles: isRecord(input.originalInlineStyles) ? normalizeStyleRecord(input.originalInlineStyles) : undefined,
+            previewStyles: normalizeStyleRecord(input.previewStyles),
+            changedStyles: normalizeStyleChanges(input.changedStyles),
+            computedEffects: normalizeCssDebugComputedEffects(input.computedEffects),
+            layoutContext: normalizeCssDebugLayoutContext(input.layoutContext),
+            interactions: normalizeCssDebugInteractions(input.interactions),
+            primaryInteraction: normalizeCssDebugInteraction(input.primaryInteraction),
+            note: typeof input.note === 'string' ? input.note : undefined,
+            sourceHints: Array.isArray(input.sourceHints) ? input.sourceHints : undefined,
+        };
+    }).filter((target) => Object.keys(target.changedStyles).length > 0);
 }
 function normalizeCssDebugSessionInfo(value, selection) {
     const input = isRecord(value) ? value : {};

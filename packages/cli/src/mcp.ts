@@ -513,6 +513,7 @@ async function waitForFrontendRequest({
         sourceHintSummary: summarizeSourceHints(session.selection, session.targets || []),
         runtimeSummary: summarizeDiagnostics(session.diagnostics || session.selection?.diagnostics),
         diagnostics: session.diagnostics || session.selection?.diagnostics || null,
+        cssDebug: session.cssDebug || null,
       };
     }
     await sleep(WAIT_POLL_INTERVAL_MS);
@@ -646,18 +647,73 @@ function compactSelection(selection: UiInspectSelection | null): unknown {
 function summarizeCssDebug(cssDebug: unknown): string {
   if (!cssDebug || typeof cssDebug !== 'object') return '';
   const payload = cssDebug as Record<string, unknown>;
-  const changed = payload.changedStyles;
-  const interaction = payload.primaryInteraction;
   const parts: string[] = [];
-  if (changed && typeof changed === 'object') {
-    parts.push(`changedStyles: ${Object.keys(changed as Record<string, unknown>).join(', ')}`);
+
+  const targets = payload.targets;
+  if (Array.isArray(targets) && targets.length > 0) {
+    parts.push(`${targets.length} targets changed`);
+    for (const t of targets.slice(0, 5) as Record<string, unknown>[]) {
+      const sel = t.selection as Record<string, unknown> | undefined;
+      const dom = sel?.dom as Record<string, unknown> | undefined;
+      const tag = dom?.tagName ?? '?';
+      const text = String(dom?.text ?? '').slice(0, 30);
+      const changed = t.changedStyles as Record<string, unknown> | undefined;
+      const props = changed ? Object.keys(changed).join(', ') : '';
+      parts.push(`  ${tag}: ${text} → ${props}`);
+    }
+  } else {
+    const changed = payload.changedStyles;
+    if (changed && typeof changed === 'object') {
+      const entries = Object.entries(changed as Record<string, { originalValue?: unknown; previewValue?: unknown }>)
+        .map(([property, value]) => `${property}: ${String(value?.originalValue || 'auto')} -> ${String(value?.previewValue || 'auto')}`);
+      if (entries.length) parts.push(`changedStyles: ${entries.join(', ')}`);
+    }
   }
+
+  const interaction = payload.primaryInteraction;
   if (interaction && typeof interaction === 'object') {
     const i = interaction as Record<string, unknown>;
-    if (i.type) parts.push(`primaryInteraction: ${i.type}`);
+    const label = [i.type, i.handle].filter(Boolean).join(' ');
+    if (label) parts.push(`primaryInteraction: ${label}`);
+    if (i.delta && typeof i.delta === 'object') {
+      const delta = i.delta as Record<string, unknown>;
+      parts.push(`delta: x=${delta.x ?? 0}, y=${delta.y ?? 0}, w=${delta.width ?? 0}, h=${delta.height ?? 0}`);
+    }
   }
   if (payload.note) parts.push(String(payload.note));
   return parts.length ? parts.join('; ') : '';
+}
+
+function compactCssDebug(cssDebug: unknown): unknown {
+  if (!cssDebug || typeof cssDebug !== 'object') return undefined;
+  const payload = cssDebug as Record<string, unknown>;
+  const result: Record<string, unknown> = {
+    changedStyles: payload.changedStyles,
+    computedEffects: payload.computedEffects,
+    layoutContext: payload.layoutContext,
+    interactions: Array.isArray(payload.interactions) ? payload.interactions.slice(-8) : payload.interactions,
+    primaryInteraction: payload.primaryInteraction,
+    note: payload.note,
+    sourceHints: payload.sourceHints,
+  };
+  if (typeof payload.batch === 'boolean') result.batch = payload.batch;
+  if (typeof payload.primaryTargetId === 'string') result.primaryTargetId = payload.primaryTargetId;
+  if (typeof payload.changedTargetCount === 'number') result.changedTargetCount = payload.changedTargetCount;
+  if (Array.isArray(payload.targets)) {
+    result.targets = (payload.targets as Record<string, unknown>[]).map((t) => ({
+      id: t.id,
+      selection: compactSelection((t.selection ?? null) as UiInspectSelection | null),
+      selectedElement: t.selectedElement,
+      changedStyles: t.changedStyles,
+      computedEffects: t.computedEffects,
+      layoutContext: t.layoutContext,
+      interactions: Array.isArray(t.interactions) ? (t.interactions as unknown[]).slice(-4) : t.interactions,
+      primaryInteraction: t.primaryInteraction,
+      note: t.note,
+      sourceHints: t.sourceHints,
+    }));
+  }
+  return result;
 }
 
 export function compactFrontendRequestResult(result: unknown): Record<string, unknown> {
@@ -668,6 +724,7 @@ export function compactFrontendRequestResult(result: unknown): Record<string, un
 
   const session = r.session as UiInspectSession | undefined;
   const source = compactSource(r.source);
+  const cssDebug = r.cssDebug || session?.cssDebug;
 
   return {
     ok: r.ok,
@@ -687,7 +744,8 @@ export function compactFrontendRequestResult(result: unknown): Record<string, un
     diagnosticsSummary: r.diagnostics
       ? `runtimeEvents=${(r.diagnostics as { runtimeEvents?: unknown[] })?.runtimeEvents?.length ?? 0}, truncated=${(r.diagnostics as { truncated?: boolean })?.truncated ?? false}`
       : undefined,
-    cssDebugSummary: r.cssDebug ? summarizeCssDebug(r.cssDebug) : undefined,
+    cssDebugSummary: cssDebug ? summarizeCssDebug(cssDebug) : undefined,
+    cssDebug: compactCssDebug(cssDebug),
     source,
   };
 }

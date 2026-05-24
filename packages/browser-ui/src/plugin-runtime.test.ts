@@ -50,7 +50,10 @@ describe('clientSource', () => {
     expect(result).toContain('resetCssDebugPreview');
     expect(result).toContain('ui-inspect-css-overlay');
     expect(result).toContain('primaryInteraction');
-    expect(result).toContain('interactions: cssDebugState.interactions || []');
+    expect(result).toContain('cssDebugSession');
+    expect(result).toContain('cssDebugActiveTarget');
+    expect(result).toContain('resetAllCssDebugTargets');
+    expect(result).toContain('renderCssDebugTargetList');
   });
 });
 
@@ -90,5 +93,14 @@ describe('clientSource CSS debug features', () => {
     expect(src).toContain("'padding-left']");
     expect(src).toContain("changedOnlyProperties: ['letter-spacing']");
     expect(src).toContain('...(group.changedOnlyProperties || [])');
+  });
+
+  it('renders assistant messages in the CSS debug panel after send', () => {
+    const interactionIndex = src.indexOf('<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>');
+    const cssNoteIndex = src.indexOf('<label class="ui-inspect-field-label" for="ui-inspect-css-note">');
+    const messagesIndex = src.indexOf('<div class="ui-inspect-messages" aria-live="polite"></div>', interactionIndex);
+    expect(interactionIndex).toBeGreaterThan(-1);
+    expect(messagesIndex).toBeGreaterThan(interactionIndex);
+    expect(messagesIndex).toBeLessThan(cssNoteIndex);
   });
 });

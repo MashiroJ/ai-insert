@@ -443,4 +443,59 @@ describe('upsertSessionFromSelection', () => {
       expect(result!.interactions![0].handle).toBe(handle);
     }
   });
+
+  it('stores session.targets derived from cssDebug.targets when body.targets is absent', () => {
+    mkdirSync(FIXTURE_DIR, { recursive: true });
+    try {
+      const state = new ServerState();
+      const sel = makeSelection({ source: { root: FIXTURE_DIR, file: 'App.vue', line: 1, column: null } });
+      state.setProjectRoot(FIXTURE_DIR);
+      const cssDebug = normalizeCssDebugPayload({
+        batch: true,
+        changedTargetCount: 2,
+        primaryTargetId: 'css-el-1',
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        targets: [
+          {
+            id: 'css-el-1',
+            selectedElement: { selector: 'button.btn', tagName: 'button' },
+            originalStyles: { padding: '8px' },
+            previewStyles: { padding: '16px' },
+            changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+          },
+          {
+            id: 'css-el-2',
+            selectedElement: { selector: 'h1', tagName: 'h1' },
+            originalStyles: { 'font-size': '24px' },
+            previewStyles: { 'font-size': '32px' },
+            changedStyles: { 'font-size': { originalValue: '24px', previewValue: '32px' } },
+          },
+        ],
+        session: { id: 'sess-1', root: FIXTURE_DIR, url: 'http://localhost:5173', title: 'Test Page', timestamp: Date.now() },
+      }, sel);
+
+      const targetsFromCssDebug = (cssDebug!.targets ?? []).map((t) => ({
+        id: t.id,
+        note: '',
+        selection: sel,
+        cssDebug: t,
+      }));
+      const derivedTargets = normalizeTargets(targetsFromCssDebug, sel);
+      expect(derivedTargets).toHaveLength(2);
+      expect(derivedTargets[0].id).toBe('css-el-1');
+      expect(derivedTargets[1].id).toBe('css-el-2');
+
+      upsertSessionFromSelection(sel, state, derivedTargets, 'css-debug', undefined, cssDebug);
+      const session = state.sessions.get('sess-1');
+      expect(session).toBeDefined();
+      expect(session!.targets).toHaveLength(2);
+      expect(session!.targets[0].id).toBe('css-el-1');
+      expect(session!.targets[1].id).toBe('css-el-2');
+      expect(session!.cssDebug!.changedTargetCount).toBe(2);
+    } finally {
+      rmSync(FIXTURE_DIR, { recursive: true, force: true });
+    }
+  });
 });
