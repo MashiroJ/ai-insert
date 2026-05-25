@@ -162,6 +162,12 @@ export function updateProjectIntegrationPackages({
     return result;
   }
 
+  const removedResolutions = removeUiInspectResolutions(project, packageJson, dryRun);
+  if (removedResolutions.length > 0) {
+    const action = dryRun ? 'Would remove' : 'Removed';
+    result.warnings.push(`${action} ui-inspect Yarn resolutions: ${removedResolutions.join(', ')}`);
+  }
+
   const packageNames = updatePackageNames(detected.kind, packageJson);
   if (packageNames.length === 0) {
     result.warnings.push('No ui-inspect frontend integration package was found or confidently detected.');
@@ -270,6 +276,7 @@ function ensureBundlerGuidance(
 interface ProjectPackageJson {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  resolutions?: Record<string, string>;
 }
 
 function readProjectPackage(project: string): ProjectPackageJson | null {
@@ -308,10 +315,39 @@ function installProjectPackages(project: string): boolean {
 function updatePackageNames(kind: ProjectKind, packageJson: ProjectPackageJson): string[] {
   const names = new Set<string>();
   if (kind !== 'unknown') names.add(INTEGRATION_PACKAGES[kind]);
+  for (const name of Object.keys(packageJson.dependencies ?? {})) {
+    if (name.startsWith('@ui-inspect/')) names.add(name);
+  }
+  for (const name of Object.keys(packageJson.devDependencies ?? {})) {
+    if (name.startsWith('@ui-inspect/')) names.add(name);
+  }
   for (const name of INTEGRATION_PACKAGE_NAMES) {
     if (hasDependency(packageJson, name)) names.add(name);
   }
   return [...names];
+}
+
+function removeUiInspectResolutions(
+  project: string,
+  packageJson: ProjectPackageJson,
+  dryRun: boolean,
+): string[] {
+  const resolutions = packageJson.resolutions;
+  if (!resolutions) return [];
+
+  const names = Object.keys(resolutions).filter((name) => name.startsWith('@ui-inspect/'));
+  if (names.length === 0) return [];
+  if (dryRun) return names;
+
+  for (const name of names) {
+    delete resolutions[name];
+  }
+  if (Object.keys(resolutions).length === 0) {
+    delete packageJson.resolutions;
+  }
+
+  writeFileSync(join(project, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
+  return names;
 }
 
 function dependencyVersion(packageJson: ProjectPackageJson, name: string): string | null {

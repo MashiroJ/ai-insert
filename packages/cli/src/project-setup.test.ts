@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -217,23 +217,33 @@ describe('updateProjectIntegrationPackages', () => {
     expect(result.nextSteps.join('\n')).toContain('Restart your frontend dev server');
   });
 
-  it('updates existing ui-inspect integration packages even when project type is unknown', () => {
+  it('updates existing ui-inspect packages even when project type is unknown', () => {
     const project = tempProject({
       packageManager: 'npm@10.0.0',
-      devDependencies: { '@ui-inspect/webpack-plugin': '0.2.0' },
+      dependencies: { '@ui-inspect/protocol': '0.2.0' },
+      devDependencies: {
+        '@ui-inspect/browser-ui': '0.2.0',
+        '@ui-inspect/webpack-plugin': '0.2.0',
+      },
     });
 
     const result = updateProjectIntegrationPackages({ project, dryRun: true });
 
     expect(result.projectType).toBe('unknown');
     expect(result.packageManager).toBe('npm');
-    expect(result.packages).toEqual([
-      expect.objectContaining({
-        name: '@ui-inspect/webpack-plugin',
-        current: '0.2.0',
-        args: ['install', '--save-dev', '@ui-inspect/webpack-plugin@latest'],
-      }),
+    expect(result.packages.map((pkg) => pkg.name)).toEqual([
+      '@ui-inspect/protocol',
+      '@ui-inspect/browser-ui',
+      '@ui-inspect/webpack-plugin',
     ]);
+    expect(result.packages[0]).toEqual(expect.objectContaining({
+      dependencyType: 'dependencies',
+      args: ['install', '--save', '@ui-inspect/protocol@latest'],
+    }));
+    expect(result.packages[1]).toEqual(expect.objectContaining({
+      dependencyType: 'devDependencies',
+      args: ['install', '--save-dev', '@ui-inspect/browser-ui@latest'],
+    }));
   });
 
   it('preserves dependency section when the integration package is a production dependency', () => {
@@ -251,6 +261,53 @@ describe('updateProjectIntegrationPackages', () => {
       dependencyType: 'dependencies',
       args: ['add', '@ui-inspect/next@latest'],
     }));
+  });
+
+  it('reports ui-inspect Yarn resolutions during dry run', () => {
+    const project = tempProject({
+      packageManager: 'yarn@1.22.22',
+      dependencies: { vite: '^6.0.0' },
+      devDependencies: { '@ui-inspect/vite-plugin': '0.2.0' },
+      resolutions: {
+        '@ui-inspect/vite-plugin': 'file:.ui-inspect-local/ui-inspect-vite-plugin-0.1.19.tgz',
+        lodash: '^4.17.21',
+      },
+    });
+
+    const result = updateProjectIntegrationPackages({ project, dryRun: true });
+
+    expect(result.warnings.join('\n')).toContain('Would remove ui-inspect Yarn resolutions: @ui-inspect/vite-plugin');
+    const packageJson = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')) as { resolutions?: Record<string, string> };
+    expect(packageJson.resolutions?.['@ui-inspect/vite-plugin']).toContain('.ui-inspect-local');
+  });
+
+  it('removes ui-inspect Yarn resolutions before installing updates', () => {
+    const project = tempProject({
+      packageManager: 'yarn@1.22.22',
+      dependencies: { vite: '^6.0.0' },
+      devDependencies: { '@ui-inspect/vite-plugin': '0.2.0' },
+      resolutions: {
+        '@ui-inspect/vite-plugin': 'file:.ui-inspect-local/ui-inspect-vite-plugin-0.1.19.tgz',
+        '@ui-inspect/shared': 'file:.ui-inspect-local/ui-inspect-shared-0.1.19.tgz',
+        lodash: '^4.17.21',
+      },
+    });
+    const bin = join(project, 'bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'yarn'), '#!/bin/sh\nexit 0\n');
+    chmodSync(join(bin, 'yarn'), 0o755);
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${bin}:${previousPath ?? ''}`;
+
+    try {
+      const result = updateProjectIntegrationPackages({ project, dryRun: false, silent: true });
+
+      expect(result.warnings.join('\n')).toContain('Removed ui-inspect Yarn resolutions: @ui-inspect/vite-plugin, @ui-inspect/shared');
+      const packageJson = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')) as { resolutions?: Record<string, string> };
+      expect(packageJson.resolutions).toEqual({ lodash: '^4.17.21' });
+    } finally {
+      process.env.PATH = previousPath;
+    }
   });
 
   it('returns manual guidance when package.json is missing', () => {
