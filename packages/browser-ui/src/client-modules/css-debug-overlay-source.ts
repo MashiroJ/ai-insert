@@ -74,36 +74,129 @@ export const cssDebugOverlayClientSource = `
     boundary.dataset.clamped = options?.clamped ? 'true' : 'false';
   }
 
+  /**
+   * Compute the visual preview rect for a target.
+   * Priority:
+   * 1. Active drag state computed rect (most accurate during interaction).
+   * 2. Target's saved preview rect from last interaction.
+   * 3. Element getBoundingClientRect().
+   */
+  function cssDebugPreviewRectForTarget(target) {
+    if (!target || !target.element) return null;
+    // 1. Active drag state: compute rect from drag offsets
+    if (target.drag) {
+      var d = target.drag;
+      var h = d.handle;
+      var affectsLeft = h === 'nw' || h === 'w' || h === 'sw';
+      var affectsTop = h === 'nw' || h === 'n' || h === 'ne';
+      var affectsRight = h === 'ne' || h === 'e' || h === 'se';
+      var affectsBottom = h === 'sw' || h === 's' || h === 'se';
+
+      if (h === 'move') {
+        // For move: use original rect + effective dx/dy from last drag state
+        var edx = d.lastEffectiveDx !== undefined ? d.lastEffectiveDx : d.lastDx;
+        var edy = d.lastEffectiveDy !== undefined ? d.lastEffectiveDy : d.lastDy;
+        return {
+          x: d.rectBefore.x + edx,
+          y: d.rectBefore.y + edy,
+          width: d.rectBefore.width,
+          height: d.rectBefore.height
+        };
+      }
+
+      // For resize: compute from clamp result or raw delta
+      var cr = d.clampResult;
+      var nextWidth, nextHeight, nextX, nextY;
+      if (cr) {
+        nextWidth = Math.max(1, Math.round(cr.resultWidth));
+        nextHeight = Math.max(1, Math.round(cr.resultHeight));
+        nextX = d.rectBefore.x;
+        nextY = d.rectBefore.y;
+        if (affectsLeft) nextX = d.rectBefore.x + cr.clampDx;
+        if (affectsTop) nextY = d.rectBefore.y + cr.clampDy;
+      } else {
+        nextWidth = d.width;
+        nextHeight = d.height;
+        nextX = d.rectBefore.x;
+        nextY = d.rectBefore.y;
+        if (affectsRight) nextWidth = Math.max(1, Math.round(d.width + d.lastDx));
+        if (affectsLeft) {
+          var dx = d.lastDx;
+          var maxDx = d.width - 1;
+          var pdx = Math.min(dx, maxDx);
+          nextWidth = Math.max(1, Math.round(d.width - pdx));
+          nextX = d.rectBefore.x + pdx;
+        }
+        if (affectsBottom) nextHeight = Math.max(1, Math.round(d.height + d.lastDy));
+        if (affectsTop) {
+          var dy = d.lastDy;
+          var maxDy = d.height - 1;
+          var pdy = Math.min(dy, maxDy);
+          nextHeight = Math.max(1, Math.round(d.height - pdy));
+          nextY = d.rectBefore.y + pdy;
+        }
+      }
+      return {
+        x: nextX,
+        y: nextY,
+        width: nextWidth,
+        height: nextHeight
+      };
+    }
+
+    // 2. Saved preview rect from last interaction
+    if (target.previewRect) {
+      return target.previewRect;
+    }
+
+    // 3. Fallback to actual DOM rect
+    return cssDebugRect(target.element);
+  }
+
+  function updateCssDebugOverlayForTarget(target) {
+    if (!target?.element || !document.documentElement.hasAttribute('data-ui-inspect-css-debug')) {
+      return;
+    }
+    var rect = cssDebugPreviewRectForTarget(target);
+    if (!rect) return;
+    var overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
+    if (!overlay || overlay.style.display === 'none') return;
+    overlay.style.left = Math.round(rect.x) + 'px';
+    overlay.style.top = Math.round(rect.y) + 'px';
+    overlay.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+    overlay.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+  }
+
   function updateCssDebugOverlay() {
-    const panel = cssDebugPanel();
-    const target = cssDebugActiveTarget();
+    var panel = cssDebugPanel();
+    var target = cssDebugActiveTarget();
     if (!target?.element || !document.documentElement.hasAttribute('data-ui-inspect-css-debug') || panel?.dataset?.sent === 'true') {
       removeCssDebugOverlay();
       return;
     }
     removeCssDebugPreviewOverlay();
-    const rect = target.element.getBoundingClientRect();
-    const overlay = ensureCssDebugOverlay();
+    var rect = cssDebugPreviewRectForTarget(target);
+    var overlay = ensureCssDebugOverlay();
     overlay.style.display = 'block';
-    overlay.style.left = Math.round(rect.left) + 'px';
-    overlay.style.top = Math.round(rect.top) + 'px';
+    overlay.style.left = Math.round(rect.x) + 'px';
+    overlay.style.top = Math.round(rect.y) + 'px';
     overlay.style.width = Math.max(1, Math.round(rect.width)) + 'px';
     overlay.style.height = Math.max(1, Math.round(rect.height)) + 'px';
-    const showBoxModel = target.showBoxModel;
-    const marginEl = overlay.querySelector('.ui-inspect-box-model-margin');
-    const paddingEl = overlay.querySelector('.ui-inspect-box-model-padding');
+    var showBoxModel = target.showBoxModel;
+    var marginEl = overlay.querySelector('.ui-inspect-box-model-margin');
+    var paddingEl = overlay.querySelector('.ui-inspect-box-model-padding');
     if (marginEl) marginEl.style.display = showBoxModel ? 'block' : 'none';
     if (paddingEl) paddingEl.style.display = showBoxModel ? 'block' : 'none';
     if (showBoxModel && target.element) {
-      const computed = window.getComputedStyle(target.element);
-      const mt = parseFloat(computed.marginTop) || 0;
-      const mr = parseFloat(computed.marginRight) || 0;
-      const mb = parseFloat(computed.marginBottom) || 0;
-      const ml = parseFloat(computed.marginLeft) || 0;
-      const pt = parseFloat(computed.paddingTop) || 0;
-      const pr = parseFloat(computed.paddingRight) || 0;
-      const pb = parseFloat(computed.paddingBottom) || 0;
-      const pl = parseFloat(computed.paddingLeft) || 0;
+      var computed = window.getComputedStyle(target.element);
+      var mt = parseFloat(computed.marginTop) || 0;
+      var mr = parseFloat(computed.marginRight) || 0;
+      var mb = parseFloat(computed.marginBottom) || 0;
+      var ml = parseFloat(computed.marginLeft) || 0;
+      var pt = parseFloat(computed.paddingTop) || 0;
+      var pr = parseFloat(computed.paddingRight) || 0;
+      var pb = parseFloat(computed.paddingBottom) || 0;
+      var pl = parseFloat(computed.paddingLeft) || 0;
       if (marginEl) {
         marginEl.style.left = Math.round(-ml) + 'px';
         marginEl.style.top = Math.round(-mt) + 'px';

@@ -32,9 +32,11 @@ export const cssDebugPanelsClientSource = `
       } else if (cssDebugSession?.pickMode === 'append') {
         label.textContent = 'CSS 调试 · 添加元素中 · ' + targets + ' targets';
       } else if (targets > 1) {
-        label.textContent = 'CSS 调试 · ' + targets + ' targets · ' + changed + ' changed';
+        var groupScaleText = cssDebugSession.groupScaleEnabled ? ' · 缩放内容' : '';
+        label.textContent = 'CSS 调试 · ' + targets + ' targets · ' + changed + ' changed' + groupScaleText;
       } else {
-        label.textContent = 'CSS 调试 · ' + desc + ' · ' + changed + ' changed';
+        var groupScaleText = cssDebugSession.groupScaleEnabled ? ' · 缩放内容' : '';
+        label.textContent = 'CSS 调试 · ' + desc + ' · ' + changed + ' changed' + groupScaleText;
       }
     }
     const sendBtn = bar.querySelector('[data-mini-action="send"]');
@@ -128,7 +130,7 @@ export const cssDebugPanelsClientSource = `
         '<span>控制面板</span>',
         '<button type="button" data-drawer-action="close" aria-label="关闭">×</button>',
       '</div>',
-      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-box-model" aria-pressed="false">盒模型</button><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
+      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-box-model" aria-pressed="false">盒模型</button><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button><label class="ui-inspect-css-toolbar-toggle"><input type="checkbox" data-action="toggle-group-scale" />缩放内容</label></div>',
       '<div class="ui-inspect-css-groups"></div>',
       '<div class="ui-inspect-css-diff"></div>',
       '<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>',
@@ -238,6 +240,20 @@ export const cssDebugPanelsClientSource = `
       target.changedOnly = !target.changedOnly;
       renderCssDebugControls(drawer);
     });
+    drawer.querySelector('[data-action="toggle-group-scale"]').addEventListener('change', (event) => {
+      if (!cssDebugSession) return;
+      cssDebugSession.groupScaleEnabled = event.target.checked;
+      const target = cssDebugActiveTarget();
+      if (event.target.checked && target) {
+        beginCssDebugGroupScaleSnapshot(target);
+      } else if (!event.target.checked && target) {
+        resetCssDebugGroupScale(target);
+      }
+      updateCssDebugMiniBar();
+    });
+    // Sync checkbox with session state when drawer opens
+    const gsCheckbox = drawer.querySelector('[data-action="toggle-group-scale"]');
+    if (gsCheckbox && cssDebugSession) gsCheckbox.checked = !!cssDebugSession.groupScaleEnabled;
 
     const drawerPanel = { dataset: {}, querySelector: (sel) => drawer.querySelector(sel), querySelectorAll: (sel) => drawer.querySelectorAll(sel) };
     renderCssDebugControls(drawerPanel);

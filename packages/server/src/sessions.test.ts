@@ -376,6 +376,77 @@ describe('normalizeCssDebugPayload', () => {
     expect(result!.targets![0].primaryInteraction?.groupScale?.childEffects).toHaveLength(20);
   });
 
+  it('normalizes browser-generated groupScale with beforeRect/afterRect and origin top-left', () => {
+    const selection = makeSelection({
+      id: 'sel-gs-browser',
+      dom: {
+        ...makeSelection().dom,
+        selector: '.container',
+        tagName: 'section',
+        className: 'container',
+        text: 'Container',
+      },
+    });
+    const groupScale = {
+      type: 'group-scale',
+      handle: 'se',
+      properties: ['width', 'height'],
+      rectBefore: { x: 10, y: 20, width: 400, height: 240 },
+      rectAfter: { x: 10, y: 20, width: 520, height: 300 },
+      delta: { x: 0, y: 0, width: 120, height: 60 },
+      strategy: 'group-scale',
+      timestamp: 1234,
+      groupScale: {
+        scaleX: 1.3,
+        scaleY: 1.25,
+        origin: 'top-left',
+        affectedChildren: 2,
+        childEffects: [
+          {
+            selector: '.child-a',
+            tagName: 'div',
+            beforeRect: { x: 10, y: 20, width: 180, height: 100 },
+            afterRect: { x: 10, y: 20, width: 234, height: 125 },
+          },
+          {
+            selector: '.child-b',
+            tagName: 'div',
+            beforeRect: { x: 200, y: 20, width: 180, height: 100 },
+            afterRect: { x: 250, y: 20, width: 234, height: 125 },
+          },
+        ],
+      },
+    };
+
+    const result = normalizeCssDebugPayload({
+      batch: true,
+      primaryTargetId: 'css-el-1',
+      changedTargetCount: 1,
+      targets: [{
+        id: 'css-el-1',
+        selection,
+        selectedElement: selection.dom,
+        changedStyles: {},
+        interactions: [groupScale],
+        primaryInteraction: groupScale,
+      }],
+    }, selection);
+
+    expect(result).toBeDefined();
+    const gs = result!.targets![0].primaryInteraction?.groupScale;
+    expect(gs).toBeDefined();
+    expect(gs!.origin).toBe('top-left');
+    expect(gs!.affectedChildren).toBe(2);
+    expect(gs!.childEffects).toHaveLength(2);
+    // Critical: beforeRect.width must preserve the original geometry, not zero
+    expect(gs!.childEffects[0].beforeRect.width).toBe(180);
+    expect(gs!.childEffects[0].beforeRect.height).toBe(100);
+    expect(gs!.childEffects[0].afterRect.width).toBe(234);
+    expect(gs!.childEffects[0].afterRect.height).toBe(125);
+    expect(gs!.childEffects[1].beforeRect.x).toBe(200);
+    expect(gs!.childEffects[1].afterRect.x).toBe(250);
+  });
+
   it('returns undefined for missing css debug payload', () => {
     expect(normalizeCssDebugPayload(undefined, makeSelection())).toBeUndefined();
   });

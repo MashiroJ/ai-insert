@@ -52,11 +52,13 @@ export const cssDebugValuesClientSource = `
   function resetCssDebugPreview() {
     const target = cssDebugActiveTarget();
     if (!target?.element) return;
+    resetCssDebugGroupScale(target);
     target.element.style.cssText = target.originalInlineCssText || '';
     target.previewStyles = {};
     target.activeProperties = new Set();
     target.interactions = [];
     target.primaryInteraction = null;
+    target.previewRect = null;
     if (target.scopeGuard) target.scopeGuard.clamped = false;
     removeCssDebugOverlay();
     if (activeElement === target.element) highlightElement(activeElement);
@@ -65,6 +67,7 @@ export const cssDebugValuesClientSource = `
   function resetAllCssDebugTargets() {
     if (!cssDebugSession) return;
     for (const target of cssDebugSession.targets.values()) {
+      resetCssDebugGroupScale(target);
       if (target.element) {
         target.element.style.cssText = target.originalInlineCssText || '';
       }

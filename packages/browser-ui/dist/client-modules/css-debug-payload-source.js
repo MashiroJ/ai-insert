@@ -1,5 +1,15 @@
 // Generated browser client source fragment for CSS Debug.
 export const cssDebugPayloadClientSource = `
+  function cssDebugGroupScaleForTarget(target) {
+    var pi = target.primaryInteraction;
+    if (pi && pi.type === 'group-scale' && pi.groupScale) return pi.groupScale;
+    for (var i = (target.interactions || []).length - 1; i >= 0; i--) {
+      var ia = target.interactions[i];
+      if (ia.type === 'group-scale' && ia.groupScale) return ia.groupScale;
+    }
+    return undefined;
+  }
+
   function makeCssDebugPayload(instruction) {
     if (!cssDebugSession) return null;
     const changedTargets = [];
@@ -11,6 +21,7 @@ export const cssDebugPayloadClientSource = `
       const hasInteraction = target.primaryInteraction && (target.primaryInteraction.type === 'reorder' || target.primaryInteraction.type === 'group-scale');
       if (Object.keys(changedStyles).length === 0 && !hasInteraction) continue;
       const computedEffects = cssDebugComputedEffects(target.originalStyles, previewStyles, target.activeProperties);
+      const groupScaleInfo = cssDebugGroupScaleForTarget(target);
       changedTargets.push({
         id: target.id,
         selection: target.selection,
@@ -25,6 +36,7 @@ export const cssDebugPayloadClientSource = `
         primaryInteraction: target.primaryInteraction || null,
         sourceHints: target.selection.sourceHints,
         scopeGuard: target.scopeGuard || undefined,
+        groupScale: groupScaleInfo,
       });
     }
     if (!changedTargets.length) return null;

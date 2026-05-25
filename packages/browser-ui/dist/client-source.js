@@ -15,6 +15,7 @@ import { cssDebugControlsClientSource } from './client-modules/css-debug-control
 import { cssDebugPayloadClientSource } from './client-modules/css-debug-payload-source.js';
 import { cssDebugTargetSessionClientSource } from './client-modules/css-debug-target-session-source.js';
 import { cssDebugPanelsClientSource } from './client-modules/css-debug-panels-source.js';
+import { cssDebugGroupScaleClientSource } from './client-modules/css-debug-group-scale-source.js';
 import { sessionClientSource } from './client-modules/session-source.js';
 export function clientSource(options) {
     return `(() => {
@@ -611,6 +612,8 @@ ${cssDebugTargetSessionClientSource}
 
 ${cssDebugPanelsClientSource}
 
+${cssDebugGroupScaleClientSource}
+
   function openDebugPanel(options) {
     removePanel();
     setEnabled(false);
@@ -788,6 +791,13 @@ ${sessionClientSource}
   window.addEventListener('resize', refreshDianaPosition);
   window.addEventListener('resize', updateCssDebugOverlay);
   window.addEventListener('scroll', updateCssDebugOverlay, true);
+
+  // CSS Debug: intercept page clicks to add/switch targets directly
+  document.addEventListener('click', function(event) {
+    if (!cssDebugSession || cssDebugSession.sent) return;
+    if (!document.documentElement.hasAttribute('data-ui-inspect-css-debug')) return;
+    handleCssDebugPageClick(event);
+  }, true);
 })();`;
 }
 //# sourceMappingURL=client-source.js.map

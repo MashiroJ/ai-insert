@@ -66,6 +66,60 @@ export const cssDebugTargetSessionClientSource = `
     highlightElement(element);
   }
 
+  /**
+   * Resolve the best editable target for a raw clicked element.
+   * Uses smart heuristic to walk up from leaf/inline nodes to meaningful containers.
+   * Holding Alt/Option forces exact element selection.
+   */
+  function resolveCssDebugEditableTarget(rawElement, event) {
+    if (!rawElement || !rawElement.getBoundingClientRect) return null;
+    // Alt/Option forces exact selection
+    if (event && event.altKey) return rawElement;
+    // Use the existing smart target heuristic
+    return cssDebugSmartTargetElement(rawElement);
+  }
+
+  /**
+   * Handle a click on the page while CSS Debug session is active.
+   * - If clicked element is already a target, switch to it.
+   * - If it's a new editable element, add it as a target.
+   * - Ignores clicks on our own UI elements.
+   * - Ignores mouseup after drag interactions.
+   */
+  function handleCssDebugPageClick(event) {
+    if (!cssDebugSession || cssDebugSession.sent) return;
+    if (cssDebugSession._pendingDragUp) {
+      cssDebugSession._pendingDragUp = false;
+      return;
+    }
+    var element = elementFromNode(event.target);
+    if (!element || isOwnNode(element)) return;
+    if (element.closest && element.closest('#' + CSS_DEBUG_OVERLAY_ID)) return;
+
+    var resolved = resolveCssDebugEditableTarget(element, event);
+    if (!resolved) return;
+
+    var stableKey = cssDebugElementKey(resolved);
+    var existingTarget = cssDebugSession.targets.get(stableKey);
+
+    if (existingTarget) {
+      cssDebugSession.activeTargetId = stableKey;
+      cssDebugSession.pickMode = 'replace';
+      activeElement = existingTarget.element;
+      highlightElement(existingTarget.element);
+      updateCssDebugMiniBar();
+      updateCssDebugOverlay();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    cssDebugSession.pickMode = 'append';
+    openCssDebugPanel(resolved, activePanelSessionId);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function openCssDebugPanel(element, sessionId) {
     element = cssDebugSmartTargetElement(elementFromNode(element));
     if (!element) return;
@@ -112,6 +166,7 @@ export const cssDebugTargetSessionClientSource = `
       interactions: [],
       primaryInteraction: null,
       drag: null,
+      previewRect: null,
       showBoxModel: false,
       scopeGuard: resolveCssDebugBoundary(element)
     };

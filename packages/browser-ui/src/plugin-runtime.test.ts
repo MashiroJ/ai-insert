@@ -150,3 +150,125 @@ describe('clientSource CSS debug features', () => {
     expect(src).not.toContain("document.createElement('_ui-inspect-swap')");
   });
 });
+
+describe('CSS Debug Interaction V2: strategy values', () => {
+  const src = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
+
+  it('uses only valid strategy values: transform-preview, inline-style, group-scale, swap-sibling', () => {
+    // These valid strategies must be present in the interaction source
+    expect(src).toContain("interactionStrategy = 'transform-preview'");
+    expect(src).toContain("interactionStrategy = 'inline-style'");
+    expect(src).toContain("interactionStrategy = 'group-scale'");
+    expect(src).toContain("strategy: 'swap-sibling'");
+  });
+
+  it('does NOT use illegal strategy values (transform, dimension)', () => {
+    // Old illegal values should not appear in strategy assignments
+    const strategyTransformMatch = src.match(/interactionStrategy\s*=\s*['"]transform['"]/);
+    const strategyDimensionMatch = src.match(/interactionStrategy\s*=\s*['"]dimension['"]/);
+    expect(strategyTransformMatch).toBeNull();
+    expect(strategyDimensionMatch).toBeNull();
+  });
+
+  it('sets type=group-scale and strategy=group-scale together for group scale interactions', () => {
+    expect(src).toContain("interactionType = 'group-scale'");
+    expect(src).toContain("interactionStrategy = 'group-scale'");
+    expect(src).toContain("type: interactionType");
+    expect(src).toContain("strategy: interactionStrategy");
+  });
+
+  it('attaches clamped, clampDelta, scopeGuard to interaction objects', () => {
+    // Regular move/resize interaction should carry clamped/clampDelta/scopeGuard
+    expect(src).toContain('clamped: !!drag.clamped');
+    expect(src).toContain('clampDelta: drag.clampDelta || undefined');
+    expect(src).toContain('scopeGuard: drag.scopeGuard || undefined');
+  });
+
+  it('attaches groupScale info to the interaction object', () => {
+    expect(src).toContain('interaction.groupScale = drag._lastGroupScaleInfo');
+  });
+
+  it('reads groupScale from interaction for payload (not recomputing)', () => {
+    expect(src).toContain('function cssDebugGroupScaleForTarget(target)');
+    expect(src).toContain('pi.groupScale');
+  });
+
+  it('resets group scale on single target reset', () => {
+    const resetFnIdx = src.indexOf('function resetCssDebugPreview()');
+    const resetBody = src.substring(resetFnIdx, resetFnIdx + 500);
+    expect(resetBody).toContain('resetCssDebugGroupScale(target)');
+  });
+
+  it('resets group scale on reset all targets', () => {
+    const resetFnIdx = src.indexOf('function resetAllCssDebugTargets()');
+    const resetBody = src.substring(resetFnIdx, resetFnIdx + 500);
+    expect(resetBody).toContain('resetCssDebugGroupScale(target)');
+  });
+
+  it('resets group scale on interaction cancel', () => {
+    const cancelIdx = src.indexOf('function cancelCssDebugInteraction');
+    expect(cancelIdx).toBeGreaterThan(-1);
+    // finishCssDebugInteraction(true) calls resetCssDebugGroupScale when cancelled
+    const finishFnIdx = src.indexOf('function finishCssDebugInteraction');
+    const finishBody = src.substring(finishFnIdx, finishFnIdx + 800);
+    expect(finishBody).toContain('if (cancelled)');
+    expect(finishBody).toContain('resetCssDebugGroupScale(target)');
+  });
+
+  it('resets group scale on group scale toggle off', () => {
+    // The toggle-group-scale checkbox handler should call resetCssDebugGroupScale
+    const toggleIdx = src.indexOf("data-action=\"toggle-group-scale\"]').addEventListener('change'");
+    expect(toggleIdx).toBeGreaterThan(-1);
+    const toggleBlock = src.substring(toggleIdx, toggleIdx + 1200);
+    expect(toggleBlock).toContain('resetCssDebugGroupScale(target)');
+  });
+
+  it('auto-creates group scale snapshot on resize begin when session enabled', () => {
+    const beginFnIdx = src.indexOf('function beginCssDebugInteraction');
+    const beginBody = src.substring(beginFnIdx, beginFnIdx + 1500);
+    expect(beginBody).toContain('groupScaleEnabled && handle !== \'move\' && !target._groupScaleSnapshot');
+    expect(beginBody).toContain('beginCssDebugGroupScaleSnapshot(target)');
+  });
+
+  it('page click uses preventDefault+stopPropagation when handled', () => {
+    const clickFnIdx = src.indexOf('function handleCssDebugPageClick');
+    const clickBody = src.substring(clickFnIdx, clickFnIdx + 1200);
+    expect(clickBody).toContain('event.preventDefault()');
+    expect(clickBody).toContain('event.stopPropagation()');
+  });
+
+  it('page click ignores overlay, own nodes, and post-drag clicks', () => {
+    const clickFnIdx = src.indexOf('function handleCssDebugPageClick');
+    const clickBody = src.substring(clickFnIdx, clickFnIdx + 1200);
+    expect(clickBody).toContain('_pendingDragUp');
+    expect(clickBody).toContain('isOwnNode(element)');
+    expect(clickBody).toContain('CSS_DEBUG_OVERLAY_ID');
+  });
+
+  it('groupScale childEffects uses beforeRect/afterRect (protocol field names)', () => {
+    expect(src).toContain('beforeRect:');
+    expect(src).toContain('afterRect:');
+    // The group scale source should not use rectBefore/rectAfter in childEffects
+    // (interaction objects still use rectBefore/rectAfter which is correct)
+    const gsIdx = src.indexOf('function applyCssDebugGroupScale');
+    const gsBody = src.substring(gsIdx, gsIdx + 3000);
+    expect(gsBody).toContain('beforeRect:');
+    expect(gsBody).toContain('afterRect:');
+    expect(gsBody).not.toContain('rectBefore:');
+    expect(gsBody).not.toContain('rectAfter:');
+  });
+
+  it('groupScale origin is a protocol string, not an object', () => {
+    expect(src).toContain("origin: 'top-left'");
+    expect(src).not.toMatch(/origin:\s*\{/);
+  });
+
+  it('left/top resize handles use transform-preview strategy', () => {
+    const finishFnIdx = src.indexOf('function finishCssDebugInteraction');
+    const finishBody = src.substring(finishFnIdx, finishFnIdx + 6000);
+    expect(finishBody).toContain('resizeAffectsLeft');
+    expect(finishBody).toContain('resizeAffectsTop');
+    expect(finishBody).toContain("drag.handle === 'move' || resizeAffectsLeft || resizeAffectsTop");
+    expect(finishBody).toContain("interactionStrategy = 'transform-preview'");
+  });
+});

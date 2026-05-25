@@ -29,6 +29,8 @@ export const cssDebugRuntimeStyleClientSource = `
       '#ui-inspect-css-controls .ui-inspect-css-row{display:grid!important;grid-template-columns:88px minmax(96px,1fr) minmax(92px,128px)!important;gap:8px!important;align-items:center!important}',
       '#ui-inspect-css-controls .ui-inspect-css-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '#ui-inspect-css-controls .ui-inspect-drawer-footer{flex-wrap:wrap;justify-content:flex-end}',
+      '#ui-inspect-css-controls .ui-inspect-css-toolbar-toggle{display:inline-flex;align-items:center;gap:4px;font:11px/1 ui-sans-serif,system-ui,sans-serif;font-weight:700;color:#94a3b8;cursor:pointer}',
+      '#ui-inspect-css-controls .ui-inspect-css-toolbar-toggle input{margin:0;cursor:pointer}',
       '#ui-inspect-css-targets,#ui-inspect-css-send{right:16px!important;bottom:72px!important;border-radius:14px!important}',
       '#' + CSS_DEBUG_PICK_POPOVER_ID + '{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:6px;padding:6px;border:1px solid rgba(147,197,253,.35);border-radius:999px;background:rgba(15,23,42,.94);color:#e2e8f0;box-shadow:0 14px 34px rgba(15,23,42,.32);font:12px/1 ui-sans-serif,system-ui,sans-serif;backdrop-filter:blur(12px)}',
       '#' + CSS_DEBUG_PICK_POPOVER_ID + ' span{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;color:#bfdbfe;padding:0 4px}',
