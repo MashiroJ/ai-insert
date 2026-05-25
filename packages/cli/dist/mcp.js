@@ -251,6 +251,7 @@ export async function runMcpStdio({ daemonUrl }) {
             'For batch mode, use targetsSummary for per-target notes. When you need the full targets array or per-target source code, use responseMode: "full" or call get_frontend_source.',
             'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
             'For css-debug mode, first read targetsSummary and cssDebug.targets[*].changedStyles, styleSourceHints, layoutHints, and specificityWarnings. Then read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag — do not default to writing transform into source code. When layoutHints is present, prefer its suggestedProperty (e.g. margin-left, align-self, justify-self) as the persistent source change. When specificityWarnings is present, verify that your edits will not be overridden by a later rule. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. When cssDebug.styleSourceHints is present, inspect it before editing: it ranks candidate source rules by confidence and explains which file/line/selector to change. For transform created by dragging, do not blindly write inline transform into source; prefer layout or spacing hints unless source already uses transform intentionally. For multi-target CSS Debug, apply each target\'s changes through its own styleSourceHints, layoutHints, and specificityWarnings. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
+            'CSS Debug is a scoped fine-tuning tool. If scopeGuard.clamped is true, do not implement cross-component movement. Treat the diff as constrained within the owning component/container. Do not blindly persist transform when layoutHints suggest margin, size, or parent layout changes. Each target has its own scopeGuard indicating the movement boundary.',
             'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
             'When compact responses omit source.content, use get_frontend_source if you need the full source before editing.',
             'If an MCP host stores large tool output in a file, read that file and continue processing the returned request.',
@@ -670,6 +671,27 @@ function summarizeCssDebug(cssDebug) {
     }
     if (payload.note)
         parts.push(String(payload.note));
+    // Scope guard summary
+    const scopeGuard = payload.scopeGuard;
+    if (scopeGuard && scopeGuard.enabled) {
+        const scopeName = scopeGuard.componentName || scopeGuard.boundarySelector || 'unknown';
+        parts.push(`scope: ${scopeName} (${scopeGuard.boundaryType}), movement constrained`);
+        if (scopeGuard.clamped) {
+            parts.push('clamped: attempted outside component boundary');
+        }
+    }
+    // Per-target scope guard
+    if (Array.isArray(targets)) {
+        for (const t of targets.slice(0, 5)) {
+            const tScope = t.scopeGuard;
+            if (tScope && tScope.enabled) {
+                const tName = tScope.componentName || tScope.boundarySelector || 'unknown';
+                if (tScope.clamped) {
+                    parts.push(`  clamped in ${tName} boundary`);
+                }
+            }
+        }
+    }
     if (Array.isArray(payload.styleSourceHints) && payload.styleSourceHints.length > 0) {
         parts.push('Style source hints:');
         for (const hint of payload.styleSourceHints.slice(0, 10)) {
@@ -692,6 +714,7 @@ function compactCssDebug(cssDebug, topLevelSelectionId) {
         primaryInteraction: payload.primaryInteraction,
         note: payload.note,
         styleSourceHints: payload.styleSourceHints,
+        scopeGuard: payload.scopeGuard,
     };
     if (typeof payload.batch === 'boolean')
         result.batch = payload.batch;
@@ -718,6 +741,7 @@ function compactCssDebug(cssDebug, topLevelSelectionId) {
                 styleSourceHints: t.styleSourceHints,
                 layoutHints: t.layoutHints,
                 specificityWarnings: t.specificityWarnings,
+                scopeGuard: t.scopeGuard,
             };
             return compacted;
         });

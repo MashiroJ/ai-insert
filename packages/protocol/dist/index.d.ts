@@ -212,6 +212,14 @@ export interface UiInspectCssDebugInteraction {
     };
     strategy: 'inline-style' | 'transform-preview';
     timestamp: number;
+    clamped?: boolean;
+    clampDelta?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    scopeGuard?: UiInspectCssDebugScopeGuard;
 }
 export interface UiInspectCssDebugSessionInfo {
     id: string;
@@ -219,6 +227,23 @@ export interface UiInspectCssDebugSessionInfo {
     title: string;
     root: string | null;
     timestamp: number;
+}
+/**
+ * Scope boundary type for CSS Debug constraints
+ */
+export type UiInspectCssDebugScopeGuardType = 'component' | 'container' | 'parent';
+/**
+ * Scope guard information for CSS Debug movement constraints
+ */
+export interface UiInspectCssDebugScopeGuard {
+    enabled: boolean;
+    boundaryType: UiInspectCssDebugScopeGuardType;
+    boundarySelector: string;
+    componentName?: string;
+    sourceFile?: string;
+    rect: UiInspectRect;
+    clamped?: boolean;
+    clampReason?: string;
 }
 export type UiInspectStyleSourceHintKind = 'vue-sfc-style-rule' | 'style-rule' | 'template-class' | 'inline-style' | 'parent-layout-rule' | 'fallback-source';
 export interface UiInspectStyleSourceHint {
@@ -271,6 +296,7 @@ export interface UiInspectCssDebugTarget {
     styleSourceHints?: UiInspectStyleSourceHint[];
     layoutHints?: UiInspectLayoutHint[];
     specificityWarnings?: UiInspectSpecificityWarning[];
+    scopeGuard?: UiInspectCssDebugScopeGuard;
 }
 export interface UiInspectCssDebugPayload {
     selection: UiInspectSelection;
@@ -291,6 +317,7 @@ export interface UiInspectCssDebugPayload {
     styleSourceHints?: UiInspectStyleSourceHint[];
     layoutHints?: UiInspectLayoutHint[];
     specificityWarnings?: UiInspectSpecificityWarning[];
+    scopeGuard?: UiInspectCssDebugScopeGuard;
     session: UiInspectCssDebugSessionInfo;
 }
 export type UiInspectTaskStatus = 'draft' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';

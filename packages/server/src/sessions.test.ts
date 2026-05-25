@@ -559,4 +559,131 @@ describe('upsertSessionFromSelection', () => {
       rmSync(FIXTURE_DIR, { recursive: true, force: true });
     }
   });
+
+  describe('scopeGuard', () => {
+    it('normalizes scopeGuard on css debug payload', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        scopeGuard: {
+          enabled: true,
+          boundaryType: 'component',
+          boundarySelector: '.login-form',
+          componentName: 'LoginForm',
+          rect: { x: 0, y: 0, width: 400, height: 500 },
+          clamped: false,
+        },
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.scopeGuard).toBeDefined();
+      expect(result!.scopeGuard!.enabled).toBe(true);
+      expect(result!.scopeGuard!.boundaryType).toBe('component');
+      expect(result!.scopeGuard!.boundarySelector).toBe('.login-form');
+      expect(result!.scopeGuard!.componentName).toBe('LoginForm');
+      expect(result!.scopeGuard!.rect).toEqual({ x: 0, y: 0, width: 400, height: 500 });
+    });
+
+    it('normalizes scopeGuard on per-target data', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        targets: [{
+          id: 'target-1',
+          selectedElement: { selector: 'button', tagName: 'button', id: '', className: '', text: 'Go', outerHtml: '<button>Go</button>', rect: { x: 0, y: 0, width: 80, height: 30 }, styles: {} },
+          originalStyles: { padding: '8px' },
+          previewStyles: { padding: '16px' },
+          changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+          scopeGuard: {
+            enabled: true,
+            boundaryType: 'container',
+            boundarySelector: '.card',
+            rect: { x: 0, y: 0, width: 300, height: 200 },
+            clamped: true,
+            clampReason: 'exceeded container boundary',
+          },
+        }],
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.targets).toHaveLength(1);
+      expect(result!.targets![0].scopeGuard).toBeDefined();
+      expect(result!.targets![0].scopeGuard!.boundaryType).toBe('container');
+      expect(result!.targets![0].scopeGuard!.clamped).toBe(true);
+      expect(result!.targets![0].scopeGuard!.clampReason).toBe('exceeded container boundary');
+    });
+
+    it('normalizes clamped and clampDelta on interactions', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        interactions: [{
+          type: 'move',
+          handle: 'move',
+          properties: ['transform'],
+          rectBefore: { x: 10, y: 20, width: 80, height: 30 },
+          rectAfter: { x: 0, y: 20, width: 80, height: 30 },
+          delta: { x: 50, y: 0, width: 0, height: 0 },
+          strategy: 'transform-preview',
+          timestamp: 1234,
+          clamped: true,
+          clampDelta: { x: -40, y: 0, width: 0, height: 0 },
+        }],
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.interactions).toHaveLength(1);
+      expect(result!.interactions![0].clamped).toBe(true);
+      expect(result!.interactions![0].clampDelta).toEqual({ x: -40, y: 0, width: 0, height: 0 });
+    });
+
+    it('old payload without scopeGuard still normalizes correctly', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '12px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '12px' } },
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.scopeGuard).toBeUndefined();
+      expect(result!.interactions).toBeUndefined();
+    });
+
+    it('ignores scopeGuard with enabled=false', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        scopeGuard: {
+          enabled: false,
+          boundaryType: 'component',
+          boundarySelector: '.login',
+          rect: { x: 0, y: 0, width: 400, height: 500 },
+        },
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.scopeGuard).toBeUndefined();
+    });
+
+    it('defaults boundaryType to parent for invalid values', () => {
+      const result = normalizeCssDebugPayload({
+        originalStyles: { padding: '8px' },
+        previewStyles: { padding: '16px' },
+        changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+        scopeGuard: {
+          enabled: true,
+          boundaryType: 'invalid',
+          boundarySelector: '.x',
+          rect: { x: 0, y: 0, width: 100, height: 100 },
+        },
+      }, makeSelection());
+
+      expect(result).toBeDefined();
+      expect(result!.scopeGuard!.boundaryType).toBe('parent');
+    });
+  });
 });

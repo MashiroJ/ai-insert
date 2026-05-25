@@ -70,7 +70,7 @@ ${styleClientSource}
 ${runtimeMonitorClientSource({ eventLimit: 20, textLimit: 2000 })}
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || el.id === CSS_DEBUG_MINI_BAR_ID || el.id === CSS_DEBUG_CONTROLS_DRAWER_ID || el.id === CSS_DEBUG_TARGETS_POPOVER_ID || el.id === CSS_DEBUG_SEND_DIALOG_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_MINI_BAR_ID) || el.closest('#' + CSS_DEBUG_CONTROLS_DRAWER_ID) || el.closest('#' + CSS_DEBUG_TARGETS_POPOVER_ID) || el.closest('#' + CSS_DEBUG_SEND_DIALOG_ID))));
   }
 
   function elementFromNode(node) {
@@ -196,6 +196,17 @@ ${selectionClientSource}
     removeCssDebugOverlay();
     document.documentElement.removeAttribute('data-ui-inspect-css-debug');
     removePanel();
+    const miniBar = document.getElementById(CSS_DEBUG_MINI_BAR_ID);
+    if (miniBar) miniBar.remove();
+    const drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
+    if (drawer) {
+      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
+      drawer.remove();
+    }
+    const popover = document.getElementById(CSS_DEBUG_TARGETS_POPOVER_ID);
+    if (popover) popover.remove();
+    const sendDialog = document.getElementById(CSS_DEBUG_SEND_DIALOG_ID);
+    if (sendDialog) sendDialog.remove();
     setEnabled(false);
     activePanelSessionId = null;
     activeSessionData = null;
@@ -813,6 +824,7 @@ ${taskPanelClientSource}
   function applyCssDebugValue(property, value) {
     const target = cssDebugActiveTarget();
     if (!target?.element) return;
+    if (cssDebugSession && cssDebugSession.sent) return;
     const nextValue = String(value || '').trim();
     if (nextValue) target.element.style.setProperty(property, nextValue);
     else target.element.style.removeProperty(property);
@@ -823,12 +835,232 @@ ${taskPanelClientSource}
     target.activeProperties.add(property);
     if (activeElement === target.element) highlightElement(activeElement);
     updateCssDebugOverlay();
+    updateCssDebugMiniBar();
   }
+
+  function resolveCssDebugBoundary(el) {
+    if (!el || !el.getBoundingClientRect) return null;
+    let current = el.parentElement;
+    while (current && current !== document.body) {
+      if (current.hasAttribute && current.hasAttribute('data-component')) {
+        const rect = cssDebugRect(current);
+        if (rect.width > 0 && rect.height > 0) {
+          return {
+            enabled: true,
+            boundaryType: 'component',
+            boundarySelector: selectorFor(current),
+            componentName: current.getAttribute('data-component') || current.tagName.toLowerCase(),
+            rect: rect
+          };
+        }
+      }
+      const tagName = current.tagName.toLowerCase();
+      if (tagName.includes('-')) {
+        const rect = cssDebugRect(current);
+        if (rect.width > 0 && rect.height > 0) {
+          return {
+            enabled: true,
+            boundaryType: 'component',
+            boundarySelector: selectorFor(current),
+            componentName: tagName,
+            rect: rect
+          };
+        }
+      }
+      current = current.parentElement;
+    }
+    current = el.parentElement;
+    while (current && current !== document.body) {
+      const styles = window.getComputedStyle(current);
+      const hasExplicitSize = (styles.width && styles.width !== 'auto' && styles.width !== '') ||
+                             (styles.height && styles.height !== 'auto' && styles.height !== '') ||
+                             styles.position === 'relative' ||
+                             styles.position === 'absolute';
+      if (hasExplicitSize) {
+        const rect = cssDebugRect(current);
+        if (rect.width > 0 && rect.height > 0) {
+          return {
+            enabled: true,
+            boundaryType: 'container',
+            boundarySelector: selectorFor(current),
+            rect: rect
+          };
+        }
+      }
+      current = current.parentElement;
+    }
+    const parent = el.parentElement;
+    if (parent) {
+      const rect = cssDebugRect(parent);
+      if (rect.width > 0 && rect.height > 0) {
+        return {
+          enabled: true,
+          boundaryType: 'parent',
+          boundarySelector: selectorFor(parent),
+          rect: rect
+        };
+      }
+    }
+    return null;
+  }
+
+  function clampRectToBoundary(rect, boundary) {
+    let clamped = false;
+    const clampDelta = { x: 0, y: 0, width: 0, height: 0 };
+    let width = Math.max(1, rect.width);
+    let height = Math.max(1, rect.height);
+    if (width > boundary.width) {
+      width = boundary.width;
+      clampDelta.width = width - rect.width;
+      clamped = true;
+    }
+    if (height > boundary.height) {
+      height = boundary.height;
+      clampDelta.height = height - rect.height;
+      clamped = true;
+    }
+    let x = rect.x;
+    if (x < boundary.x) {
+      x = boundary.x;
+      clampDelta.x = boundary.x - rect.x;
+      clamped = true;
+    }
+    let y = rect.y;
+    if (y < boundary.y) {
+      y = boundary.y;
+      clampDelta.y = boundary.y - rect.y;
+      clamped = true;
+    }
+    var right = x + width;
+    var boundaryRight = boundary.x + boundary.width;
+    if (right > boundaryRight) {
+      x = boundaryRight - width;
+      if (x < boundary.x) x = boundary.x;
+      clampDelta.x = x - rect.x;
+      clamped = true;
+    }
+    var bottom = y + height;
+    var boundaryBottom = boundary.y + boundary.height;
+    if (bottom > boundaryBottom) {
+      y = boundaryBottom - height;
+      if (y < boundary.y) y = boundary.y;
+      clampDelta.y = y - rect.y;
+      clamped = true;
+    }
+    return {
+      clamped: clamped,
+      result: { x: x, y: y, width: width, height: height },
+      clampDelta: clamped ? clampDelta : undefined
+    };
+  }
+
+  function clampMoveInteraction(elementRect, boundary, dx, dy) {
+    const proposedX = elementRect.x + dx;
+    const proposedY = elementRect.y + dy;
+    const clampResult = clampRectToBoundary({
+      x: proposedX,
+      y: proposedY,
+      width: elementRect.width,
+      height: elementRect.height
+    }, boundary);
+    if (clampResult.clamped && clampResult.clampDelta) {
+      return {
+        clamped: true,
+        clampDx: dx + clampResult.clampDelta.x,
+        clampDy: dy + clampResult.clampDelta.y
+      };
+    }
+    return {
+      clamped: false,
+      clampDx: dx,
+      clampDy: dy
+    };
+  }
+
+  function clampResizeInteraction(elementRect, boundary, handle, dx, dy) {
+    const affectsLeft = handle === 'nw' || handle === 'w' || handle === 'sw';
+    const affectsTop = handle === 'nw' || handle === 'n' || handle === 'ne';
+    const affectsRight = handle === 'ne' || handle === 'e' || handle === 'se';
+    const affectsBottom = handle === 'sw' || handle === 's' || handle === 'se';
+    let clamped = false;
+    let resultWidth, resultX, clampDx = dx;
+    if (affectsRight) {
+      resultWidth = elementRect.width + dx;
+      const maxRight = boundary.x + boundary.width;
+      if (elementRect.x + resultWidth > maxRight) {
+        resultWidth = maxRight - elementRect.x;
+        clamped = true;
+      }
+      if (resultWidth < 1) {
+        resultWidth = 1;
+        clamped = true;
+      }
+      clampDx = resultWidth - elementRect.width;
+    } else if (affectsLeft) {
+      const fixedRight = elementRect.x + elementRect.width;
+      let nextX = elementRect.x + dx;
+      if (nextX < boundary.x) { nextX = boundary.x; clamped = true; }
+      if (nextX > fixedRight - 1) { nextX = fixedRight - 1; clamped = true; }
+      const nextWidth = Math.max(1, fixedRight - nextX);
+      resultWidth = nextWidth;
+      resultX = nextX;
+      clampDx = nextX - elementRect.x;
+    } else {
+      resultWidth = elementRect.width;
+    }
+    let resultHeight, resultY, clampDy = dy;
+    if (affectsBottom) {
+      resultHeight = elementRect.height + dy;
+      const maxBottom = boundary.y + boundary.height;
+      if (elementRect.y + resultHeight > maxBottom) {
+        resultHeight = maxBottom - elementRect.y;
+        clamped = true;
+      }
+      if (resultHeight < 1) {
+        resultHeight = 1;
+        clamped = true;
+      }
+      clampDy = resultHeight - elementRect.height;
+    } else if (affectsTop) {
+      const fixedBottom = elementRect.y + elementRect.height;
+      let nextY = elementRect.y + dy;
+      if (nextY < boundary.y) { nextY = boundary.y; clamped = true; }
+      if (nextY > fixedBottom - 1) { nextY = fixedBottom - 1; clamped = true; }
+      const nextHeight = Math.max(1, fixedBottom - nextY);
+      resultHeight = nextHeight;
+      resultY = nextY;
+      clampDy = nextY - elementRect.y;
+    } else {
+      resultHeight = elementRect.height;
+    }
+    return {
+      clamped: clamped,
+      clampDx: clampDx,
+      clampDy: clampDy,
+      resultWidth: resultWidth,
+      resultHeight: resultHeight,
+      resultX: affectsLeft ? resultX : undefined,
+      resultY: affectsTop ? resultY : undefined
+    };
+  }
+
 
   function beginCssDebugInteraction(event) {
     const target = cssDebugActiveTarget();
     if (!target?.element) return;
+    if (cssDebugSession && cssDebugSession.sent) return;
     const handle = event.currentTarget?.getAttribute?.('data-css-debug-handle') || 'move';
+
+    // Resolve scope guard boundary
+    const scopeGuard = resolveCssDebugBoundary(target.element);
+    target.scopeGuard = scopeGuard;
+
+    // Disable move handle if no boundary found (cannot clamp reliably)
+    if (handle === 'move' && !scopeGuard) {
+      showToast('未找到可靠边界，禁止自由拖动。请使用控制面板调整。', 'failed');
+      return;
+    }
+
     const rect = cssDebugRect(target.element);
     const inlineTransform = target.element.style.getPropertyValue('transform') || '';
     const translate = cssDebugTranslateFromTransform(inlineTransform);
@@ -843,7 +1075,8 @@ ${taskPanelClientSource}
       translateX: translate.x,
       translateY: translate.y,
       lastDx: 0,
-      lastDy: 0
+      lastDy: 0,
+      scopeGuard: scopeGuard
     };
     try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch {}
     document.addEventListener('pointermove', moveCssDebugInteraction, true);
@@ -865,53 +1098,107 @@ ${taskPanelClientSource}
     const affectsTop = h === 'nw' || h === 'n' || h === 'ne';
     const affectsRight = h === 'ne' || h === 'e' || h === 'se';
     const affectsBottom = h === 'sw' || h === 's' || h === 'se';
+
+    // Apply scope guard clamp if available
+    let effectiveDx = dx;
+    let effectiveDy = dy;
+    let clamped = false;
+
+    if (drag.scopeGuard && drag.scopeGuard.enabled) {
+      if (h === 'move') {
+        const clampResult = clampMoveInteraction(drag.rectBefore, drag.scopeGuard.rect, dx, dy);
+        effectiveDx = clampResult.clampDx;
+        effectiveDy = clampResult.clampDy;
+        clamped = clampResult.clamped;
+        if (clamped) {
+          drag.clamped = true;
+          drag.clampDelta = { x: clampResult.clampDx - dx, y: clampResult.clampDy - dy, width: 0, height: 0 };
+          const t = cssDebugActiveTarget();
+          if (t?.scopeGuard) t.scopeGuard.clamped = true;
+        }
+      } else {
+        const clampResult = clampResizeInteraction(drag.rectBefore, drag.scopeGuard.rect, h, dx, dy);
+        effectiveDx = clampResult.clampDx;
+        effectiveDy = clampResult.clampDy;
+        clamped = clampResult.clamped;
+        drag.clampResult = clampResult;
+        if (clamped) {
+          drag.clamped = true;
+          drag.clampDelta = { x: clampResult.clampDx - dx, y: clampResult.clampDy - dy, width: clampResult.resultWidth - (drag.width + dx), height: clampResult.resultHeight - (drag.height + dy) };
+          const t = cssDebugActiveTarget();
+          if (t?.scopeGuard) t.scopeGuard.clamped = true;
+        }
+      }
+    }
+
     if (h === 'move') {
-      const transform = cssDebugPreviewTransform(drag.transformBase, drag.translateX + dx, drag.translateY + dy);
+      const transform = cssDebugPreviewTransform(drag.transformBase, drag.translateX + effectiveDx, drag.translateY + effectiveDy);
       applyCssDebugValue('transform', transform);
-      moveCssDebugOverlayPreview(drag.rectBefore, dx, dy);
+      moveCssDebugOverlayPreview(drag.rectBefore, effectiveDx, effectiveDy);
+      if (clamped && !drag.clampShown) {
+        showToast('已限制在当前组件内，跨组件移动需要修改源码结构。', 'rest');
+        drag.clampShown = true;
+      }
     } else {
-      let nextWidth = drag.width;
-      let nextHeight = drag.height;
-      let effectiveDx = 0;
-      let effectiveDy = 0;
-      let translateX = drag.translateX;
-      let translateY = drag.translateY;
-      if (affectsRight) {
-        nextWidth = Math.max(1, Math.round(drag.width + dx));
+      const cr = drag.clampResult;
+      let nextWidth, nextHeight, translateX, translateY, previewDx, previewDy;
+      if (cr) {
+        nextWidth = Math.max(1, Math.round(cr.resultWidth));
+        nextHeight = Math.max(1, Math.round(cr.resultHeight));
+        translateX = drag.translateX;
+        translateY = drag.translateY;
+        if (affectsLeft) {
+          translateX = drag.translateX + cr.clampDx;
+          previewDx = cr.clampDx;
+        } else {
+          previewDx = 0;
+        }
+        if (affectsTop) {
+          translateY = drag.translateY + cr.clampDy;
+          previewDy = cr.clampDy;
+        } else {
+          previewDy = 0;
+        }
+      } else {
+        nextWidth = drag.width;
+        nextHeight = drag.height;
+        previewDx = 0;
+        previewDy = 0;
+        translateX = drag.translateX;
+        translateY = drag.translateY;
+        if (affectsRight) {
+          nextWidth = Math.max(1, Math.round(drag.width + dx));
+        }
+        if (affectsLeft) {
+          const maxDx = drag.width - 1;
+          previewDx = Math.min(dx, maxDx);
+          nextWidth = Math.max(1, Math.round(drag.width - previewDx));
+          translateX = drag.translateX + previewDx;
+        }
+        if (affectsBottom) {
+          nextHeight = Math.max(1, Math.round(drag.height + dy));
+        }
+        if (affectsTop) {
+          const maxDy = drag.height - 1;
+          previewDy = Math.min(dy, maxDy);
+          nextHeight = Math.max(1, Math.round(drag.height - previewDy));
+          translateY = drag.translateY + previewDy;
+        }
+      }
+      if (affectsRight || affectsLeft) {
         const value = nextWidth + 'px';
         applyCssDebugValue('width', value);
         syncCssDebugControl(panel, 'width', value);
       }
-      if (affectsLeft) {
-        const maxDx = drag.width - 1;
-        effectiveDx = Math.min(dx, maxDx);
-        nextWidth = Math.max(1, Math.round(drag.width - effectiveDx));
-        const value = nextWidth + 'px';
-        applyCssDebugValue('width', value);
-        syncCssDebugControl(panel, 'width', value);
-        translateX = drag.translateX + effectiveDx;
-      }
-      if (affectsBottom) {
-        nextHeight = Math.max(1, Math.round(drag.height + dy));
+      if (affectsBottom || affectsTop) {
         const value = nextHeight + 'px';
         applyCssDebugValue('height', value);
         syncCssDebugControl(panel, 'height', value);
-      }
-      if (affectsTop) {
-        const maxDy = drag.height - 1;
-        effectiveDy = Math.min(dy, maxDy);
-        nextHeight = Math.max(1, Math.round(drag.height - effectiveDy));
-        const value = nextHeight + 'px';
-        applyCssDebugValue('height', value);
-        syncCssDebugControl(panel, 'height', value);
-        translateY = drag.translateY + effectiveDy;
       }
       if (affectsLeft || affectsTop) {
         const transform = cssDebugPreviewTransform(drag.transformBase, translateX, translateY);
         applyCssDebugValue('transform', transform);
       }
-      const previewDx = affectsLeft ? effectiveDx : 0;
-      const previewDy = affectsTop ? effectiveDy : 0;
       moveCssDebugOverlayPreview(drag.rectBefore, previewDx, previewDy, nextWidth, nextHeight);
     }
     if (panel) {
@@ -945,12 +1232,16 @@ ${taskPanelClientSource}
       rectAfter,
       delta,
       strategy: drag.handle === 'move' || drag.handle === 'nw' || drag.handle === 'w' || drag.handle === 'sw' || drag.handle === 'n' || drag.handle === 'ne' ? 'transform-preview' : 'inline-style',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      clamped: drag.clamped || undefined,
+      clampDelta: drag.clampDelta || undefined,
+      scopeGuard: drag.scopeGuard || undefined,
     };
     target.interactions = [...(target.interactions || []), interaction].slice(-8);
     target.primaryInteraction = interaction;
     const panel = cssDebugPanel();
     if (panel) renderCssDebugControls(panel);
+    updateCssDebugMiniBar();
   }
 
   function endCssDebugInteraction() {
@@ -1229,6 +1520,7 @@ ${taskPanelClientSource}
         interactions: target.interactions || [],
         primaryInteraction: target.primaryInteraction || null,
         sourceHints: target.selection.sourceHints,
+        scopeGuard: target.scopeGuard || undefined,
       });
     }
     if (!changedTargets.length) return null;
@@ -1254,6 +1546,7 @@ ${taskPanelClientSource}
       layoutContext: cssDebugLayoutContextFor(primaryTarget),
       interactions: primaryTarget.interactions || [],
       primaryInteraction: primaryTarget.primaryInteraction || null,
+      scopeGuard: primaryTarget.scopeGuard || undefined,
       batch: true,
       primaryTargetId: primaryTarget.id,
       changedTargetCount: changedTargets.length,
@@ -1319,14 +1612,7 @@ ${taskPanelClientSource}
       cssDebugSession.activeTargetId = stableKey;
       activeElement = existingTarget.element;
       highlightElement(existingTarget.element);
-      const panel = cssDebugPanel();
-      if (panel) {
-        const targetEl = panel.querySelector('.ui-inspect-target');
-        if (targetEl) targetEl.textContent = describeSelection(existingTarget.selection);
-        renderCssDebugControls(panel);
-        placePanel(panel);
-      }
-      renderCssDebugTargetList();
+      updateCssDebugMiniBar();
       updateCssDebugOverlay();
       return;
     }
@@ -1367,168 +1653,345 @@ ${taskPanelClientSource}
     highlightElement(element);
     document.documentElement.setAttribute('data-ui-inspect-css-debug', 'true');
     if (isNewSession) {
-      const panel = document.createElement('div');
-      panel.id = PANEL_ID;
-      panel.dataset.mode = 'css-debug';
-      panel.innerHTML = [
-        '<div class="ui-inspect-head"><div class="ui-inspect-title">Diana · CSS 调试</div><button type="button" class="ui-inspect-close" data-action="close" aria-label="关闭">×</button></div>',
-        '<div class="ui-inspect-status">预览中 · 不会写入源码</div>',
-        '<div class="ui-inspect-css-target-list"></div>',
-        '<div class="ui-inspect-target">' + escapeHtml(describeSelection(selection)) + '</div>',
-        '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-box-model" aria-pressed="false">盒模型</button><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
-        '<div class="ui-inspect-css-groups"></div>',
-        '<div class="ui-inspect-css-diff"></div>',
-        '<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>',
-        '<div class="ui-inspect-messages" aria-live="polite"></div>',
-        '<label class="ui-inspect-field-label" for="ui-inspect-css-note">补充说明，可选</label>',
-        '<textarea id="ui-inspect-css-note" placeholder="例如：保持按钮高度不变，只让视觉更柔和"></textarea>',
-        '<div class="ui-inspect-actions">',
-          '<div class="ui-inspect-actions-left"><button type="button" data-action="reset-css">Reset</button><button type="button" data-action="reset-all-css">Reset 全部</button></div>',
-          '<div class="ui-inspect-actions-right"><button type="button" data-action="select">添加元素</button><button type="button" data-primary="true" data-action="send">发送 CSS diff</button></div>',
-        '</div>'
-      ].join('');
-      document.body.appendChild(panel);
-      placePanel(panel);
-      makePanelDraggable(panel);
-      ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
-        panel.addEventListener(type, (event) => event.stopPropagation());
-      });
-      function handleCssDebugKeydown(event) {
-        const target = cssDebugActiveTarget();
-        if (!target?.element) return;
-        if (cssDebugPanel()?.dataset?.sent === 'true') return;
-        if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT')) return;
-        const el = target.element;
-        const sideMap = { ArrowUp: 'top', ArrowDown: 'bottom', ArrowLeft: 'left', ArrowRight: 'right' };
-        const side = sideMap[event.key];
-        if (!side) return;
-        const isNegative = event.key === 'ArrowUp' || event.key === 'ArrowLeft';
-        const delta = isNegative ? -1 : 1;
-        if (event.shiftKey && !event.altKey) {
-          event.preventDefault();
-          const prop = 'margin-' + side;
-          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
-          const next = current + delta;
-          applyCssDebugValue(prop, next + 'px');
-          syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
-        } else if (event.altKey && !event.shiftKey) {
-          event.preventDefault();
-          const prop = 'padding-' + side;
-          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
-          const next = Math.max(0, current + delta);
-          applyCssDebugValue(prop, next + 'px');
-          syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
-        } else if (event.shiftKey && event.altKey) {
-          event.preventDefault();
-          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-            const prop = 'font-size';
-            const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 16;
-            const next = Math.max(8, current + delta);
-            applyCssDebugValue(prop, next + 'px');
-            syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
-          } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            const prop = 'letter-spacing';
-            const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
-            const next = current + delta * 0.5;
-            applyCssDebugValue(prop, next + 'px');
-            syncCssDebugControl(cssDebugPanel(), prop, next + 'px');
-          }
-        } else {
-          return;
-        }
-        const panel = cssDebugPanel();
-        if (panel) {
-          renderCssDebugDiff(panel);
-          updateCssDebugOverlay();
-        }
-      }
-      document.addEventListener('keydown', handleCssDebugKeydown, true);
-      panel.addEventListener('ui-inspect-cleanup', () => {
-        document.removeEventListener('keydown', handleCssDebugKeydown, true);
-      });
-      const textarea = panel.querySelector('textarea');
-      panel.querySelector('[data-action="close"]').addEventListener('click', () => closeDebugPanel());
-      panel.querySelector('[data-action="reset-css"]').addEventListener('click', () => {
-        resetCssDebugPreview();
-        renderCssDebugControls(panel);
-        placePanel(panel);
-        updateCssDebugOverlay();
-        showToast('已恢复当前元素进入调试前的 inline style。', 'idle');
-      });
-      panel.querySelector('[data-action="reset-all-css"]').addEventListener('click', () => {
-        resetAllCssDebugTargets();
-        removeCssDebugOverlay();
-        document.documentElement.removeAttribute('data-ui-inspect-css-debug');
-        removePanel();
-        cssDebugSession = null;
-        selectionMode = 'css-debug';
-        setEnabled(true);
-        showToast('已恢复全部元素的 inline style，重新开始选择。', 'idle');
-      });
-      panel.querySelector('[data-action="toggle-box-model"]').addEventListener('click', () => {
-        const target = cssDebugActiveTarget();
-        if (!target) return;
-        target.showBoxModel = !target.showBoxModel;
-        const btn = panel.querySelector('[data-action="toggle-box-model"]');
-        if (btn) btn.setAttribute('aria-pressed', target.showBoxModel ? 'true' : 'false');
-        if (btn) btn.style.borderColor = target.showBoxModel ? '#60a5fa' : '';
-        if (btn) btn.style.background = target.showBoxModel ? 'rgba(37, 99, 235, 0.28)' : '';
-        updateCssDebugOverlay();
-      });
-      panel.querySelector('[data-action="toggle-changed-only"]').addEventListener('click', () => {
-        const target = cssDebugActiveTarget();
-        if (!target) return;
-        target.changedOnly = !target.changedOnly;
-        renderCssDebugControls(panel);
-        placePanel(panel);
-      });
-      panel.querySelector('[data-action="select"]').addEventListener('click', () => {
-        selectionMode = 'css-debug';
-        removeCssDebugOverlay();
-        setEnabled(true);
-        showToast('点击页面元素添加到当前 CSS 调试会话。', 'scan');
-      });
-      panel.querySelector('[data-action="send"]').addEventListener('click', () => {
-        const payload = makeCssDebugPayload(textarea?.value.trim() || '');
-        const targetEl = panel.querySelector('.ui-inspect-target');
-        if (!payload) {
-          if (targetEl) targetEl.textContent = '请先选择一个元素。';
-          return;
-        }
-        if (!payload.cssDebug.changedTargetCount) {
-          if (targetEl) targetEl.textContent = '还没有样式改动，先调整一个属性再发送。';
-          return;
-        }
-        submitPayload(payload).then(() => {
-          const statusEl = panel.querySelector('.ui-inspect-status');
-          if (statusEl) statusEl.textContent = statusText('sent') + ' · CSS diff 已发送（' + payload.cssDebug.changedTargetCount + ' 个元素）';
-          panel.dataset.sent = 'true';
-          Array.from(panel.querySelectorAll('input, select, textarea, button')).forEach((control) => {
-            if (!control.matches('[data-action="close"]')) control.disabled = true;
-          });
-          setEnabled(false);
-          removeCssDebugOverlay();
-        }).catch((err) => {
-          setDianaState('failed', 2200);
-          if (targetEl) targetEl.textContent = friendlyError(err, 'send');
-        });
-      });
-      textarea.focus();
+      renderCssDebugMiniBar();
     } else {
-      const panel = cssDebugPanel();
-      if (panel) {
-        const targetEl = panel.querySelector('.ui-inspect-target');
-        if (targetEl) targetEl.textContent = describeSelection(selection);
-        renderCssDebugControls(panel);
-        placePanel(panel);
+      updateCssDebugMiniBar();
+    }
+    updateCssDebugOverlay();
+  }
+
+  const CSS_DEBUG_MINI_BAR_ID = 'ui-inspect-css-minibar';
+  const CSS_DEBUG_CONTROLS_DRAWER_ID = 'ui-inspect-css-controls';
+  const CSS_DEBUG_TARGETS_POPOVER_ID = 'ui-inspect-css-targets';
+  const CSS_DEBUG_SEND_DIALOG_ID = 'ui-inspect-css-send';
+
+  function cssDebugMiniBar() {
+    return document.getElementById(CSS_DEBUG_MINI_BAR_ID);
+  }
+
+  function cssDebugChangedCount() {
+    if (!cssDebugSession) return 0;
+    let count = 0;
+    for (const target of cssDebugSession.targets.values()) {
+      if (Object.keys(target.previewStyles).length > 0) count++;
+    }
+    return count;
+  }
+
+  function updateCssDebugMiniBar() {
+    const bar = cssDebugMiniBar();
+    if (!bar) return;
+    const desc = cssDebugActiveTarget() ? describeSelection(cssDebugActiveTarget().selection) : '';
+    const changed = cssDebugChangedCount();
+    const targets = cssDebugSession ? cssDebugSession.targets.size : 0;
+    const sent = cssDebugSession && cssDebugSession.sent;
+    const label = bar.querySelector('.ui-inspect-css-mini-label');
+    if (label) {
+      if (sent) {
+        label.textContent = 'CSS 调试 · 已发送 · ' + changed + ' changed';
+      } else if (targets > 1) {
+        label.textContent = 'CSS 调试 · ' + targets + ' targets · ' + changed + ' changed';
+      } else {
+        label.textContent = 'CSS 调试 · ' + desc + ' · ' + changed + ' changed';
       }
     }
-    renderCssDebugTargetList();
-    updateCssDebugOverlay();
-    if (cssDebugPanel()) {
-      renderCssDebugControls(cssDebugPanel());
-      placePanel(cssDebugPanel());
+    const sendBtn = bar.querySelector('[data-mini-action="send"]');
+    const controlsBtn = bar.querySelector('[data-mini-action="controls"]');
+    if (sendBtn) {
+      sendBtn.disabled = !!sent;
+      sendBtn.textContent = sent ? '已发送' : '发送';
     }
+    if (controlsBtn) {
+      controlsBtn.disabled = !!sent;
+    }
+  }
+
+  function renderCssDebugMiniBar() {
+    let bar = cssDebugMiniBar();
+    if (bar) {
+      updateCssDebugMiniBar();
+      return;
+    }
+    bar = document.createElement('div');
+    bar.id = CSS_DEBUG_MINI_BAR_ID;
+    bar.innerHTML = [
+      '<span class="ui-inspect-css-mini-label">CSS 调试 · 0 changed</span>',
+      '<div class="ui-inspect-css-mini-actions">',
+        '<button type="button" data-mini-action="send" aria-label="发送">发送</button>',
+        '<button type="button" data-mini-action="targets" aria-label="目标">目标</button>',
+        '<button type="button" data-mini-action="controls" aria-label="控制">控制</button>',
+        '<button type="button" data-mini-action="close" aria-label="关闭">×</button>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(bar);
+
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      bar.addEventListener(type, (event) => event.stopPropagation());
+    });
+
+    bar.querySelector('[data-mini-action="close"]').addEventListener('click', () => closeDebugPanel());
+    bar.querySelector('[data-mini-action="send"]').addEventListener('click', () => openCssDebugSendDialog());
+    bar.querySelector('[data-mini-action="targets"]').addEventListener('click', () => toggleCssDebugTargetsPopover());
+    bar.querySelector('[data-mini-action="controls"]').addEventListener('click', () => toggleCssDebugControlsDrawer());
+
+    updateCssDebugMiniBar();
+  }
+
+  function toggleCssDebugControlsDrawer() {
+    if (cssDebugSession && cssDebugSession.sent) {
+      showToast('CSS diff 已发送，无法再修改。', 'idle');
+      return;
+    }
+    let drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
+    if (drawer) {
+      const cleanup = drawer._cssDebugKeydownHandler;
+      if (cleanup) document.removeEventListener('keydown', cleanup, true);
+      drawer.remove();
+      return;
+    }
+    drawer = document.createElement('div');
+    drawer.id = CSS_DEBUG_CONTROLS_DRAWER_ID;
+    drawer.innerHTML = [
+      '<div class="ui-inspect-drawer-head">',
+        '<span>控制面板</span>',
+        '<button type="button" data-drawer-action="close" aria-label="关闭">×</button>',
+      '</div>',
+      '<div class="ui-inspect-css-toolbar"><button type="button" data-action="toggle-box-model" aria-pressed="false">盒模型</button><button type="button" data-action="toggle-changed-only" aria-pressed="false">只看已改</button></div>',
+      '<div class="ui-inspect-css-groups"></div>',
+      '<div class="ui-inspect-css-diff"></div>',
+      '<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>',
+      '<div class="ui-inspect-drawer-footer">',
+        '<button type="button" data-action="reset-css">Reset 当前</button>',
+        '<button type="button" data-action="reset-all-css">Reset 全部</button>',
+        '<button type="button" data-action="select">添加元素</button>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(drawer);
+
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      drawer.addEventListener(type, (event) => event.stopPropagation());
+    });
+
+    drawer.querySelector('[data-drawer-action="close"]').addEventListener('click', () => {
+      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
+      drawer.remove();
+    });
+
+    function handleCssDebugKeydown(event) {
+      const target = cssDebugActiveTarget();
+      if (!target?.element) return;
+      if (!cssDebugSession || cssDebugSession.sent) return;
+      if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT')) return;
+      const el = target.element;
+      const sideMap = { ArrowUp: 'top', ArrowDown: 'bottom', ArrowLeft: 'left', ArrowRight: 'right' };
+      const side = sideMap[event.key];
+      if (!side) return;
+      const isNegative = event.key === 'ArrowUp' || event.key === 'ArrowLeft';
+      const delta = isNegative ? -1 : 1;
+      if (event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        const prop = 'margin-' + side;
+        const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+        const next = current + delta;
+        applyCssDebugValue(prop, next + 'px');
+        syncCssDebugControl(null, prop, next + 'px');
+      } else if (event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        const prop = 'padding-' + side;
+        const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+        const next = Math.max(0, current + delta);
+        applyCssDebugValue(prop, next + 'px');
+        syncCssDebugControl(null, prop, next + 'px');
+      } else if (event.shiftKey && event.altKey) {
+        event.preventDefault();
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          const prop = 'font-size';
+          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 16;
+          const next = Math.max(8, current + delta);
+          applyCssDebugValue(prop, next + 'px');
+          syncCssDebugControl(null, prop, next + 'px');
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          const prop = 'letter-spacing';
+          const current = parseFloat(cssDebugComputedStyles(el)[prop]) || 0;
+          const next = current + delta * 0.5;
+          applyCssDebugValue(prop, next + 'px');
+          syncCssDebugControl(null, prop, next + 'px');
+        }
+      } else {
+        return;
+      }
+      updateCssDebugOverlay();
+    }
+    document.addEventListener('keydown', handleCssDebugKeydown, true);
+    drawer._cssDebugKeydownHandler = handleCssDebugKeydown;
+
+    drawer.querySelector('[data-action="reset-css"]').addEventListener('click', () => {
+      if (cssDebugSession && cssDebugSession.sent) {
+        showToast('CSS diff 已发送，无法再修改。', 'idle');
+        return;
+      }
+      resetCssDebugPreview();
+      updateCssDebugOverlay();
+      showToast('已恢复当前元素的 inline style。', 'idle');
+    });
+    drawer.querySelector('[data-action="reset-all-css"]').addEventListener('click', () => {
+      if (cssDebugSession && cssDebugSession.sent) {
+        showToast('CSS diff 已发送，无法再修改。', 'idle');
+        return;
+      }
+      resetAllCssDebugTargets();
+      removeCssDebugOverlay();
+      document.documentElement.removeAttribute('data-ui-inspect-css-debug');
+      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
+      drawer.remove();
+      const bar = cssDebugMiniBar();
+      if (bar) bar.remove();
+      cssDebugSession = null;
+      selectionMode = 'css-debug';
+      setEnabled(true);
+      showToast('已恢复全部元素的 inline style，重新开始选择。', 'idle');
+    });
+    drawer.querySelector('[data-action="select"]').addEventListener('click', () => {
+      selectionMode = 'css-debug';
+      removeCssDebugOverlay();
+      setEnabled(true);
+      showToast('点击页面元素添加到当前 CSS 调试会话。', 'scan');
+    });
+    drawer.querySelector('[data-action="toggle-box-model"]').addEventListener('click', () => {
+      const target = cssDebugActiveTarget();
+      if (!target) return;
+      target.showBoxModel = !target.showBoxModel;
+      const btn = drawer.querySelector('[data-action="toggle-box-model"]');
+      if (btn) btn.setAttribute('aria-pressed', target.showBoxModel ? 'true' : 'false');
+      updateCssDebugOverlay();
+    });
+    drawer.querySelector('[data-action="toggle-changed-only"]').addEventListener('click', () => {
+      const target = cssDebugActiveTarget();
+      if (!target) return;
+      target.changedOnly = !target.changedOnly;
+      renderCssDebugControls(drawer);
+    });
+
+    const drawerPanel = { dataset: {}, querySelector: (sel) => drawer.querySelector(sel), querySelectorAll: (sel) => drawer.querySelectorAll(sel) };
+    renderCssDebugControls(drawerPanel);
+    renderCssDebugDiff(drawerPanel);
+    renderCssDebugInteraction(drawerPanel);
+  }
+
+  function toggleCssDebugTargetsPopover() {
+    let popover = document.getElementById(CSS_DEBUG_TARGETS_POPOVER_ID);
+    if (popover) {
+      popover.remove();
+      return;
+    }
+    popover = document.createElement('div');
+    popover.id = CSS_DEBUG_TARGETS_POPOVER_ID;
+    popover.innerHTML = '<div class="ui-inspect-popover-head"><span>目标列表</span><button type="button" data-popover-action="close" aria-label="关闭">×</button></div><div class="ui-inspect-popover-list"></div>';
+    document.body.appendChild(popover);
+
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      popover.addEventListener(type, (event) => event.stopPropagation());
+    });
+
+    popover.querySelector('[data-popover-action="close"]').addEventListener('click', () => popover.remove());
+    renderCssDebugTargetListInto(popover.querySelector('.ui-inspect-popover-list'));
+  }
+
+  function renderCssDebugTargetListInto(container) {
+    if (!container || !cssDebugSession) return;
+    container.innerHTML = '';
+    let index = 0;
+    for (const [key, target] of cssDebugSession.targets) {
+      index++;
+      const hasChanged = Object.keys(target.previewStyles).length > 0;
+      const isActive = key === cssDebugSession.activeTargetId;
+      const desc = describeSelection(target.selection);
+      const changedProps = Object.keys(target.previewStyles).join(', ') || '';
+      const item = document.createElement('div');
+      item.className = 'ui-inspect-target-item' + (isActive ? ' ui-inspect-target-active' : '') + (hasChanged ? '' : ' ui-inspect-target-unchanged');
+      item.innerHTML = '<div class="ui-inspect-target-index">' + index + '</div><div class="ui-inspect-target-desc">' + escapeHtml(desc) + (changedProps ? '<span class="ui-inspect-target-props">changed: ' + escapeHtml(changedProps) + '</span>' : '') + '</div>';
+      item.addEventListener('click', () => {
+        cssDebugSession.activeTargetId = key;
+        activeElement = target.element;
+        highlightElement(target.element);
+        updateCssDebugMiniBar();
+        updateCssDebugOverlay();
+        const drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
+        if (drawer) {
+          const drawerPanel = { dataset: {}, querySelector: (sel) => drawer.querySelector(sel), querySelectorAll: (sel) => drawer.querySelectorAll(sel) };
+          renderCssDebugControls(drawerPanel);
+        }
+        renderCssDebugTargetListInto(container);
+      });
+      container.appendChild(item);
+    }
+    if (index === 0) {
+      container.innerHTML = '<div class="ui-inspect-target-empty">暂无目标</div>';
+    }
+  }
+
+  function openCssDebugSendDialog() {
+    if (cssDebugSession && cssDebugSession.sent) {
+      showToast('CSS diff 已发送，不能重复发送。', 'idle');
+      return;
+    }
+    let dialog = document.getElementById(CSS_DEBUG_SEND_DIALOG_ID);
+    if (dialog) {
+      dialog.remove();
+      return;
+    }
+    const changed = cssDebugChangedCount();
+    dialog = document.createElement('div');
+    dialog.id = CSS_DEBUG_SEND_DIALOG_ID;
+    dialog.innerHTML = [
+      '<div class="ui-inspect-send-head"><span>发送 CSS diff</span><button type="button" data-send-action="close" aria-label="关闭">×</button></div>',
+      '<div class="ui-inspect-send-status">' + changed + ' 个元素有改动</div>',
+      '<label class="ui-inspect-field-label" for="ui-inspect-css-note-dialog">补充说明，可选</label>',
+      '<textarea id="ui-inspect-css-note-dialog" placeholder="例如：保持按钮高度不变，只让视觉更柔和"></textarea>',
+      '<div class="ui-inspect-send-actions">',
+        '<button type="button" data-send-action="cancel">取消</button>',
+        '<button type="button" data-send-action="confirm" data-primary="true">发送 CSS diff</button>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(dialog);
+
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      dialog.addEventListener(type, (event) => event.stopPropagation());
+    });
+
+    dialog.querySelector('[data-send-action="close"]').addEventListener('click', () => dialog.remove());
+    dialog.querySelector('[data-send-action="cancel"]').addEventListener('click', () => dialog.remove());
+    dialog.querySelector('[data-send-action="confirm"]').addEventListener('click', () => {
+      const textarea = dialog.querySelector('textarea');
+      const payload = makeCssDebugPayload(textarea?.value.trim() || '');
+      if (!payload) {
+        showToast('请先选择一个元素。', 'failed');
+        return;
+      }
+      if (!payload.cssDebug.changedTargetCount) {
+        showToast('还没有样式改动，先调整一个属性再发送。', 'failed');
+        return;
+      }
+      submitPayload(payload).then(() => {
+        if (cssDebugSession) cssDebugSession.sent = true;
+        dialog.remove();
+        updateCssDebugMiniBar();
+        setEnabled(false);
+        removeCssDebugOverlay();
+        const sentDrawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
+        if (sentDrawer) {
+          if (sentDrawer._cssDebugKeydownHandler) document.removeEventListener('keydown', sentDrawer._cssDebugKeydownHandler, true);
+          sentDrawer.remove();
+        }
+        showToast('CSS diff 已发送（' + payload.cssDebug.changedTargetCount + ' 个元素）', 'sent');
+      }).catch((err) => {
+        setDianaState('failed', 2200);
+        showToast(friendlyError(err, 'send'), 'failed');
+      });
+    });
+
+    const textarea = dialog.querySelector('textarea');
+    if (textarea) textarea.focus();
   }
 
   function renderCssDebugTargetList() {

@@ -97,10 +97,19 @@ describe('clientSource CSS debug features', () => {
 
   it('renders assistant messages in the CSS debug panel after send', () => {
     const interactionIndex = src.indexOf('<div class="ui-inspect-css-interaction"><b>拖拽记录</b><span>暂无</span></div>');
-    const cssNoteIndex = src.indexOf('<label class="ui-inspect-field-label" for="ui-inspect-css-note">');
-    const messagesIndex = src.indexOf('<div class="ui-inspect-messages" aria-live="polite"></div>', interactionIndex);
+    const cssNoteIndex = src.indexOf('<label class="ui-inspect-field-label" for="ui-inspect-css-note-dialog">');
+    const messagesIndex = src.indexOf('<div class="ui-inspect-messages" aria-live="polite"></div>');
     expect(interactionIndex).toBeGreaterThan(-1);
-    expect(messagesIndex).toBeGreaterThan(interactionIndex);
-    expect(messagesIndex).toBeLessThan(cssNoteIndex);
+    expect(messagesIndex).toBeGreaterThan(-1);
+    expect(cssNoteIndex).toBeGreaterThan(-1);
+  });
+
+  it('keeps injected CSS debug clamp and sent-lock guards in sync', () => {
+    expect(src).toContain('const fixedRight = elementRect.x + elementRect.width;');
+    expect(src).toContain('const fixedBottom = elementRect.y + elementRect.height;');
+    expect(src).toContain('clampDx = resultWidth - elementRect.width;');
+    expect(src).toContain('clampDy = resultHeight - elementRect.height;');
+    expect(src).toContain('CSS diff 已发送，无法再修改');
+    expect(src).toContain('CSS diff 已发送，不能重复发送');
   });
 });

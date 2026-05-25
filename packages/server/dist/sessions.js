@@ -135,6 +135,7 @@ export function normalizeCssDebugPayload(value, fallback) {
         note: typeof value.note === 'string' ? value.note : selection.note,
         sourceHints: Array.isArray(value.sourceHints) ? value.sourceHints : selection.sourceHints,
         styleSourceHints: normalizeStyleSourceHints(value.styleSourceHints),
+        scopeGuard: normalizeScopeGuard(value.scopeGuard),
         session: normalizeCssDebugSessionInfo(value.session, selection),
     };
 }
@@ -162,6 +163,7 @@ function normalizeCssDebugTargets(value, fallback) {
             styleSourceHints: normalizeStyleSourceHints(input.styleSourceHints),
             layoutHints: Array.isArray(input.layoutHints) ? input.layoutHints : undefined,
             specificityWarnings: Array.isArray(input.specificityWarnings) ? input.specificityWarnings : undefined,
+            scopeGuard: normalizeScopeGuard(input.scopeGuard),
         };
     }).filter((target) => Object.keys(target.changedStyles).length > 0);
 }
@@ -265,6 +267,9 @@ function normalizeCssDebugInteraction(value) {
         delta: normalizeRect(value.delta),
         strategy: value.strategy === 'transform-preview' ? 'transform-preview' : 'inline-style',
         timestamp: numberOr(value.timestamp, Date.now()),
+        clamped: typeof value.clamped === 'boolean' ? value.clamped : undefined,
+        clampDelta: isRecord(value.clampDelta) ? normalizeRect(value.clampDelta) : undefined,
+        scopeGuard: normalizeScopeGuard(value.scopeGuard),
     };
 }
 function normalizeCssDebugInteractionType(value) {
@@ -285,6 +290,26 @@ function normalizeRect(value) {
         y: numberOr(input.y, 0),
         width: numberOr(input.width, 0),
         height: numberOr(input.height, 0),
+    };
+}
+function normalizeScopeGuard(value) {
+    if (!isRecord(value))
+        return undefined;
+    const enabled = typeof value.enabled === 'boolean' ? value.enabled : false;
+    if (!enabled)
+        return undefined;
+    const boundaryType = value.boundaryType === 'component' || value.boundaryType === 'container' || value.boundaryType === 'parent'
+        ? value.boundaryType
+        : 'parent';
+    return {
+        enabled,
+        boundaryType,
+        boundarySelector: stringOr(value.boundarySelector, ''),
+        componentName: typeof value.componentName === 'string' ? value.componentName : undefined,
+        sourceFile: typeof value.sourceFile === 'string' ? value.sourceFile : undefined,
+        rect: normalizeRect(value.rect),
+        clamped: typeof value.clamped === 'boolean' ? value.clamped : undefined,
+        clampReason: typeof value.clampReason === 'string' ? value.clampReason : undefined,
     };
 }
 function rectSizeChanged(before, after) {

@@ -1082,6 +1082,154 @@ describe('compactFrontendRequestResult', () => {
     expect(compact.cssDebugSummary).toContain('src/views/Login.vue');
     expect(compact.cssDebugSummary).toContain('confidence=0.9');
   });
+
+  it('includes scopeGuard in compact css debug response', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'move button', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+          scopeGuard: {
+            enabled: true,
+            boundaryType: 'component',
+            boundarySelector: '.login-form',
+            componentName: 'LoginForm',
+            rect: { x: 0, y: 0, width: 400, height: 500 },
+            clamped: false,
+          },
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+
+    expect(cssDebug.scopeGuard).toBeDefined();
+    const sg = cssDebug.scopeGuard as Record<string, unknown>;
+    expect(sg.enabled).toBe(true);
+    expect(sg.boundaryType).toBe('component');
+    expect(sg.boundarySelector).toBe('.login-form');
+    expect(sg.componentName).toBe('LoginForm');
+    expect(compact.cssDebugSummary).toContain('scope: LoginForm (component), movement constrained');
+  });
+
+  it('includes per-target scopeGuard and clamped in summary', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'move things', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          batch: true,
+          changedTargetCount: 2,
+          changedStyles: {},
+          scopeGuard: {
+            enabled: true,
+            boundaryType: 'container',
+            boundarySelector: '.card-grid',
+            rect: { x: 0, y: 0, width: 800, height: 600 },
+            clamped: true,
+          },
+          targets: [
+            {
+              id: 'css-el-1',
+              selectedElement: { selector: '.btn-1', tagName: 'button' },
+              selection: {
+                id: 'sel-1',
+                sessionId: 'session-1',
+                url: 'http://localhost:5173',
+                title: 'Test',
+                timestamp: 1000,
+                instruction: 'fix',
+                framework: 'dom',
+                dom: { selector: '.btn-1', tagName: 'button', id: '', className: 'btn-1', text: 'Go', outerHtml: '<button>Go</button>', rect: { x: 0, y: 0, width: 80, height: 30 }, styles: {} },
+                source: { root: '/project', file: 'src/App.vue', line: 10, column: 1 },
+              },
+              changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+              scopeGuard: {
+                enabled: true,
+                boundaryType: 'component',
+                boundarySelector: '.card',
+                componentName: 'Card',
+                rect: { x: 0, y: 0, width: 300, height: 200 },
+                clamped: true,
+              },
+            },
+            {
+              id: 'css-el-2',
+              selectedElement: { selector: '.btn-2', tagName: 'button' },
+              selection: {
+                id: 'sel-2',
+                sessionId: 'session-1',
+                url: 'http://localhost:5173',
+                title: 'Test',
+                timestamp: 1000,
+                instruction: 'fix',
+                framework: 'dom',
+                dom: { selector: '.btn-2', tagName: 'button', id: '', className: 'btn-2', text: 'Submit', outerHtml: '<button>Submit</button>', rect: { x: 0, y: 0, width: 80, height: 30 }, styles: {} },
+                source: { root: '/project', file: 'src/App.vue', line: 20, column: 1 },
+              },
+              changedStyles: { 'font-size': { originalValue: '14px', previewValue: '18px' } },
+            },
+          ],
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+
+    // Top-level scopeGuard preserved
+    expect(cssDebug.scopeGuard).toBeDefined();
+    const sg = cssDebug.scopeGuard as Record<string, unknown>;
+    expect(sg.boundaryType).toBe('container');
+    expect(sg.clamped).toBe(true);
+
+    // Summary reflects clamped
+    expect(compact.cssDebugSummary).toContain('clamped: attempted outside component boundary');
+
+    // Per-target scopeGuard preserved
+    const targets = cssDebug.targets as Record<string, unknown>[];
+    expect(targets).toHaveLength(2);
+    const t1Sg = targets[0].scopeGuard as Record<string, unknown>;
+    expect(t1Sg).toBeDefined();
+    expect(t1Sg.boundaryType).toBe('component');
+    expect(t1Sg.clamped).toBe(true);
+    expect(targets[1].scopeGuard).toBeUndefined();
+
+    // Summary mentions per-target clamped
+    expect(compact.cssDebugSummary).toContain('clamped in Card boundary');
+  });
 });
 
 function makeSession(overrides: Partial<UiInspectSession> = {}): UiInspectSession {
