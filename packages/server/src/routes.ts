@@ -22,6 +22,7 @@ import {
 } from './sessions.js';
 import { detectEditors, detectEditor } from './editors.js';
 import { openSource } from './source.js';
+import { buildCssDebugStyleSourceHints } from './style-source-hints.js';
 import { getVersion } from './version.js';
 
 export async function route(
@@ -218,6 +219,18 @@ export async function route(
     const mode = normalizeSessionMode(raw?.mode);
     const diagnostics = normalizeDiagnostics(raw?.diagnostics);
     const cssDebug = normalizeCssDebugPayload(raw?.cssDebug, selection);
+    if (mode === 'css-debug' && cssDebug) {
+      try {
+        const hintRoot = selection.source.root || state.projectRoot;
+        const enriched = buildCssDebugStyleSourceHints({
+          projectRoot: hintRoot,
+          cssDebug,
+        });
+        Object.assign(cssDebug, enriched);
+      } catch {
+        // Hint building is best-effort; never fail task creation.
+      }
+    }
     const cssDebugTargets = Array.isArray(cssDebug?.targets) && cssDebug.targets.length > 0
       ? normalizeTargets(cssDebug.targets.map((t) => ({ id: t.id, note: t.note ?? '', selection: t.selection ?? selection, cssDebug: t })), selection)
       : undefined;

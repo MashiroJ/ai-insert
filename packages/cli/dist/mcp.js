@@ -250,7 +250,7 @@ export async function runMcpStdio({ daemonUrl }) {
             'Use reply_to_user only for mid-task progress, user confirmation, or intentional one-off replies that should not continue waiting. Do not use reply_to_user as the final completion step for browser tasks when you can call complete_frontend_request.',
             'For batch mode, use targetsSummary for per-target notes. When you need the full targets array or per-target source code, use responseMode: "full" or call get_frontend_source.',
             'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
-            'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
+            'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. When cssDebug.styleSourceHints is present, inspect it before editing: it ranks candidate source rules by confidence and explains which file/line/selector to change. For transform created by dragging, do not blindly write inline transform into source; prefer layout or spacing hints unless source already uses transform intentionally. For multi-target CSS Debug, apply each target\'s changes through its own styleSourceHints. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
             'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
             'When compact responses omit source.content, use get_frontend_source if you need the full source before editing.',
             'If an MCP host stores large tool output in a file, read that file and continue processing the returned request.',
@@ -614,6 +614,14 @@ function summarizeCssDebug(cssDebug) {
     }
     if (payload.note)
         parts.push(String(payload.note));
+    if (Array.isArray(payload.styleSourceHints) && payload.styleSourceHints.length > 0) {
+        parts.push('Style source hints:');
+        for (const hint of payload.styleSourceHints.slice(0, 10)) {
+            const line = hint.line ? `:${hint.line}` : '';
+            const selector = hint.selector ? ` ${hint.selector}` : '';
+            parts.push(`  ${hint.targetId} -> ${hint.file}${line}${selector} confidence=${hint.confidence} reason=${hint.reason}`);
+        }
+    }
     return parts.length ? parts.join('; ') : '';
 }
 function compactCssDebug(cssDebug) {
@@ -628,6 +636,7 @@ function compactCssDebug(cssDebug) {
         primaryInteraction: payload.primaryInteraction,
         note: payload.note,
         sourceHints: payload.sourceHints,
+        styleSourceHints: payload.styleSourceHints,
     };
     if (typeof payload.batch === 'boolean')
         result.batch = payload.batch;
@@ -647,6 +656,7 @@ function compactCssDebug(cssDebug) {
             primaryInteraction: t.primaryInteraction,
             note: t.note,
             sourceHints: t.sourceHints,
+            styleSourceHints: t.styleSourceHints,
         }));
     }
     return result;

@@ -990,6 +990,98 @@ describe('compactFrontendRequestResult', () => {
     expect(sel2.sourceFile).toBe('src/App.vue');
     expect(sel2.sourceLine).toBe(10);
   });
+
+  it('includes styleSourceHints in compact css debug response', () => {
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'move logo', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          changedStyles: { width: { originalValue: '140px', previewValue: '60px' } },
+          styleSourceHints: [{
+            id: 'hint-1',
+            targetId: 'css-el-1',
+            kind: 'vue-sfc-style-rule',
+            file: 'src/views/Login.vue',
+            line: 132,
+            endLine: 138,
+            selector: '.brand-icon img',
+            matchedBy: ['class:brand-icon', 'tag:img', 'property:width', 'property:height'],
+            properties: ['width', 'height'],
+            confidence: 0.9,
+            reason: 'Selected img is inside .brand-icon and this rule controls logo size.',
+          }],
+          targets: [{
+            id: 'css-el-1',
+            selectedElement: { selector: '.brand-icon img', tagName: 'img' },
+            selection: {
+              id: 'sel-1',
+              sessionId: 'session-1',
+              url: 'http://localhost:5173',
+              title: 'Test',
+              timestamp: 1000,
+              instruction: 'fix',
+              framework: 'vue3',
+              dom: { selector: '.brand-icon img', tagName: 'img', id: '', className: 'brand-icon', text: '', outerHtml: '<img>', rect: { x: 0, y: 0, width: 140, height: 140 }, styles: {} },
+              source: { root: '/project', file: 'src/views/Login.vue', line: 50, column: 5 },
+            },
+            changedStyles: { width: { originalValue: '140px', previewValue: '60px' } },
+            styleSourceHints: [{
+              id: 'hint-1',
+              targetId: 'css-el-1',
+              kind: 'vue-sfc-style-rule',
+              file: 'src/views/Login.vue',
+              line: 132,
+              selector: '.brand-icon img',
+              matchedBy: ['class:brand-icon', 'property:width'],
+              properties: ['width'],
+              confidence: 0.9,
+              reason: 'Rule controls logo size.',
+            }],
+          }],
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+
+    // Top-level styleSourceHints
+    expect(cssDebug.styleSourceHints).toBeDefined();
+    const topHints = cssDebug.styleSourceHints as Record<string, unknown>[];
+    expect(topHints).toHaveLength(1);
+    expect(topHints[0].kind).toBe('vue-sfc-style-rule');
+    expect(topHints[0].file).toBe('src/views/Login.vue');
+    expect(topHints[0].confidence).toBe(0.9);
+
+    // Per-target styleSourceHints
+    const targets = cssDebug.targets as Record<string, unknown>[];
+    expect(targets).toHaveLength(1);
+    const targetHints = targets[0].styleSourceHints as Record<string, unknown>[];
+    expect(targetHints).toBeDefined();
+    expect(targetHints).toHaveLength(1);
+    expect(targetHints[0].selector).toBe('.brand-icon img');
+
+    // Summary includes hint info
+    expect(compact.cssDebugSummary).toContain('Style source hints');
+    expect(compact.cssDebugSummary).toContain('src/views/Login.vue');
+    expect(compact.cssDebugSummary).toContain('confidence=0.9');
+  });
 });
 
 function makeSession(overrides: Partial<UiInspectSession> = {}): UiInspectSession {

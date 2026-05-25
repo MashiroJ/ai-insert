@@ -1,4 +1,4 @@
-import type { UiInspectCssDebugPayload, UiInspectDiagnostics, UiInspectMessage, UiInspectMessageRole, UiInspectSelection, UiInspectSessionMode, UiInspectTarget, UiInspectTaskStatus } from '@ui-inspect/protocol';
+import type { UiInspectCssDebugPayload, UiInspectDiagnostics, UiInspectMessage, UiInspectMessageRole, UiInspectSelection, UiInspectSessionMode, UiInspectStyleSourceHint, UiInspectTarget, UiInspectTaskStatus } from '@ui-inspect/protocol';
 import { ServerState } from './state.js';
 export declare function selectionResponse(state: ServerState): import('@ui-inspect/protocol').UiInspectSelectionResponse;
 export declare function normalizeSelection(value: unknown): UiInspectSelection;
@@ -7,6 +7,7 @@ export declare function normalizeTargets(value: unknown, fallback: UiInspectSele
 export declare function normalizeDiagnostics(value: unknown): UiInspectDiagnostics | undefined;
 export declare function normalizeSessionMode(value: unknown): UiInspectSessionMode | undefined;
 export declare function normalizeCssDebugPayload(value: unknown, fallback: UiInspectSelection): UiInspectCssDebugPayload | undefined;
+export declare function normalizeStyleSourceHints(value: unknown): UiInspectStyleSourceHint[] | undefined;
 export declare function normalizeTaskStatus(value: unknown): UiInspectTaskStatus;
 export declare function appendMessage(sessionId: string, role: UiInspectMessageRole, content: string, selectionId: string | null, state: ServerState): UiInspectMessage;
 export declare function appendAssistantMessage(sessionId: string, content: string, selectionId: string | null, state: ServerState): UiInspectMessage;

@@ -220,6 +220,22 @@ export interface UiInspectCssDebugSessionInfo {
     root: string | null;
     timestamp: number;
 }
+export type UiInspectStyleSourceHintKind = 'vue-sfc-style-rule' | 'style-rule' | 'template-class' | 'inline-style' | 'parent-layout-rule' | 'fallback-source';
+export interface UiInspectStyleSourceHint {
+    id: string;
+    targetId: string;
+    kind: UiInspectStyleSourceHintKind;
+    file: string;
+    line: number | null;
+    column?: number | null;
+    endLine?: number | null;
+    selector?: string;
+    matchedBy: string[];
+    properties: string[];
+    confidence: number;
+    reason: string;
+    snippet?: string;
+}
 export interface UiInspectCssDebugTarget {
     id: string;
     selection: UiInspectSelection;
@@ -234,6 +250,7 @@ export interface UiInspectCssDebugTarget {
     primaryInteraction?: UiInspectCssDebugInteraction;
     note?: string;
     sourceHints?: UiInspectSourceHint[];
+    styleSourceHints?: UiInspectStyleSourceHint[];
 }
 export interface UiInspectCssDebugPayload {
     selection: UiInspectSelection;
@@ -251,6 +268,7 @@ export interface UiInspectCssDebugPayload {
     primaryInteraction?: UiInspectCssDebugInteraction;
     note?: string;
     sourceHints?: UiInspectSourceHint[];
+    styleSourceHints?: UiInspectStyleSourceHint[];
     session: UiInspectCssDebugSessionInfo;
 }
 export type UiInspectTaskStatus = 'draft' | 'sent' | 'claimed' | 'working' | 'done' | 'failed';

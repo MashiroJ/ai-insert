@@ -10,6 +10,8 @@ import type {
   UiInspectSelection,
   UiInspectSession,
   UiInspectSessionMode,
+  UiInspectStyleSourceHint,
+  UiInspectStyleSourceHintKind,
   UiInspectTarget,
   UiInspectTaskStatus,
 } from '@ui-inspect/protocol';
@@ -154,6 +156,7 @@ export function normalizeCssDebugPayload(value: unknown, fallback: UiInspectSele
     primaryInteraction: normalizeCssDebugInteraction(value.primaryInteraction),
     note: typeof value.note === 'string' ? value.note : selection.note,
     sourceHints: Array.isArray(value.sourceHints) ? value.sourceHints : selection.sourceHints,
+    styleSourceHints: normalizeStyleSourceHints(value.styleSourceHints),
     session: normalizeCssDebugSessionInfo(value.session, selection),
   };
 }
@@ -178,6 +181,7 @@ function normalizeCssDebugTargets(value: unknown, fallback: UiInspectSelection):
       primaryInteraction: normalizeCssDebugInteraction(input.primaryInteraction),
       note: typeof input.note === 'string' ? input.note : undefined,
       sourceHints: Array.isArray(input.sourceHints) ? input.sourceHints : undefined,
+      styleSourceHints: normalizeStyleSourceHints(input.styleSourceHints),
     };
   }).filter((target) => Object.keys(target.changedStyles).length > 0);
 }
@@ -321,6 +325,45 @@ function rectPositionChanged(before: unknown, after: unknown): boolean {
 function stringOrNull(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   return typeof value === 'string' ? value : String(value);
+}
+
+const VALID_STYLE_SOURCE_HINT_KINDS = new Set<UiInspectStyleSourceHintKind>([
+  'vue-sfc-style-rule', 'style-rule', 'template-class', 'inline-style', 'parent-layout-rule', 'fallback-source',
+]);
+
+export function normalizeStyleSourceHints(value: unknown): UiInspectStyleSourceHint[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const hints = value
+    .map((item): UiInspectStyleSourceHint | undefined => {
+      if (!isRecord(item)) return undefined;
+      const kind = typeof item.kind === 'string' && VALID_STYLE_SOURCE_HINT_KINDS.has(item.kind as UiInspectStyleSourceHintKind)
+        ? item.kind as UiInspectStyleSourceHintKind
+        : undefined;
+      if (!kind) return undefined;
+      const file = typeof item.file === 'string' ? item.file : undefined;
+      if (!file) return undefined;
+      const targetId = typeof item.targetId === 'string' ? item.targetId : '';
+      if (!targetId) return undefined;
+      return {
+        id: typeof item.id === 'string' ? item.id : `hint-${Date.now()}`,
+        targetId,
+        kind,
+        file,
+        line: typeof item.line === 'number' ? item.line : null,
+        column: typeof item.column === 'number' ? item.column : null,
+        endLine: typeof item.endLine === 'number' ? item.endLine : null,
+        selector: typeof item.selector === 'string' ? item.selector : undefined,
+        matchedBy: Array.isArray(item.matchedBy) ? (item.matchedBy as unknown[]).filter((v): v is string => typeof v === 'string') : [],
+        properties: Array.isArray(item.properties) ? (item.properties as unknown[]).filter((v): v is string => typeof v === 'string') : [],
+        confidence: typeof item.confidence === 'number' && Number.isFinite(item.confidence) && item.confidence >= 0 && item.confidence <= 1
+          ? item.confidence
+          : 0,
+        reason: typeof item.reason === 'string' ? item.reason : '',
+        snippet: typeof item.snippet === 'string' ? item.snippet.slice(0, 300) : undefined,
+      };
+    })
+    .filter((hint): hint is UiInspectStyleSourceHint => hint !== undefined);
+  return hints.length > 0 ? hints.slice(0, 20) : undefined;
 }
 
 export function normalizeTaskStatus(value: unknown): UiInspectTaskStatus {

@@ -5,6 +5,7 @@ import {
   normalizeSessionMode,
   normalizeDiagnostics,
   normalizeCssDebugPayload,
+  normalizeStyleSourceHints,
   normalizeTargets,
   selectionResponse,
   createMessage,
@@ -255,6 +256,66 @@ describe('normalizeCssDebugPayload', () => {
 
   it('returns undefined for missing css debug payload', () => {
     expect(normalizeCssDebugPayload(undefined, makeSelection())).toBeUndefined();
+  });
+
+  it('preserves valid styleSourceHints in css debug payload', () => {
+    const result = normalizeCssDebugPayload({
+      originalStyles: { padding: '8px' },
+      previewStyles: { padding: '16px' },
+      changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+      styleSourceHints: [{
+        id: 'hint-1',
+        targetId: 'css-el-1',
+        kind: 'vue-sfc-style-rule',
+        file: 'src/App.vue',
+        line: 42,
+        matchedBy: ['class:brand-icon', 'property:width'],
+        properties: ['width'],
+        confidence: 0.9,
+        reason: 'Rule matches.',
+      }],
+    }, makeSelection());
+
+    expect(result).toBeDefined();
+    expect(result!.styleSourceHints).toBeDefined();
+    expect(result!.styleSourceHints).toHaveLength(1);
+    expect(result!.styleSourceHints![0]).toMatchObject({
+      id: 'hint-1',
+      targetId: 'css-el-1',
+      kind: 'vue-sfc-style-rule',
+      file: 'src/App.vue',
+      line: 42,
+      confidence: 0.9,
+    });
+  });
+
+  it('drops invalid styleSourceHints', () => {
+    const result = normalizeCssDebugPayload({
+      originalStyles: { padding: '8px' },
+      previewStyles: { padding: '16px' },
+      changedStyles: { padding: { originalValue: '8px', previewValue: '16px' } },
+      styleSourceHints: [
+        { id: 'hint-1', targetId: '', kind: 'vue-sfc-style-rule', file: 'src/App.vue', matchedBy: [], properties: [], confidence: 0.9, reason: '' },
+        { id: 'hint-2', targetId: 'css-el-1', kind: 'invalid-kind', file: 'src/App.vue', matchedBy: [], properties: [], confidence: 0.9, reason: '' },
+        { id: 'hint-3', targetId: 'css-el-1', kind: 'style-rule', file: '', matchedBy: [], properties: [], confidence: 0.9, reason: '' },
+        'not-an-object',
+        null,
+      ],
+    }, makeSelection());
+
+    expect(result).toBeDefined();
+    expect(result!.styleSourceHints).toBeUndefined();
+  });
+
+  it('loads old cssDebug payloads without styleSourceHints', () => {
+    const result = normalizeCssDebugPayload({
+      originalStyles: { padding: '8px' },
+      previewStyles: { padding: '12px' },
+      changedStyles: { padding: { originalValue: '8px', previewValue: '12px' } },
+    }, makeSelection());
+
+    expect(result).toBeDefined();
+    expect(result!.styleSourceHints).toBeUndefined();
   });
 });
 
