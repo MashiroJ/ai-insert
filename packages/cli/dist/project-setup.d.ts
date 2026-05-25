@@ -18,4 +18,31 @@ export interface EnsureProjectIntegrationResult {
     snippets?: Record<string, string>;
     warnings: string[];
 }
+export interface UpdateProjectIntegrationOptions {
+    project: string;
+    dryRun?: boolean;
+    tag?: string;
+    silent?: boolean;
+}
+export interface UpdateProjectPackageResult {
+    name: string;
+    current: string | null;
+    dependencyType: 'dependencies' | 'devDependencies' | null;
+    target: string;
+    command: string;
+    args: string[];
+    dryRun: boolean;
+    updated: boolean;
+    error: string | null;
+}
+export interface UpdateProjectIntegrationResult {
+    project: string;
+    packageJson: boolean;
+    projectType: ProjectKind;
+    packageManager: 'yarn' | 'pnpm' | 'npm' | null;
+    packages: UpdateProjectPackageResult[];
+    warnings: string[];
+    nextSteps: string[];
+}
 export declare function ensureProjectIntegration({ project }: EnsureProjectIntegrationOptions): EnsureProjectIntegrationResult;
+export declare function updateProjectIntegrationPackages({ project, dryRun, tag, silent, }: UpdateProjectIntegrationOptions): UpdateProjectIntegrationResult;

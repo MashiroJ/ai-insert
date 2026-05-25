@@ -16,6 +16,7 @@ const INTEGRATION_PACKAGES = {
     rspack: '@ui-inspect/rspack-plugin',
     webpack: '@ui-inspect/webpack-plugin',
 };
+const INTEGRATION_PACKAGE_NAMES = Object.values(INTEGRATION_PACKAGES);
 export function ensureProjectIntegration({ project }) {
     const detected = detectProject(project);
     const result = {
@@ -81,6 +82,69 @@ export function ensureProjectIntegration({ project }) {
         : viteManualSteps();
     return result;
 }
+export function updateProjectIntegrationPackages({ project, dryRun = false, tag = 'latest', silent = false, }) {
+    const detected = detectProject(project);
+    const packageJson = readProjectPackage(project);
+    const result = {
+        project,
+        packageJson: Boolean(packageJson),
+        projectType: detected.kind,
+        packageManager: null,
+        packages: [],
+        warnings: [...detected.warnings],
+        nextSteps: [],
+    };
+    if (!packageJson) {
+        result.warnings.push('package.json not found; cannot update frontend integration packages automatically.');
+        result.nextSteps.push('Run the install command for your frontend integration manually, for example npm install -D @ui-inspect/vite-plugin@latest.');
+        return result;
+    }
+    const packageNames = updatePackageNames(detected.kind, packageJson);
+    if (packageNames.length === 0) {
+        result.warnings.push('No ui-inspect frontend integration package was found or confidently detected.');
+        result.nextSteps.push('Install the ui-inspect integration package for your frontend framework manually.');
+        return result;
+    }
+    const manager = detectPackageManager(project);
+    result.packageManager = manager;
+    for (const name of packageNames) {
+        const dependencyType = dependencyTypeFor(packageJson, name);
+        const packageSpec = `${name}@${tag}`;
+        const args = addPackageArgs(manager, packageSpec, dependencyType);
+        const packageResult = {
+            name,
+            current: dependencyVersion(packageJson, name),
+            dependencyType,
+            target: packageSpec,
+            command: manager,
+            args,
+            dryRun,
+            updated: false,
+            error: null,
+        };
+        if (!dryRun) {
+            const spawnResult = spawnSync(manager, args, {
+                cwd: project,
+                stdio: silent ? 'pipe' : 'inherit',
+                shell: process.platform === 'win32',
+                env: packageManagerEnv(manager),
+            });
+            packageResult.updated = spawnResult.status === 0;
+            if (!packageResult.updated) {
+                packageResult.error = spawnResult.error?.message ?? `${manager} ${args.join(' ')} exited with ${spawnResult.status ?? 'unknown status'}`;
+            }
+        }
+        result.packages.push(packageResult);
+    }
+    const failed = result.packages.filter((pkg) => !pkg.dryRun && !pkg.updated);
+    if (failed.length > 0) {
+        result.warnings.push(`Failed to update: ${failed.map((pkg) => pkg.name).join(', ')}`);
+    }
+    result.nextSteps.push('Restart your frontend dev server so the browser-injected ui-inspect client is refreshed.');
+    result.nextSteps.push('Restart your MCP agent session if it keeps an old ui-inspect CLI process alive.');
+    result.nextSteps.push('If your MCP config pins @ui-inspect/cli to an exact version, change it to @latest or update that pinned version manually.');
+    return result;
+}
 function ensureNextIntegration(project, router, result) {
     const integration = inspectNextIntegration(project, router);
     result.projectType = 'next';
@@ -143,11 +207,7 @@ function installProjectPackages(project) {
         return false;
     const manager = detectPackageManager(project);
     const command = manager;
-    const args = manager === 'pnpm'
-        ? ['add', '-D', pluginSpec]
-        : manager === 'yarn'
-            ? yarnAddArgs(pluginSpec)
-            : ['install', '--save-dev', pluginSpec];
+    const args = addPackageArgs(manager, pluginSpec, 'devDependencies');
     const result = spawnSync(command, args, {
         cwd: project,
         stdio: 'ignore',
@@ -156,11 +216,40 @@ function installProjectPackages(project) {
     });
     return result.status === 0;
 }
-function yarnAddArgs(pluginSpec) {
-    if (pluginSpec.startsWith('@mashiro39/')) {
-        return ['add', '-D', pluginSpec, '--registry', 'https://registry.npmjs.org'];
+function updatePackageNames(kind, packageJson) {
+    const names = new Set();
+    if (kind !== 'unknown')
+        names.add(INTEGRATION_PACKAGES[kind]);
+    for (const name of INTEGRATION_PACKAGE_NAMES) {
+        if (hasDependency(packageJson, name))
+            names.add(name);
     }
-    return ['add', '-D', pluginSpec];
+    return [...names];
+}
+function dependencyVersion(packageJson, name) {
+    return packageJson.devDependencies?.[name] ?? packageJson.dependencies?.[name] ?? null;
+}
+function dependencyTypeFor(packageJson, name) {
+    if (packageJson.dependencies?.[name])
+        return 'dependencies';
+    if (packageJson.devDependencies?.[name])
+        return 'devDependencies';
+    return null;
+}
+function addPackageArgs(manager, packageSpec, dependencyType) {
+    const dev = dependencyType !== 'dependencies';
+    if (manager === 'pnpm')
+        return dev ? ['add', '-D', packageSpec] : ['add', packageSpec];
+    if (manager === 'yarn')
+        return yarnAddArgs(packageSpec, dev);
+    return dev ? ['install', '--save-dev', packageSpec] : ['install', '--save', packageSpec];
+}
+function yarnAddArgs(pluginSpec, dev = true) {
+    const args = dev ? ['add', '-D', pluginSpec] : ['add', pluginSpec];
+    if (pluginSpec.startsWith('@mashiro39/')) {
+        return [...args, '--registry', 'https://registry.npmjs.org'];
+    }
+    return args;
 }
 function packageManagerEnv(manager) {
     return manager === 'yarn'

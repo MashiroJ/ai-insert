@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ensureProjectIntegration } from './project-setup.js';
+import { ensureProjectIntegration, updateProjectIntegrationPackages } from './project-setup.js';
 
 const roots: string[] = [];
 
@@ -185,6 +185,83 @@ describe('ensureProjectIntegration', () => {
     expect(result.patched).toBe(false);
     expect(result.missing).toEqual(['@ui-inspect/rspack-plugin', 'rspack-config']);
     expect(result.nextSteps.join('\n')).toContain('uiInspect');
+  });
+});
+
+describe('updateProjectIntegrationPackages', () => {
+  it('plans a Vite plugin update with the detected package manager', () => {
+    const project = tempProject({
+      packageManager: 'pnpm@10.0.0',
+      dependencies: { vite: '^6.0.0' },
+      devDependencies: { '@ui-inspect/vite-plugin': '0.1.16' },
+    });
+    writeFileSync(join(project, 'vite.config.ts'), 'export default { plugins: [] };\n');
+
+    const result = updateProjectIntegrationPackages({ project, dryRun: true });
+
+    expect(result.projectType).toBe('vite');
+    expect(result.packageManager).toBe('pnpm');
+    expect(result.packages).toEqual([
+      expect.objectContaining({
+        name: '@ui-inspect/vite-plugin',
+        current: '0.1.16',
+        dependencyType: 'devDependencies',
+        target: '@ui-inspect/vite-plugin@latest',
+        command: 'pnpm',
+        args: ['add', '-D', '@ui-inspect/vite-plugin@latest'],
+        dryRun: true,
+        updated: false,
+        error: null,
+      }),
+    ]);
+    expect(result.nextSteps.join('\n')).toContain('Restart your frontend dev server');
+  });
+
+  it('updates existing ui-inspect integration packages even when project type is unknown', () => {
+    const project = tempProject({
+      packageManager: 'npm@10.0.0',
+      devDependencies: { '@ui-inspect/webpack-plugin': '0.2.0' },
+    });
+
+    const result = updateProjectIntegrationPackages({ project, dryRun: true });
+
+    expect(result.projectType).toBe('unknown');
+    expect(result.packageManager).toBe('npm');
+    expect(result.packages).toEqual([
+      expect.objectContaining({
+        name: '@ui-inspect/webpack-plugin',
+        current: '0.2.0',
+        args: ['install', '--save-dev', '@ui-inspect/webpack-plugin@latest'],
+      }),
+    ]);
+  });
+
+  it('preserves dependency section when the integration package is a production dependency', () => {
+    const project = tempProject({
+      packageManager: 'yarn@1.22.0',
+      dependencies: { next: '^16.0.0', '@ui-inspect/next': '0.2.0' },
+    });
+    writeFile(project, 'app/layout.tsx', 'export default function RootLayout({ children }) { return <html><body>{children}</body></html>; }');
+
+    const result = updateProjectIntegrationPackages({ project, dryRun: true });
+
+    expect(result.packageManager).toBe('yarn');
+    expect(result.packages[0]).toEqual(expect.objectContaining({
+      name: '@ui-inspect/next',
+      dependencyType: 'dependencies',
+      args: ['add', '@ui-inspect/next@latest'],
+    }));
+  });
+
+  it('returns manual guidance when package.json is missing', () => {
+    const project = mkdtempSync(join(tmpdir(), 'ui-inspect-cli-test-'));
+    roots.push(project);
+
+    const result = updateProjectIntegrationPackages({ project, dryRun: true });
+
+    expect(result.packageJson).toBe(false);
+    expect(result.packages).toEqual([]);
+    expect(result.warnings.join('\n')).toContain('package.json not found');
   });
 });
 

@@ -118,6 +118,31 @@ enable ui-inspect
 
 agent 应该调用 `start_ui_inspect`，再调用 `wait_for_frontend_request` 等待浏览器任务。页面里出现 Diana 后，你就可以在浏览器中选择元素并 Send。
 
+## 更新 ui-inspect
+
+如果你已经安装过 `ui-inspect`，推荐在前端项目根目录运行：
+
+```bash
+ui-inspect update
+```
+
+它会尽量自动更新当前项目里的前端集成包，例如 `@ui-inspect/vite-plugin`、`@ui-inspect/next`、`@ui-inspect/webpack-plugin`、`@ui-inspect/rspack-plugin` 或 `@ui-inspect/rsbuild-plugin`。
+
+常用选项：
+
+```bash
+ui-inspect update --dry-run
+ui-inspect update --project /path/to/frontend
+ui-inspect update --self
+```
+
+`--self` 会尝试更新全局安装的 `@ui-inspect/cli`。如果你的 MCP 配置使用的是 `npx -y @ui-inspect/cli@latest mcp`，通常不需要 self update，重启 agent/MCP 会话即可。
+
+更新后仍然需要手动做两件事：
+
+- 重启前端 dev server，让浏览器注入的 ui-inspect client 刷新。
+- 重启正在运行的 agent/MCP 会话，避免继续使用旧进程。
+
 ## 推荐的 Agent 工作流
 
 一次启用后，推荐让 agent 进入连续处理模式：

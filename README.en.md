@@ -96,6 +96,31 @@ start ui-inspect
 
 You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, or `启用 ui-inspect`. The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. Diana will appear in the browser, and you can select elements or send CSS/debug tasks.
 
+## Updating ui-inspect
+
+If you already have `ui-inspect` installed, run this from your frontend project root:
+
+```bash
+ui-inspect update
+```
+
+It will update the frontend integration package it can detect, such as `@ui-inspect/vite-plugin`, `@ui-inspect/next`, `@ui-inspect/webpack-plugin`, `@ui-inspect/rspack-plugin`, or `@ui-inspect/rsbuild-plugin`.
+
+Useful options:
+
+```bash
+ui-inspect update --dry-run
+ui-inspect update --project /path/to/frontend
+ui-inspect update --self
+```
+
+`--self` tries to update a globally installed `@ui-inspect/cli`. If your MCP config uses `npx -y @ui-inspect/cli@latest mcp`, you usually do not need a self update; restart the agent/MCP session instead.
+
+After updating, users still need to:
+
+- Restart the frontend dev server so the browser-injected ui-inspect client is refreshed.
+- Restart any running agent/MCP session so it does not keep an old process alive.
+
 ## Recommended Agent Workflow
 
 For continuous browser-driven work, ask your agent:

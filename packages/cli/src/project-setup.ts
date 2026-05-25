@@ -27,6 +27,35 @@ export interface EnsureProjectIntegrationResult {
   warnings: string[];
 }
 
+export interface UpdateProjectIntegrationOptions {
+  project: string;
+  dryRun?: boolean;
+  tag?: string;
+  silent?: boolean;
+}
+
+export interface UpdateProjectPackageResult {
+  name: string;
+  current: string | null;
+  dependencyType: 'dependencies' | 'devDependencies' | null;
+  target: string;
+  command: string;
+  args: string[];
+  dryRun: boolean;
+  updated: boolean;
+  error: string | null;
+}
+
+export interface UpdateProjectIntegrationResult {
+  project: string;
+  packageJson: boolean;
+  projectType: ProjectKind;
+  packageManager: 'yarn' | 'pnpm' | 'npm' | null;
+  packages: UpdateProjectPackageResult[];
+  warnings: string[];
+  nextSteps: string[];
+}
+
 const require = createRequire(import.meta.url);
 const VITE_CONFIG_CANDIDATES = ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs', 'vite.config.cts'];
 const PACKAGE_VERSION = getVersion();
@@ -38,6 +67,7 @@ const INTEGRATION_PACKAGES: Record<Exclude<ProjectKind, 'unknown'>, string> = {
   rspack: '@ui-inspect/rspack-plugin',
   webpack: '@ui-inspect/webpack-plugin',
 };
+const INTEGRATION_PACKAGE_NAMES = Object.values(INTEGRATION_PACKAGES);
 
 export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOptions): EnsureProjectIntegrationResult {
   const detected = detectProject(project);
@@ -105,6 +135,83 @@ export function ensureProjectIntegration({ project }: EnsureProjectIntegrationOp
   result.nextSteps = result.alreadyConfigured || result.patched
     ? ['Start or keep using your frontend dev server, open the target page, then select an element with ui-inspect.']
     : viteManualSteps();
+  return result;
+}
+
+export function updateProjectIntegrationPackages({
+  project,
+  dryRun = false,
+  tag = 'latest',
+  silent = false,
+}: UpdateProjectIntegrationOptions): UpdateProjectIntegrationResult {
+  const detected = detectProject(project);
+  const packageJson = readProjectPackage(project);
+  const result: UpdateProjectIntegrationResult = {
+    project,
+    packageJson: Boolean(packageJson),
+    projectType: detected.kind,
+    packageManager: null,
+    packages: [],
+    warnings: [...detected.warnings],
+    nextSteps: [],
+  };
+
+  if (!packageJson) {
+    result.warnings.push('package.json not found; cannot update frontend integration packages automatically.');
+    result.nextSteps.push('Run the install command for your frontend integration manually, for example npm install -D @ui-inspect/vite-plugin@latest.');
+    return result;
+  }
+
+  const packageNames = updatePackageNames(detected.kind, packageJson);
+  if (packageNames.length === 0) {
+    result.warnings.push('No ui-inspect frontend integration package was found or confidently detected.');
+    result.nextSteps.push('Install the ui-inspect integration package for your frontend framework manually.');
+    return result;
+  }
+
+  const manager = detectPackageManager(project);
+  result.packageManager = manager;
+
+  for (const name of packageNames) {
+    const dependencyType = dependencyTypeFor(packageJson, name);
+    const packageSpec = `${name}@${tag}`;
+    const args = addPackageArgs(manager, packageSpec, dependencyType);
+    const packageResult: UpdateProjectPackageResult = {
+      name,
+      current: dependencyVersion(packageJson, name),
+      dependencyType,
+      target: packageSpec,
+      command: manager,
+      args,
+      dryRun,
+      updated: false,
+      error: null,
+    };
+
+    if (!dryRun) {
+      const spawnResult = spawnSync(manager, args, {
+        cwd: project,
+        stdio: silent ? 'pipe' : 'inherit',
+        shell: process.platform === 'win32',
+        env: packageManagerEnv(manager),
+      });
+      packageResult.updated = spawnResult.status === 0;
+      if (!packageResult.updated) {
+        packageResult.error = spawnResult.error?.message ?? `${manager} ${args.join(' ')} exited with ${spawnResult.status ?? 'unknown status'}`;
+      }
+    }
+
+    result.packages.push(packageResult);
+  }
+
+  const failed = result.packages.filter((pkg) => !pkg.dryRun && !pkg.updated);
+  if (failed.length > 0) {
+    result.warnings.push(`Failed to update: ${failed.map((pkg) => pkg.name).join(', ')}`);
+  }
+
+  result.nextSteps.push('Restart your frontend dev server so the browser-injected ui-inspect client is refreshed.');
+  result.nextSteps.push('Restart your MCP agent session if it keeps an old ui-inspect CLI process alive.');
+  result.nextSteps.push('If your MCP config pins @ui-inspect/cli to an exact version, change it to @latest or update that pinned version manually.');
   return result;
 }
 
@@ -188,11 +295,7 @@ function installProjectPackages(project: string): boolean {
   if (!pluginSpec) return false;
   const manager = detectPackageManager(project);
   const command = manager;
-  const args = manager === 'pnpm'
-    ? ['add', '-D', pluginSpec]
-    : manager === 'yarn'
-      ? yarnAddArgs(pluginSpec)
-      : ['install', '--save-dev', pluginSpec];
+  const args = addPackageArgs(manager, pluginSpec, 'devDependencies');
   const result = spawnSync(command, args, {
     cwd: project,
     stdio: 'ignore',
@@ -202,11 +305,42 @@ function installProjectPackages(project: string): boolean {
   return result.status === 0;
 }
 
-function yarnAddArgs(pluginSpec: string): string[] {
-  if (pluginSpec.startsWith('@mashiro39/')) {
-    return ['add', '-D', pluginSpec, '--registry', 'https://registry.npmjs.org'];
+function updatePackageNames(kind: ProjectKind, packageJson: ProjectPackageJson): string[] {
+  const names = new Set<string>();
+  if (kind !== 'unknown') names.add(INTEGRATION_PACKAGES[kind]);
+  for (const name of INTEGRATION_PACKAGE_NAMES) {
+    if (hasDependency(packageJson, name)) names.add(name);
   }
-  return ['add', '-D', pluginSpec];
+  return [...names];
+}
+
+function dependencyVersion(packageJson: ProjectPackageJson, name: string): string | null {
+  return packageJson.devDependencies?.[name] ?? packageJson.dependencies?.[name] ?? null;
+}
+
+function dependencyTypeFor(packageJson: ProjectPackageJson, name: string): 'dependencies' | 'devDependencies' | null {
+  if (packageJson.dependencies?.[name]) return 'dependencies';
+  if (packageJson.devDependencies?.[name]) return 'devDependencies';
+  return null;
+}
+
+function addPackageArgs(
+  manager: 'yarn' | 'pnpm' | 'npm',
+  packageSpec: string,
+  dependencyType: 'dependencies' | 'devDependencies' | null,
+): string[] {
+  const dev = dependencyType !== 'dependencies';
+  if (manager === 'pnpm') return dev ? ['add', '-D', packageSpec] : ['add', packageSpec];
+  if (manager === 'yarn') return yarnAddArgs(packageSpec, dev);
+  return dev ? ['install', '--save-dev', packageSpec] : ['install', '--save', packageSpec];
+}
+
+function yarnAddArgs(pluginSpec: string, dev = true): string[] {
+  const args = dev ? ['add', '-D', pluginSpec] : ['add', pluginSpec];
+  if (pluginSpec.startsWith('@mashiro39/')) {
+    return [...args, '--registry', 'https://registry.npmjs.org'];
+  }
+  return args;
 }
 
 function packageManagerEnv(manager: 'yarn' | 'pnpm' | 'npm'): NodeJS.ProcessEnv {
