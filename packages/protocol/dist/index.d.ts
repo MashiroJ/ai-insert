@@ -198,8 +198,31 @@ export interface UiInspectCssDebugLayoutContext {
     siblings: UiInspectCssDebugElementEffect[];
     children: UiInspectCssDebugElementEffect[];
 }
+export type UiInspectCssDebugInteractionType = 'panel-control' | 'resize' | 'move' | 'reorder' | 'group-scale';
+export type UiInspectCssDebugStrategy = 'inline-style' | 'transform-preview' | 'swap-sibling' | 'group-scale';
+export interface UiInspectCssDebugReorderInfo {
+    sourceId: string;
+    targetId: string;
+    sourceIndex: number;
+    targetIndex: number;
+    parentSelector: string;
+    matchedBy: string[];
+}
+export interface UiInspectCssDebugGroupScaleChildEffect {
+    selector: string;
+    tagName: string;
+    beforeRect: UiInspectRect;
+    afterRect: UiInspectRect;
+}
+export interface UiInspectCssDebugGroupScaleInfo {
+    scaleX: number;
+    scaleY: number;
+    origin: 'top-left' | 'center';
+    affectedChildren: number;
+    childEffects: UiInspectCssDebugGroupScaleChildEffect[];
+}
 export interface UiInspectCssDebugInteraction {
-    type: 'panel-control' | 'resize' | 'move';
+    type: UiInspectCssDebugInteractionType;
     handle?: 'e' | 's' | 'se' | 'nw' | 'n' | 'ne' | 'w' | 'sw' | 'move';
     properties: string[];
     rectBefore: UiInspectRect;
@@ -210,7 +233,7 @@ export interface UiInspectCssDebugInteraction {
         width: number;
         height: number;
     };
-    strategy: 'inline-style' | 'transform-preview';
+    strategy: UiInspectCssDebugStrategy;
     timestamp: number;
     clamped?: boolean;
     clampDelta?: {
@@ -220,6 +243,8 @@ export interface UiInspectCssDebugInteraction {
         height: number;
     };
     scopeGuard?: UiInspectCssDebugScopeGuard;
+    reorder?: UiInspectCssDebugReorderInfo;
+    groupScale?: UiInspectCssDebugGroupScaleInfo;
 }
 export interface UiInspectCssDebugSessionInfo {
     id: string;

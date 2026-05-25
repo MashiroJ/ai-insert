@@ -165,7 +165,10 @@ function normalizeCssDebugTargets(value, fallback) {
             specificityWarnings: Array.isArray(input.specificityWarnings) ? input.specificityWarnings : undefined,
             scopeGuard: normalizeScopeGuard(input.scopeGuard),
         };
-    }).filter((target) => Object.keys(target.changedStyles).length > 0);
+    }).filter((target) => Object.keys(target.changedStyles).length > 0 ||
+        (target.primaryInteraction?.type === 'reorder') ||
+        (target.primaryInteraction?.type === 'group-scale') ||
+        (target.interactions?.some((i) => i.type === 'reorder' || i.type === 'group-scale')));
 }
 function normalizeCssDebugSessionInfo(value, selection) {
     const input = isRecord(value) ? value : {};
@@ -258,6 +261,10 @@ function normalizeCssDebugInteractions(value) {
 function normalizeCssDebugInteraction(value) {
     if (!isRecord(value))
         return undefined;
+    const validStrategies = ['transform-preview', 'inline-style', 'swap-sibling', 'group-scale'];
+    const strategy = typeof value.strategy === 'string' && validStrategies.includes(value.strategy)
+        ? value.strategy
+        : 'inline-style';
     return {
         type: normalizeCssDebugInteractionType(value.type),
         handle: normalizeCssDebugInteractionHandle(value.handle),
@@ -265,15 +272,68 @@ function normalizeCssDebugInteraction(value) {
         rectBefore: normalizeRect(value.rectBefore),
         rectAfter: normalizeRect(value.rectAfter),
         delta: normalizeRect(value.delta),
-        strategy: value.strategy === 'transform-preview' ? 'transform-preview' : 'inline-style',
+        strategy,
         timestamp: numberOr(value.timestamp, Date.now()),
         clamped: typeof value.clamped === 'boolean' ? value.clamped : undefined,
         clampDelta: isRecord(value.clampDelta) ? normalizeRect(value.clampDelta) : undefined,
         scopeGuard: normalizeScopeGuard(value.scopeGuard),
+        reorder: normalizeCssDebugReorder(value.reorder),
+        groupScale: normalizeCssDebugGroupScale(value.groupScale),
     };
 }
 function normalizeCssDebugInteractionType(value) {
-    return value === 'resize' || value === 'move' ? value : 'panel-control';
+    return value === 'resize' || value === 'move' || value === 'reorder' || value === 'group-scale'
+        ? value
+        : 'panel-control';
+}
+function normalizeCssDebugReorder(value) {
+    if (!isRecord(value))
+        return undefined;
+    const parentSelector = typeof value.parentSelector === 'string' ? value.parentSelector : '';
+    if (!parentSelector)
+        return undefined;
+    const matchedBy = Array.isArray(value.matchedBy)
+        ? value.matchedBy.filter((v) => typeof v === 'string').slice(0, 8)
+        : [];
+    return {
+        sourceId: typeof value.sourceId === 'string' ? value.sourceId : '',
+        targetId: typeof value.targetId === 'string' ? value.targetId : '',
+        sourceIndex: numberOr(value.sourceIndex, -1),
+        targetIndex: numberOr(value.targetIndex, -1),
+        parentSelector,
+        matchedBy,
+    };
+}
+function normalizeCssDebugGroupScale(value) {
+    if (!isRecord(value))
+        return undefined;
+    const affectedChildren = numberOr(value.affectedChildren, 0);
+    if (affectedChildren <= 0)
+        return undefined;
+    const childEffects = [];
+    if (Array.isArray(value.childEffects)) {
+        for (const item of value.childEffects.slice(0, 20)) {
+            if (!isRecord(item))
+                continue;
+            const selector = typeof item.selector === 'string' ? item.selector : '';
+            if (!selector)
+                continue;
+            childEffects.push({
+                selector,
+                tagName: typeof item.tagName === 'string' ? item.tagName : '',
+                beforeRect: normalizeRect(item.beforeRect),
+                afterRect: normalizeRect(item.afterRect),
+            });
+        }
+    }
+    const origin = value.origin === 'center' ? 'center' : 'top-left';
+    return {
+        scaleX: numberOr(value.scaleX, 1),
+        scaleY: numberOr(value.scaleY, 1),
+        origin,
+        affectedChildren,
+        childEffects,
+    };
 }
 function normalizeCssDebugInteractionHandle(value) {
     return value === 'e' || value === 's' || value === 'se' || value === 'nw' || value === 'n' || value === 'ne' || value === 'w' || value === 'sw' || value === 'move' ? value : undefined;

@@ -1083,6 +1083,111 @@ describe('compactFrontendRequestResult', () => {
     expect(compact.cssDebugSummary).toContain('confidence=0.9');
   });
 
+  it('summarizes reorder and group-scale interactions as structural edits', () => {
+    const selection = (id: string, selector: string, text: string, line: number) => ({
+      id,
+      sessionId: 'session-1',
+      url: 'http://localhost:5173',
+      title: 'Test',
+      timestamp: 1000,
+      instruction: 'rearrange layout',
+      framework: 'dom',
+      dom: { selector, tagName: 'button', id: '', className: 'nav-item', text, outerHtml: '<button>' + text + '</button>', rect: { x: 0, y: 0, width: 80, height: 30 }, styles: {} },
+      source: { root: '/project', file: 'src/App.vue', line, column: 1 },
+    });
+    const reorderInteraction = {
+      type: 'reorder',
+      handle: 'move',
+      properties: [],
+      rectBefore: { x: 0, y: 0, width: 80, height: 30 },
+      rectAfter: { x: 90, y: 0, width: 80, height: 30 },
+      delta: { x: 0, y: 0, width: 0, height: 0 },
+      strategy: 'swap-sibling',
+      timestamp: 1001,
+      reorder: {
+        sourceId: 'css-el-1',
+        targetId: 'css-el-2',
+        sourceIndex: 0,
+        targetIndex: 1,
+        parentSelector: '.nav-list',
+        matchedBy: ['same-parent', 'class:nav-item'],
+      },
+    };
+    const groupScaleInteraction = {
+      type: 'group-scale',
+      handle: 'se',
+      properties: ['width', 'height'],
+      rectBefore: { x: 0, y: 0, width: 400, height: 240 },
+      rectAfter: { x: 0, y: 0, width: 520, height: 300 },
+      delta: { x: 0, y: 0, width: 120, height: 60 },
+      strategy: 'group-scale',
+      timestamp: 1002,
+      groupScale: {
+        scaleX: 1.3,
+        scaleY: 1.25,
+        origin: 'top-left',
+        affectedChildren: 4,
+        childEffects: [],
+      },
+    };
+    const result = {
+      ok: true,
+      timedOut: false,
+      requestId: 'message:msg-1',
+      nextCursor: { afterRequestId: 'message:msg-1' },
+      message: { id: 'msg-1', content: 'swap and scale', role: 'user' },
+      session: {
+        id: 'session-1',
+        status: 'claimed',
+        mode: 'css-debug',
+        createdAt: 1000,
+        updatedAt: 2000,
+        cssDebug: {
+          batch: true,
+          primaryTargetId: 'css-el-1',
+          changedTargetCount: 2,
+          changedStyles: {},
+          targets: [
+            {
+              id: 'css-el-1',
+              selectedElement: { selector: '.nav-item:first-child', tagName: 'button' },
+              selection: selection('sel-1', '.nav-item:first-child', 'Assets', 12),
+              changedStyles: {},
+              interactions: [reorderInteraction],
+              primaryInteraction: reorderInteraction,
+            },
+            {
+              id: 'css-el-map',
+              selectedElement: { selector: '.facility-map', tagName: 'section' },
+              selection: { ...selection('sel-map', '.facility-map', 'Facility map', 30), dom: { ...selection('sel-map', '.facility-map', 'Facility map', 30).dom, tagName: 'section', className: 'facility-map' } },
+              changedStyles: {},
+              interactions: [groupScaleInteraction],
+              primaryInteraction: groupScaleInteraction,
+            },
+          ],
+        },
+      },
+      selection: null,
+      targetCount: 0,
+      source: null,
+      contextSummary: '',
+      targetsSummary: '',
+      sourceHintSummary: '',
+      runtimeSummary: '',
+    };
+
+    const compact = compactFrontendRequestResult(result) as Record<string, unknown>;
+    const cssDebug = compact.cssDebug as Record<string, unknown>;
+
+    expect(compact.cssDebugSummary).toContain('interaction: reorder');
+    expect(compact.cssDebugSummary).toContain('Do NOT implement as transform');
+    expect(compact.cssDebugSummary).toContain('interaction: group-scale');
+    expect(compact.cssDebugSummary).toContain('Do NOT default to transform:scale');
+    const targets = cssDebug.targets as Record<string, unknown>[];
+    expect(targets[0].primaryInteraction).toEqual(reorderInteraction);
+    expect(targets[1].primaryInteraction).toEqual(groupScaleInteraction);
+  });
+
   it('includes scopeGuard in compact css debug response', () => {
     const result = {
       ok: true,

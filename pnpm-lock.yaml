@@ -115,6 +115,21 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  examples/vite-complex-css-debug:
+    dependencies:
+      '@ui-inspect/vite-plugin':
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin
+      '@vitejs/plugin-vue':
+        specifier: ^5.2.0
+        version: 5.2.4(vite@6.4.2(@types/node@20.19.40)(jiti@2.7.0)(terser@5.48.0))(vue@3.5.34(typescript@5.9.3))
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.2(@types/node@20.19.40)(jiti@2.7.0)(terser@5.48.0)
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.34(typescript@5.9.3)
+
   examples/vite-vue3:
     dependencies:
       '@ui-inspect/vite-plugin':

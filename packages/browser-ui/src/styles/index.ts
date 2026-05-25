@@ -669,7 +669,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   opacity: 0.42;
 }
 
-#ui-inspect-css-overlay {
+#ui-inspect-css-selection-overlay {
   position: fixed;
   z-index: 2147483646;
   display: none;
@@ -679,7 +679,73 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.58) inset;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle] {
+#ui-inspect-css-boundary-overlay {
+  position: fixed;
+  z-index: 2147483645;
+  display: none;
+  pointer-events: none;
+  border: 1px dashed rgba(14, 165, 233, 0.78);
+  background: rgba(14, 165, 233, 0.045);
+}
+
+#ui-inspect-css-boundary-overlay[data-clamped="true"] {
+  border-color: rgba(245, 158, 11, 0.92);
+  background: rgba(245, 158, 11, 0.07);
+}
+
+#ui-inspect-css-preview-overlay {
+  position: fixed;
+  z-index: 2147483644;
+  display: none;
+  pointer-events: none;
+  border: 1px dashed rgba(34, 197, 94, 0.72);
+  background: rgba(34, 197, 94, 0.055);
+}
+
+#ui-inspect-css-pick-popover {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #e2e8f0;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.32);
+  font: 12px/1 ui-sans-serif, system-ui, sans-serif;
+  backdrop-filter: blur(12px);
+}
+
+#ui-inspect-css-pick-popover span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+  color: #bfdbfe;
+  padding: 0 4px;
+}
+
+#ui-inspect-css-pick-popover button {
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #1f2937;
+  color: #e2e8f0;
+  padding: 5px 10px;
+  font: 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#ui-inspect-css-pick-popover button[data-primary="true"] {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+}
+
+#ui-inspect-css-selection-overlay [data-css-debug-handle] {
   position: absolute;
   pointer-events: auto;
   box-sizing: border-box;
@@ -691,11 +757,11 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   outline: none;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle]:focus-visible {
+#ui-inspect-css-selection-overlay [data-css-debug-handle]:focus-visible {
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.36);
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="move"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="move"] {
   top: -24px;
   left: -1px;
   width: 42px;
@@ -706,7 +772,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: move;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="move"]::before {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="move"]::before {
   content: "";
   position: absolute;
   left: 12px;
@@ -717,7 +783,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   border-bottom: 2px solid rgba(255, 255, 255, 0.88);
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="e"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="e"] {
   top: 50%;
   right: -6px;
   width: 12px;
@@ -726,7 +792,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: ew-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="w"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="w"] {
   top: 50%;
   left: -6px;
   width: 12px;
@@ -735,7 +801,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: ew-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="s"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="s"] {
   left: 50%;
   bottom: -6px;
   width: 32px;
@@ -744,7 +810,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: ns-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="n"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="n"] {
   left: 50%;
   top: -6px;
   width: 32px;
@@ -753,7 +819,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: ns-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="se"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="se"] {
   right: -7px;
   bottom: -7px;
   width: 14px;
@@ -761,7 +827,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: nwse-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="sw"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="sw"] {
   left: -7px;
   bottom: -7px;
   width: 14px;
@@ -769,7 +835,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: nesw-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="ne"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="ne"] {
   right: -7px;
   top: -7px;
   width: 14px;
@@ -777,7 +843,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: nesw-resize;
 }
 
-#ui-inspect-css-overlay [data-css-debug-handle="nw"] {
+#ui-inspect-css-selection-overlay [data-css-debug-handle="nw"] {
   left: -7px;
   top: -7px;
   width: 14px;
@@ -785,13 +851,13 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   cursor: nwse-resize;
 }
 
-#ui-inspect-css-overlay .ui-inspect-box-model {
+#ui-inspect-css-selection-overlay .ui-inspect-box-model {
   position: absolute;
   pointer-events: none;
   box-sizing: border-box;
 }
 
-#ui-inspect-css-overlay .ui-inspect-box-model-margin {
+#ui-inspect-css-selection-overlay .ui-inspect-box-model-margin {
   border: 1px dashed rgba(255, 100, 200, 0.6);
   background: repeating-linear-gradient(
     45deg,
@@ -802,7 +868,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   );
 }
 
-#ui-inspect-css-overlay .ui-inspect-box-model-padding {
+#ui-inspect-css-selection-overlay .ui-inspect-box-model-padding {
   border: 1px dashed rgba(160, 100, 255, 0.6);
   background: repeating-linear-gradient(
     -45deg,
@@ -813,7 +879,7 @@ html[data-ui-inspect-css-debug="true"] #ui-inspect-box {
   );
 }
 
-#ui-inspect-css-overlay .ui-inspect-box-model-label {
+#ui-inspect-css-selection-overlay .ui-inspect-box-model-label {
   position: absolute;
   font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: rgba(255, 255, 255, 0.78);

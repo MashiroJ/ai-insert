@@ -301,6 +301,8 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'For batch mode, use targetsSummary for per-target notes. When you need the full targets array or per-target source code, use responseMode: "full" or call get_frontend_source.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
         'For css-debug mode, first read targetsSummary and cssDebug.targets[*].changedStyles, styleSourceHints, layoutHints, and specificityWarnings. Then read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag — do not default to writing transform into source code. When layoutHints is present, prefer its suggestedProperty (e.g. margin-left, align-self, justify-self) as the persistent source change. When specificityWarnings is present, verify that your edits will not be overridden by a later rule. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. When cssDebug.styleSourceHints is present, inspect it before editing: it ranks candidate source rules by confidence and explains which file/line/selector to change. For transform created by dragging, do not blindly write inline transform into source; prefer layout or spacing hints unless source already uses transform intentionally. For multi-target CSS Debug, apply each target\'s changes through its own styleSourceHints, layoutHints, and specificityWarnings. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
+        'For reorder/swap interactions (type="reorder", strategy="swap-sibling"), the user dragged an element to swap DOM positions with a sibling. The reorder field contains sourceId, targetId, sourceIndex, targetIndex, parentSelector, and matchedBy. This means source code order / array order / config order should change. Do NOT implement as transform:translate(). Find the list/array/config in source and swap the entries.',
+        'For group-scale interactions (type="group-scale", strategy="group-scale"), the user resized a container while scaling its children proportionally. The groupScale field contains scaleX, scaleY, origin, affectedChildren, and childEffects. Do NOT default to transform:scale(). Instead, adjust grid/flex tracks, gap, padding, font-size, child card widths/heights, or SVG viewBox/container sizes as appropriate for the layout.',
         'CSS Debug is a scoped fine-tuning tool. If scopeGuard.clamped is true, do not implement cross-component movement. Treat the diff as constrained within the owning component/container. Do not blindly persist transform when layoutHints suggest margin, size, or parent layout changes. Each target has its own scopeGuard indicating the movement boundary.',
         'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
         'When compact responses omit source.content, use get_frontend_source if you need the full source before editing.',
@@ -586,6 +588,28 @@ function summarizeTargets(targets: NonNullable<UiInspectSession['targets']>, css
         const best = layoutHints[0];
         line += `\n   layout: ${best.suggestedProperty} confidence=${best.confidence}`;
       }
+      // Reorder / Group-scale interaction summary
+      const primaryInteraction = debugTarget.primaryInteraction as Record<string, unknown> | undefined;
+      const interactions = debugTarget.interactions as Array<Record<string, unknown>> | undefined;
+      const allInteractions = interactions || (primaryInteraction ? [primaryInteraction] : []);
+      const reorderIx = allInteractions.find((ix) => ix.type === 'reorder');
+      const groupScaleIx = allInteractions.find((ix) => ix.type === 'group-scale');
+      if (reorderIx) {
+        const reorder = reorderIx.reorder as Record<string, unknown> | undefined;
+        if (reorder) {
+          line += `\n   interaction: reorder · swap index ${reorder.sourceIndex ?? '?'} ↔ ${reorder.targetIndex ?? '?'} in ${reorder.parentSelector ?? 'parent'}`;
+          line += `\n   ⚠ Do NOT implement as transform. Change source order / array order / config order.`;
+        }
+      }
+      if (groupScaleIx) {
+        const gs = groupScaleIx.groupScale as Record<string, unknown> | undefined;
+        if (gs) {
+          const sx = typeof gs.scaleX === 'number' ? gs.scaleX.toFixed(2) : '?';
+          const sy = typeof gs.scaleY === 'number' ? gs.scaleY.toFixed(2) : '?';
+          line += `\n   interaction: group-scale · scale ${sx} x ${sy} · ${gs.affectedChildren ?? '?'} children affected`;
+          line += `\n   ⚠ Do NOT default to transform:scale(). Prefer grid/flex track, gap, padding, font-size, child sizes.`;
+        }
+      }
     }
     return line;
   }).join('\n');
@@ -721,6 +745,24 @@ function summarizeCssDebug(cssDebug: unknown): string {
         for (const sw of specWarnings.slice(0, 2)) {
           parts.push(`    specificity: ${sw.severity} ${sw.selector} line=${sw.line} property=${sw.property} reason=${sw.reason}`);
         }
+      }
+
+      const primaryInteraction = t.primaryInteraction as Record<string, unknown> | undefined;
+      const interactions = t.interactions as Array<Record<string, unknown>> | undefined;
+      const allInteractions = interactions || (primaryInteraction ? [primaryInteraction] : []);
+      const reorderIx = allInteractions.find((ix) => ix.type === 'reorder');
+      if (reorderIx) {
+        const reorder = reorderIx.reorder as Record<string, unknown> | undefined;
+        parts.push(`    interaction: reorder${reorder ? ` swap index ${reorder.sourceIndex ?? '?'} -> ${reorder.targetIndex ?? '?'} in ${reorder.parentSelector ?? 'parent'}` : ''}`);
+        parts.push('    Do NOT implement as transform. Change source order / array order / config order.');
+      }
+      const groupScaleIx = allInteractions.find((ix) => ix.type === 'group-scale');
+      if (groupScaleIx) {
+        const groupScale = groupScaleIx.groupScale as Record<string, unknown> | undefined;
+        const sx = typeof groupScale?.scaleX === 'number' ? groupScale.scaleX.toFixed(2) : '?';
+        const sy = typeof groupScale?.scaleY === 'number' ? groupScale.scaleY.toFixed(2) : '?';
+        parts.push(`    interaction: group-scale scale ${sx} x ${sy} · ${groupScale?.affectedChildren ?? '?'} children affected`);
+        parts.push('    Do NOT default to transform:scale(). Prefer grid/flex track, gap, padding, font-size, child sizes.');
       }
     }
   } else {

@@ -48,7 +48,10 @@ describe('clientSource', () => {
     expect(result).toContain("mode: 'css-debug'");
     expect(result).toContain('changedStyles');
     expect(result).toContain('resetCssDebugPreview');
-    expect(result).toContain('ui-inspect-css-overlay');
+    expect(result).toContain('ui-inspect-css-selection-overlay');
+    expect(result).toContain('ui-inspect-css-boundary-overlay');
+    expect(result).toContain('ui-inspect-css-preview-overlay');
+    expect(result).toContain('ui-inspect-css-pick-popover');
     expect(result).toContain('primaryInteraction');
     expect(result).toContain('cssDebugSession');
     expect(result).toContain('cssDebugActiveTarget');
@@ -111,5 +114,34 @@ describe('clientSource CSS debug features', () => {
     expect(src).toContain('clampDy = resultHeight - elementRect.height;');
     expect(src).toContain('CSS diff 已发送，无法再修改');
     expect(src).toContain('CSS diff 已发送，不能重复发送');
+  });
+
+  it('keeps CSS debug target picking explicit', () => {
+    expect(src).toContain("pickMode: 'replace'");
+    expect(src).toContain("cssDebugSession.pickMode = 'append'");
+    expect(src).toContain("cssDebugSession.pickMode = 'replace-now'");
+    expect(src).toContain('openCssDebugPickPopover');
+    expect(src).toContain('data-pick-action="add"');
+    expect(src).toContain('data-pick-action="replace"');
+    expect(src).toContain('cssDebugSmartTargetElement');
+    expect(src).toContain('ownerSVGElement');
+  });
+
+  it('uses separate CSS debug selection and boundary overlays', () => {
+    expect(src).toContain('CSS_DEBUG_BOUNDARY_OVERLAY_ID');
+    expect(src).toContain('updateCssDebugBoundaryOverlay');
+    expect(src).toContain('removeCssDebugPreviewOverlay');
+    expect(src).toContain('ui-inspect-css-runtime-style');
+  });
+
+  it('keeps reorder swap from leaking drag preview styles', () => {
+    expect(src).toContain('inlineCssTextBeforeDrag');
+    expect(src).toContain('previewStylesBeforeDrag');
+    expect(src).toContain('activePropertiesBeforeDrag');
+    expect(src).toContain("document.createComment('ui-inspect-swap')");
+    expect(src).toContain("strategy: 'swap-sibling'");
+    expect(src).toContain('function cssDebugElementStableId(el)');
+    expect(src).toContain('return cssDebugElementKey(el);');
+    expect(src).not.toContain("document.createElement('_ui-inspect-swap')");
   });
 });

@@ -254,6 +254,128 @@ describe('normalizeCssDebugPayload', () => {
     expect(result!.primaryInteraction).toBeUndefined();
   });
 
+  it('normalizes reorder interactions and keeps reorder-only targets', () => {
+    const selection = makeSelection({
+      id: 'sel-reorder',
+      dom: {
+        ...makeSelection().dom,
+        selector: '.nav-item:nth-child(1)',
+        tagName: 'button',
+        className: 'nav-item',
+        text: 'Assets',
+      },
+    });
+    const reorder = {
+      type: 'reorder',
+      handle: 'move',
+      properties: ['transform'],
+      rectBefore: { x: 10, y: 20, width: 80, height: 30 },
+      rectAfter: { x: 100, y: 20, width: 80, height: 30 },
+      delta: { x: 0, y: 0, width: 0, height: 0 },
+      strategy: 'swap-sibling',
+      timestamp: 1234,
+      reorder: {
+        sourceId: 'css-el-1',
+        targetId: 'css-el-2',
+        sourceIndex: 0,
+        targetIndex: 1,
+        parentSelector: '.nav-list',
+        matchedBy: ['same-parent', 'tag:button', 'class:nav-item', 'size', 'role', 'text', 'extra-1', 'extra-2', 'extra-3'],
+      },
+    };
+
+    const result = normalizeCssDebugPayload({
+      batch: true,
+      primaryTargetId: 'css-el-1',
+      changedTargetCount: 1,
+      targets: [{
+        id: 'css-el-1',
+        selection,
+        selectedElement: selection.dom,
+        changedStyles: {},
+        interactions: [reorder],
+        primaryInteraction: reorder,
+      }],
+    }, selection);
+
+    expect(result).toBeDefined();
+    expect(result!.targets).toHaveLength(1);
+    expect(result!.targets![0].changedStyles).toEqual({});
+    expect(result!.targets![0].primaryInteraction?.type).toBe('reorder');
+    expect(result!.targets![0].primaryInteraction?.strategy).toBe('swap-sibling');
+    expect(result!.targets![0].primaryInteraction?.reorder).toMatchObject({
+      sourceId: 'css-el-1',
+      targetId: 'css-el-2',
+      sourceIndex: 0,
+      targetIndex: 1,
+      parentSelector: '.nav-list',
+    });
+    expect(result!.targets![0].primaryInteraction?.reorder?.matchedBy).toHaveLength(8);
+  });
+
+  it('normalizes group-scale interactions and keeps group-scale-only targets', () => {
+    const selection = makeSelection({
+      id: 'sel-scale',
+      dom: {
+        ...makeSelection().dom,
+        selector: '.facility-map',
+        tagName: 'section',
+        className: 'facility-map',
+        text: 'Facility map',
+      },
+    });
+    const childEffects = Array.from({ length: 25 }, (_, index) => ({
+      selector: `.zone-${index}`,
+      tagName: 'div',
+      beforeRect: { x: index * 10, y: 20, width: 80, height: 40 },
+      afterRect: { x: index * 12, y: 24, width: 96, height: 48 },
+    }));
+    const groupScale = {
+      type: 'group-scale',
+      handle: 'se',
+      properties: ['width', 'height'],
+      rectBefore: { x: 10, y: 20, width: 400, height: 240 },
+      rectAfter: { x: 10, y: 20, width: 520, height: 300 },
+      delta: { x: 0, y: 0, width: 120, height: 60 },
+      strategy: 'group-scale',
+      timestamp: 1234,
+      groupScale: {
+        scaleX: 1.3,
+        scaleY: 1.25,
+        origin: 'center',
+        affectedChildren: 25,
+        childEffects,
+      },
+    };
+
+    const result = normalizeCssDebugPayload({
+      batch: true,
+      primaryTargetId: 'css-el-map',
+      changedTargetCount: 1,
+      targets: [{
+        id: 'css-el-map',
+        selection,
+        selectedElement: selection.dom,
+        changedStyles: {},
+        interactions: [groupScale],
+        primaryInteraction: groupScale,
+      }],
+    }, selection);
+
+    expect(result).toBeDefined();
+    expect(result!.targets).toHaveLength(1);
+    expect(result!.targets![0].changedStyles).toEqual({});
+    expect(result!.targets![0].primaryInteraction?.type).toBe('group-scale');
+    expect(result!.targets![0].primaryInteraction?.strategy).toBe('group-scale');
+    expect(result!.targets![0].primaryInteraction?.groupScale).toMatchObject({
+      scaleX: 1.3,
+      scaleY: 1.25,
+      origin: 'center',
+      affectedChildren: 25,
+    });
+    expect(result!.targets![0].primaryInteraction?.groupScale?.childEffects).toHaveLength(20);
+  });
+
   it('returns undefined for missing css debug payload', () => {
     expect(normalizeCssDebugPayload(undefined, makeSelection())).toBeUndefined();
   });

@@ -15,7 +15,11 @@ export function clientSource(options) {
   const PANEL_ID = 'ui-inspect-panel';
   const TOAST_ID = 'ui-inspect-toast';
   const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
-  const CSS_DEBUG_OVERLAY_ID = 'ui-inspect-css-overlay';
+  const CSS_DEBUG_OVERLAY_ID = 'ui-inspect-css-selection-overlay';
+  const CSS_DEBUG_BOUNDARY_OVERLAY_ID = 'ui-inspect-css-boundary-overlay';
+  const CSS_DEBUG_PREVIEW_OVERLAY_ID = 'ui-inspect-css-preview-overlay';
+  const CSS_DEBUG_PICK_POPOVER_ID = 'ui-inspect-css-pick-popover';
+  const CSS_DEBUG_SWAP_OVERLAY_ID = 'ui-inspect-css-swap-overlay';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
   const SOURCE_EDITOR_KEY = 'ui-inspect:source-editor';
@@ -41,10 +45,52 @@ export function clientSource(options) {
   let troubleshootRuntimeSnapshot = [];
   let runtimePrivacyConfirmed = false;
   let cssDebugSession = null;
+  let cssDebugPendingPick = null;
   let cssDebugElementIds = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
   let cssDebugNextElementId = 1;
 
 ${styleClientSource}
+
+  function installCssDebugRuntimeStyle() {
+    if (document.getElementById('ui-inspect-css-runtime-style')) return;
+    const style = document.createElement('style');
+    style.id = 'ui-inspect-css-runtime-style';
+    style.textContent = [
+      '#' + CSS_DEBUG_OVERLAY_ID + '{position:fixed;z-index:2147483646;display:none;pointer-events:none;border:1px solid rgba(37,99,235,.92);background:rgba(59,130,246,.08);box-shadow:0 0 0 1px rgba(255,255,255,.72) inset,0 10px 28px rgba(37,99,235,.18)}',
+      '#' + CSS_DEBUG_BOUNDARY_OVERLAY_ID + '{position:fixed;z-index:2147483645;display:none;pointer-events:none;border:1px dashed rgba(14,165,233,.78);background:rgba(14,165,233,.045);box-shadow:0 0 0 9999px rgba(15,23,42,.015) inset}',
+      '#' + CSS_DEBUG_BOUNDARY_OVERLAY_ID + '[data-clamped=\"true\"]{border-color:rgba(245,158,11,.92);background:rgba(245,158,11,.07)}',
+      '#' + CSS_DEBUG_PREVIEW_OVERLAY_ID + '{position:fixed;z-index:2147483644;display:none;pointer-events:none;border:1px dashed rgba(34,197,94,.72);background:rgba(34,197,94,.055)}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle]{position:absolute;pointer-events:auto;box-sizing:border-box;border:1px solid rgba(219,234,254,.95);border-radius:6px;background:#2563eb;box-shadow:0 4px 12px rgba(15,23,42,.34);padding:0;outline:none}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle]:focus-visible{box-shadow:0 0 0 3px rgba(96,165,250,.36)}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"move\"]{top:-24px;left:-1px;width:42px;height:18px;border-radius:999px;background:rgba(37,99,235,.9);box-shadow:0 6px 16px rgba(15,23,42,.24);cursor:move}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"move\"]:before{content:\"\";position:absolute;left:12px;right:12px;top:5px;bottom:5px;border-top:2px solid rgba(255,255,255,.88);border-bottom:2px solid rgba(255,255,255,.88)}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"e\"]{top:50%;right:-6px;width:12px;height:32px;transform:translateY(-50%);cursor:ew-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"w\"]{top:50%;left:-6px;width:12px;height:32px;transform:translateY(-50%);cursor:ew-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"s\"]{left:50%;bottom:-6px;width:32px;height:12px;transform:translateX(-50%);cursor:ns-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"n\"]{left:50%;top:-6px;width:32px;height:12px;transform:translateX(-50%);cursor:ns-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"se\"]{right:-7px;bottom:-7px;width:14px;height:14px;cursor:nwse-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"sw\"]{left:-7px;bottom:-7px;width:14px;height:14px;cursor:nesw-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"ne\"]{right:-7px;top:-7px;width:14px;height:14px;cursor:nesw-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' [data-css-debug-handle=\"nw\"]{left:-7px;top:-7px;width:14px;height:14px;cursor:nwse-resize}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' .ui-inspect-box-model{position:absolute;pointer-events:none;box-sizing:border-box}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' .ui-inspect-box-model-margin{border:1px dashed rgba(255,100,200,.6);background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,100,200,.08) 3px,rgba(255,100,200,.08) 6px)}',
+      '#' + CSS_DEBUG_OVERLAY_ID + ' .ui-inspect-box-model-padding{border:1px dashed rgba(160,100,255,.6);background:repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(160,100,255,.08) 3px,rgba(160,100,255,.08) 6px)}',
+      '#ui-inspect-css-controls{right:12px!important;top:12px!important;bottom:72px!important;width:min(400px,calc(100vw - 24px))!important;max-height:none!important;display:flex!important;flex-direction:column!important;border-radius:14px!important}',
+      '#ui-inspect-css-controls .ui-inspect-css-groups{overflow:auto;padding:0 10px 8px;scrollbar-width:thin}',
+      '#ui-inspect-css-controls .ui-inspect-css-row{display:grid!important;grid-template-columns:88px minmax(96px,1fr) minmax(92px,128px)!important;gap:8px!important;align-items:center!important}',
+      '#ui-inspect-css-controls .ui-inspect-css-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#ui-inspect-css-controls .ui-inspect-drawer-footer{flex-wrap:wrap;justify-content:flex-end}',
+      '#ui-inspect-css-targets,#ui-inspect-css-send{right:16px!important;bottom:72px!important;border-radius:14px!important}',
+      '#' + CSS_DEBUG_PICK_POPOVER_ID + '{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:6px;padding:6px;border:1px solid rgba(147,197,253,.35);border-radius:999px;background:rgba(15,23,42,.94);color:#e2e8f0;box-shadow:0 14px 34px rgba(15,23,42,.32);font:12px/1 ui-sans-serif,system-ui,sans-serif;backdrop-filter:blur(12px)}',
+      '#' + CSS_DEBUG_PICK_POPOVER_ID + ' span{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;color:#bfdbfe;padding:0 4px}',
+      '#' + CSS_DEBUG_PICK_POPOVER_ID + ' button{border:1px solid #334155;border-radius:999px;background:#1f2937;color:#e2e8f0;padding:5px 10px;font:12px/1 ui-sans-serif,system-ui,sans-serif;font-weight:900;cursor:pointer}',
+      '#' + CSS_DEBUG_PICK_POPOVER_ID + ' button[data-primary=\"true\"]{border-color:#2563eb;background:#2563eb;color:white}',
+      '#' + CSS_DEBUG_SWAP_OVERLAY_ID + '{position:fixed;z-index:2147483644;display:none;pointer-events:none;border:2px solid rgba(168,85,247,.88);background:rgba(168,85,247,.1);border-radius:4px;transition:opacity .12s}',
+      '#' + CSS_DEBUG_SWAP_OVERLAY_ID + '::after{content:attr(data-label);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:rgba(88,28,135,.92);color:#f3e8ff;padding:3px 10px;border-radius:6px;font:600 11px/1.4 ui-sans-serif,system-ui,sans-serif;white-space:nowrap;pointer-events:none}',
+      '@media (max-width:720px){#ui-inspect-css-controls,#ui-inspect-css-targets,#ui-inspect-css-send{left:8px!important;right:8px!important;top:auto!important;bottom:66px!important;width:auto!important;max-height:52vh!important}#ui-inspect-css-controls .ui-inspect-css-row{grid-template-columns:1fr!important}}'
+    ].join('\\n');
+    document.head.appendChild(style);
+  }
 
   ${dianaClientSource}
 
@@ -70,7 +116,7 @@ ${styleClientSource}
 ${runtimeMonitorClientSource({ eventLimit: 20, textLimit: 2000 })}
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || el.id === CSS_DEBUG_MINI_BAR_ID || el.id === CSS_DEBUG_CONTROLS_DRAWER_ID || el.id === CSS_DEBUG_TARGETS_POPOVER_ID || el.id === CSS_DEBUG_SEND_DIALOG_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_MINI_BAR_ID) || el.closest('#' + CSS_DEBUG_CONTROLS_DRAWER_ID) || el.closest('#' + CSS_DEBUG_TARGETS_POPOVER_ID) || el.closest('#' + CSS_DEBUG_SEND_DIALOG_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || el.id === CSS_DEBUG_BOUNDARY_OVERLAY_ID || el.id === CSS_DEBUG_PREVIEW_OVERLAY_ID || el.id === CSS_DEBUG_PICK_POPOVER_ID || el.id === CSS_DEBUG_MINI_BAR_ID || el.id === CSS_DEBUG_CONTROLS_DRAWER_ID || el.id === CSS_DEBUG_TARGETS_POPOVER_ID || el.id === CSS_DEBUG_SEND_DIALOG_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_BOUNDARY_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_PREVIEW_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_PICK_POPOVER_ID) || el.closest('#' + CSS_DEBUG_MINI_BAR_ID) || el.closest('#' + CSS_DEBUG_CONTROLS_DRAWER_ID) || el.closest('#' + CSS_DEBUG_TARGETS_POPOVER_ID) || el.closest('#' + CSS_DEBUG_SEND_DIALOG_ID))));
   }
 
   function elementFromNode(node) {
@@ -207,6 +253,7 @@ ${selectionClientSource}
     if (popover) popover.remove();
     const sendDialog = document.getElementById(CSS_DEBUG_SEND_DIALOG_ID);
     if (sendDialog) sendDialog.remove();
+    closeCssDebugPickPopover();
     setEnabled(false);
     activePanelSessionId = null;
     activeSessionData = null;
@@ -672,11 +719,49 @@ ${taskPanelClientSource}
     return key;
   }
 
+  function cssDebugSmartTargetElement(el) {
+    if (!el || !el.parentElement || !el.getBoundingClientRect) return el;
+    const tag = el.tagName?.toLowerCase?.() || '';
+    const svgLeafTags = new Set(['path', 'rect', 'circle', 'line', 'polyline', 'polygon', 'ellipse', 'text']);
+    if (svgLeafTags.has(tag)) {
+      const group = el.closest?.('g');
+      if (group && group.getBoundingClientRect) return group;
+      if (el.ownerSVGElement && el.ownerSVGElement.getBoundingClientRect) return el.ownerSVGElement;
+    }
+    const leafTags = new Set(['span', 'strong', 'em', 'b', 'i', 'small', 'label', 'svg', 'path', 'circle', 'text']);
+    const text = cssDebugText(el);
+    const childRect = el.getBoundingClientRect();
+    if (!leafTags.has(tag) && !(text && childRect.width < 120 && childRect.height < 48)) return el;
+    let current = el.parentElement;
+    let depth = 0;
+    while (current && current !== document.body && depth < 4) {
+      const rect = current.getBoundingClientRect();
+      const className = typeof current.className === 'string' ? current.className.trim() : '';
+      const hasSemanticMarker = !!(className || current.id || current.hasAttribute?.('data-component') || current.getAttribute?.('role'));
+      const childArea = Math.max(1, childRect.width * childRect.height);
+      const area = Math.max(1, rect.width * rect.height);
+      const localEnough = area <= Math.max(childArea * 12, 90000) && rect.width <= window.innerWidth * 0.72 && rect.height <= window.innerHeight * 0.72;
+      if (hasSemanticMarker && localEnough && rect.width >= childRect.width && rect.height >= childRect.height) return current;
+      current = current.parentElement;
+      depth++;
+    }
+    return el;
+  }
+
   function removeCssDebugOverlay() {
     const overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
     if (overlay) overlay.remove();
+    const boundary = document.getElementById(CSS_DEBUG_BOUNDARY_OVERLAY_ID);
+    if (boundary) boundary.remove();
+    const preview = document.getElementById(CSS_DEBUG_PREVIEW_OVERLAY_ID);
+    if (preview) preview.remove();
     const target = cssDebugActiveTarget();
     if (target) target.drag = null;
+  }
+
+  function removeCssDebugPreviewOverlay() {
+    const preview = document.getElementById(CSS_DEBUG_PREVIEW_OVERLAY_ID);
+    if (preview) preview.remove();
   }
 
   function ensureCssDebugOverlay() {
@@ -708,6 +793,35 @@ ${taskPanelClientSource}
     return overlay;
   }
 
+  function ensureCssDebugBoundaryOverlay() {
+    let overlay = document.getElementById(CSS_DEBUG_BOUNDARY_OVERLAY_ID);
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = CSS_DEBUG_BOUNDARY_OVERLAY_ID;
+      document.body.appendChild(overlay);
+      ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+        overlay.addEventListener(type, (event) => event.stopPropagation());
+      });
+    }
+    return overlay;
+  }
+
+  function updateCssDebugBoundaryOverlay(scopeGuard, options) {
+    const overlay = document.getElementById(CSS_DEBUG_BOUNDARY_OVERLAY_ID);
+    if (!scopeGuard?.enabled || !scopeGuard.rect || !document.documentElement.hasAttribute('data-ui-inspect-css-debug') || (!options?.visible && !options?.clamped)) {
+      if (overlay) overlay.style.display = 'none';
+      return;
+    }
+    const boundary = ensureCssDebugBoundaryOverlay();
+    const rect = scopeGuard.rect;
+    boundary.style.display = 'block';
+    boundary.style.left = Math.round(rect.x) + 'px';
+    boundary.style.top = Math.round(rect.y) + 'px';
+    boundary.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+    boundary.style.height = Math.max(1, Math.round(rect.height)) + 'px';
+    boundary.dataset.clamped = options?.clamped ? 'true' : 'false';
+  }
+
   function updateCssDebugOverlay() {
     const panel = cssDebugPanel();
     const target = cssDebugActiveTarget();
@@ -715,6 +829,7 @@ ${taskPanelClientSource}
       removeCssDebugOverlay();
       return;
     }
+    removeCssDebugPreviewOverlay();
     const rect = target.element.getBoundingClientRect();
     const overlay = ensureCssDebugOverlay();
     overlay.style.display = 'block';
@@ -751,6 +866,10 @@ ${taskPanelClientSource}
         paddingEl.style.borderWidth = Math.round(pt) + 'px ' + Math.round(pr) + 'px ' + Math.round(pb) + 'px ' + Math.round(pl) + 'px';
       }
     }
+    if (!target.drag) {
+      target.scopeGuard = resolveCssDebugBoundary(target.element) || target.scopeGuard;
+    }
+    updateCssDebugBoundaryOverlay(target.scopeGuard, { clamped: !!target.scopeGuard?.clamped });
   }
 
   function cssDebugTranslateFromTransform(value) {
@@ -788,8 +907,13 @@ ${taskPanelClientSource}
   }
 
   function moveCssDebugOverlayPreview(rect, dx, dy, width, height) {
-    const overlay = document.getElementById(CSS_DEBUG_OVERLAY_ID);
-    if (!overlay || !rect) return;
+    let overlay = document.getElementById(CSS_DEBUG_PREVIEW_OVERLAY_ID);
+    if (!rect) return;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = CSS_DEBUG_PREVIEW_OVERLAY_ID;
+      document.body.appendChild(overlay);
+    }
     overlay.style.display = 'block';
     overlay.style.left = Math.round(rect.x + dx) + 'px';
     overlay.style.top = Math.round(rect.y + dy) + 'px';
@@ -805,6 +929,7 @@ ${taskPanelClientSource}
     target.activeProperties = new Set();
     target.interactions = [];
     target.primaryInteraction = null;
+    if (target.scopeGuard) target.scopeGuard.clamped = false;
     removeCssDebugOverlay();
     if (activeElement === target.element) highlightElement(activeElement);
   }
@@ -1045,6 +1170,81 @@ ${taskPanelClientSource}
   }
 
 
+  function findSwappableSiblings(element) {
+    const parent = element.parentElement;
+    if (!parent) return [];
+    const elTag = element.tagName.toLowerCase();
+    const elClasses = new Set((element.className && typeof element.className === 'string' ? element.className : '').split(/\\s+/).filter(Boolean));
+    const elRole = element.getAttribute('role') || '';
+    const elRect = element.getBoundingClientRect();
+    const results = [];
+    const children = parent.children;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (child === element) continue;
+      if (child.nodeType !== 1) continue;
+      if (!child.getBoundingClientRect) continue;
+      const tag = child.tagName.toLowerCase();
+      if (tag === 'svg' || tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta') continue;
+      const matchedBy = [];
+      if (tag === elTag) matchedBy.push('tagName');
+      const childClasses = (child.className && typeof child.className === 'string' ? child.className : '').split(/\\s+/).filter(Boolean);
+      const sharedClasses = childClasses.filter((c) => elClasses.has(c));
+      if (sharedClasses.length > 0) matchedBy.push('class:' + sharedClasses[0]);
+      const childRole = child.getAttribute('role') || '';
+      if (childRole && childRole === elRole && childRole) matchedBy.push('role');
+      const childRect = child.getBoundingClientRect();
+      const sizeRatio = Math.min(elRect.width, childRect.width) / Math.max(elRect.width, childRect.width, 1);
+      if (sizeRatio > 0.5 && sizeRatio < 2) matchedBy.push('size');
+      if (matchedBy.length >= 1) {
+        results.push({ element: child, index: i, matchedBy, rect: childRect });
+      }
+    }
+    return results;
+  }
+
+  function cssDebugElementStableId(el) {
+    return cssDebugElementKey(el);
+  }
+
+  function ensureCssDebugSwapOverlay() {
+    let overlay = document.getElementById(CSS_DEBUG_SWAP_OVERLAY_ID);
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = CSS_DEBUG_SWAP_OVERLAY_ID;
+      overlay.style.cssText = 'position:fixed;z-index:2147483644;display:none;pointer-events:none;border:2px solid rgba(168,85,247,.88);background:rgba(168,85,247,.1);border-radius:4px;transition:opacity .12s';
+      document.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  function showCssDebugSwapOverlay(el, label) {
+    const overlay = ensureCssDebugSwapOverlay();
+    const rect = el.getBoundingClientRect();
+    overlay.style.display = 'block';
+    overlay.style.left = Math.round(rect.left) + 'px';
+    overlay.style.top = Math.round(rect.top) + 'px';
+    overlay.style.width = Math.round(rect.width) + 'px';
+    overlay.style.height = Math.round(rect.height) + 'px';
+    if (label) overlay.setAttribute('data-label', label);
+    else overlay.removeAttribute('data-label');
+  }
+
+  function hideCssDebugSwapOverlay() {
+    const overlay = document.getElementById(CSS_DEBUG_SWAP_OVERLAY_ID);
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  function elementAtPointForSwap(clientX, clientY, excludeElement) {
+    const els = document.elementsFromPoint(clientX, clientY);
+    for (const el of els) {
+      if (el === excludeElement) continue;
+      if (isOwnNode(el)) continue;
+      return el;
+    }
+    return null;
+  }
+
   function beginCssDebugInteraction(event) {
     const target = cssDebugActiveTarget();
     if (!target?.element) return;
@@ -1076,7 +1276,13 @@ ${taskPanelClientSource}
       translateY: translate.y,
       lastDx: 0,
       lastDy: 0,
-      scopeGuard: scopeGuard
+      inlineCssTextBeforeDrag: target.element.style.cssText || '',
+      previewStylesBeforeDrag: { ...(target.previewStyles || {}) },
+      activePropertiesBeforeDrag: new Set(target.activeProperties || []),
+      scopeGuard: scopeGuard,
+      swapSiblings: handle === 'move' ? findSwappableSiblings(target.element) : [],
+      swapTarget: null,
+      altKey: event.altKey
     };
     try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch {}
     document.addEventListener('pointermove', moveCssDebugInteraction, true);
@@ -1086,12 +1292,43 @@ ${taskPanelClientSource}
   }
 
   function moveCssDebugInteraction(event) {
-    const drag = cssDebugActiveTarget()?.drag;
+    const target = cssDebugActiveTarget();
+    const drag = target?.drag;
     if (!drag) return;
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
     drag.lastDx = dx;
     drag.lastDy = dy;
+    const altForceMove = event.altKey;
+
+    // Swap detection for move handle
+    if (drag.handle === 'move' && drag.swapSiblings && drag.swapSiblings.length > 0 && !altForceMove) {
+      let bestSwap = null;
+      let bestOverlap = 0;
+      const dragCenterX = drag.rectBefore.x + drag.rectBefore.width / 2 + dx;
+      const dragCenterY = drag.rectBefore.y + drag.rectBefore.height / 2 + dy;
+      for (const sibling of drag.swapSiblings) {
+        const sr = sibling.element.getBoundingClientRect();
+        const overlapX = Math.max(0, Math.min(dragCenterX, sr.right) - Math.max(dragCenterX - drag.rectBefore.width * 0.3, sr.left));
+        const overlapY = Math.max(0, Math.min(dragCenterY, sr.bottom) - Math.max(dragCenterY - drag.rectBefore.height * 0.3, sr.top));
+        const overlap = overlapX * overlapY;
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestSwap = sibling;
+        }
+      }
+      if (bestSwap && bestOverlap > 100) {
+        drag.swapTarget = bestSwap;
+        showCssDebugSwapOverlay(bestSwap.element, '松手替换');
+      } else {
+        drag.swapTarget = null;
+        hideCssDebugSwapOverlay();
+      }
+    } else if (drag.handle === 'move' && altForceMove) {
+      drag.swapTarget = null;
+      hideCssDebugSwapOverlay();
+    }
+
     const panel = cssDebugPanel();
     const h = drag.handle;
     const affectsLeft = h === 'nw' || h === 'w' || h === 'sw';
@@ -1110,11 +1347,11 @@ ${taskPanelClientSource}
         effectiveDx = clampResult.clampDx;
         effectiveDy = clampResult.clampDy;
         clamped = clampResult.clamped;
+        const t = cssDebugActiveTarget();
+        if (t?.scopeGuard) t.scopeGuard.clamped = clamped;
         if (clamped) {
           drag.clamped = true;
           drag.clampDelta = { x: clampResult.clampDx - dx, y: clampResult.clampDy - dy, width: 0, height: 0 };
-          const t = cssDebugActiveTarget();
-          if (t?.scopeGuard) t.scopeGuard.clamped = true;
         }
       } else {
         const clampResult = clampResizeInteraction(drag.rectBefore, drag.scopeGuard.rect, h, dx, dy);
@@ -1122,11 +1359,11 @@ ${taskPanelClientSource}
         effectiveDy = clampResult.clampDy;
         clamped = clampResult.clamped;
         drag.clampResult = clampResult;
+        const t = cssDebugActiveTarget();
+        if (t?.scopeGuard) t.scopeGuard.clamped = clamped;
         if (clamped) {
           drag.clamped = true;
           drag.clampDelta = { x: clampResult.clampDx - dx, y: clampResult.clampDy - dy, width: clampResult.resultWidth - (drag.width + dx), height: clampResult.resultHeight - (drag.height + dy) };
-          const t = cssDebugActiveTarget();
-          if (t?.scopeGuard) t.scopeGuard.clamped = true;
         }
       }
     }
@@ -1134,7 +1371,8 @@ ${taskPanelClientSource}
     if (h === 'move') {
       const transform = cssDebugPreviewTransform(drag.transformBase, drag.translateX + effectiveDx, drag.translateY + effectiveDy);
       applyCssDebugValue('transform', transform);
-      moveCssDebugOverlayPreview(drag.rectBefore, effectiveDx, effectiveDy);
+      removeCssDebugPreviewOverlay();
+      updateCssDebugBoundaryOverlay(drag.scopeGuard, { clamped, visible: true });
       if (clamped && !drag.clampShown) {
         showToast('已限制在当前组件内，跨组件移动需要修改源码结构。', 'rest');
         drag.clampShown = true;
@@ -1199,7 +1437,8 @@ ${taskPanelClientSource}
         const transform = cssDebugPreviewTransform(drag.transformBase, translateX, translateY);
         applyCssDebugValue('transform', transform);
       }
-      moveCssDebugOverlayPreview(drag.rectBefore, previewDx, previewDy, nextWidth, nextHeight);
+      removeCssDebugPreviewOverlay();
+      updateCssDebugBoundaryOverlay(drag.scopeGuard, { clamped, visible: true });
     }
     if (panel) {
       if (cssDebugActiveTarget()?.changedOnly && drag.handle !== 'move') renderCssDebugControls(panel);
@@ -1216,7 +1455,78 @@ ${taskPanelClientSource}
     document.removeEventListener('pointerup', endCssDebugInteraction, true);
     document.removeEventListener('pointercancel', cancelCssDebugInteraction, true);
     target.drag = null;
-    if (cancelled) return;
+    if (cancelled) {
+      hideCssDebugSwapOverlay();
+      return;
+    }
+
+    // Handle swap/reorder
+    if (drag.swapTarget && drag.handle === 'move') {
+      hideCssDebugSwapOverlay();
+      const sourceEl = target.element;
+      const targetEl = drag.swapTarget.element;
+      const parent = sourceEl.parentElement;
+      if (parent && parent.contains(targetEl)) {
+        // Revert only the current drag preview. Keep style edits made before the
+        // drag started, but do not leak transform-preview into a reorder payload.
+        sourceEl.style.cssText = drag.inlineCssTextBeforeDrag || '';
+        target.previewStyles = { ...(drag.previewStylesBeforeDrag || {}) };
+        target.activeProperties = new Set(drag.activePropertiesBeforeDrag || []);
+
+        const parentSelector = selectorFor(parent);
+        const sourceIndex = Array.from(parent.children).indexOf(sourceEl);
+        const targetIndex = drag.swapTarget.index;
+        const sourceId = cssDebugElementStableId(sourceEl);
+        const targetId = cssDebugElementStableId(targetEl);
+        const previousSelectionId = target.selection?.id;
+        const previousNote = target.selection?.note || '';
+
+        // Perform DOM swap using a placeholder
+        const placeholder = document.createComment('ui-inspect-swap');
+        parent.insertBefore(placeholder, sourceEl);
+        parent.insertBefore(sourceEl, targetEl);
+        parent.insertBefore(targetEl, placeholder);
+        parent.removeChild(placeholder);
+
+        // Refresh selection snapshot after swap
+        target.selection = selectionPayloadFor(sourceEl, previousNote, activePanelSessionId);
+        selectedTargets = selectedTargets.map((item) => (
+          item.id === target.id || item.selection?.id === previousSelectionId
+            ? targetFromSelection(target.selection, item.note || previousNote || '')
+            : item
+        ));
+        const rectAfterSwap = cssDebugRect(sourceEl);
+
+        const reorderInteraction = {
+          type: 'reorder',
+          handle: 'move',
+          properties: [],
+          rectBefore: drag.rectBefore,
+          rectAfter: rectAfterSwap,
+          delta: { x: 0, y: 0, width: 0, height: 0 },
+          strategy: 'swap-sibling',
+          timestamp: Date.now(),
+          reorder: {
+            sourceId: sourceId,
+            targetId: targetId,
+            sourceIndex: sourceIndex,
+            targetIndex: targetIndex,
+            parentSelector: parentSelector,
+            matchedBy: drag.swapTarget.matchedBy.slice(0, 8)
+          }
+        };
+        target.interactions = [...(target.interactions || []), reorderInteraction].slice(-8);
+        target.primaryInteraction = reorderInteraction;
+        const panel = cssDebugPanel();
+        if (panel) renderCssDebugControls(panel);
+        updateCssDebugOverlay();
+        updateCssDebugMiniBar();
+        showToast('已交换位置: index ' + sourceIndex + ' ↔ ' + targetIndex, 'done');
+        return;
+      }
+    }
+
+    hideCssDebugSwapOverlay();
     const rectAfter = cssDebugRect(target.element);
     const delta = {
       x: Math.round((rectAfter.x - drag.rectBefore.x) * 10) / 10,
@@ -1241,6 +1551,7 @@ ${taskPanelClientSource}
     target.primaryInteraction = interaction;
     const panel = cssDebugPanel();
     if (panel) renderCssDebugControls(panel);
+    updateCssDebugOverlay();
     updateCssDebugMiniBar();
   }
 
@@ -1505,7 +1816,8 @@ ${taskPanelClientSource}
         ? { ...cssDebugComputedStyles(target.element), ...target.previewStyles }
         : {};
       const changedStyles = cssDebugChangedStyles(target.originalStyles, previewStyles, target.activeProperties);
-      if (Object.keys(changedStyles).length === 0) continue;
+      const hasInteraction = target.primaryInteraction && (target.primaryInteraction.type === 'reorder' || target.primaryInteraction.type === 'group-scale');
+      if (Object.keys(changedStyles).length === 0 && !hasInteraction) continue;
       const computedEffects = cssDebugComputedEffects(target.originalStyles, previewStyles, target.activeProperties);
       changedTargets.push({
         id: target.id,
@@ -1525,7 +1837,7 @@ ${taskPanelClientSource}
     }
     if (!changedTargets.length) return null;
     let primaryTarget = cssDebugSession.targets.get(cssDebugSession.activeTargetId);
-    const activeHasChanges = primaryTarget && Object.keys(cssDebugChangedStyles(primaryTarget.originalStyles, primaryTarget.previewStyles && Object.keys(primaryTarget.previewStyles).length ? { ...cssDebugComputedStyles(primaryTarget.element), ...primaryTarget.previewStyles } : {}, primaryTarget.activeProperties)).length > 0;
+    const activeHasChanges = primaryTarget && (Object.keys(cssDebugChangedStyles(primaryTarget.originalStyles, primaryTarget.previewStyles && Object.keys(primaryTarget.previewStyles).length ? { ...cssDebugComputedStyles(primaryTarget.element), ...primaryTarget.previewStyles } : {}, primaryTarget.activeProperties)).length > 0 || (primaryTarget.primaryInteraction && (primaryTarget.primaryInteraction.type === 'reorder' || primaryTarget.primaryInteraction.type === 'group-scale')));
     if (!activeHasChanges) {
       primaryTarget = cssDebugSession.targets.get(changedTargets[changedTargets.length - 1].id) || primaryTarget;
     }
@@ -1595,8 +1907,74 @@ ${taskPanelClientSource}
     handle.addEventListener('pointercancel', () => { drag = null; });
   }
 
+  function closeCssDebugPickPopover() {
+    const popover = document.getElementById(CSS_DEBUG_PICK_POPOVER_ID);
+    if (popover) popover.remove();
+    cssDebugPendingPick = null;
+  }
+
+  function restoreCssDebugTargetsBeforeReplace() {
+    if (!cssDebugSession) return;
+    for (const target of cssDebugSession.targets.values()) {
+      if (target.element) target.element.style.cssText = target.originalInlineCssText || '';
+    }
+    cssDebugSession.targets.clear();
+    selectedTargets = [];
+    removeCssDebugOverlay();
+  }
+
+  function placeCssDebugPickPopover(popover, element) {
+    const rect = element.getBoundingClientRect();
+    const width = popover.offsetWidth || 232;
+    const height = popover.offsetHeight || 40;
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right + 8));
+    const top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top - 4));
+    popover.style.left = Math.round(left) + 'px';
+    popover.style.top = Math.round(top) + 'px';
+  }
+
+  function openCssDebugPickPopover(element, sessionId) {
+    if (!element || !cssDebugSession) return;
+    closeCssDebugFloatingPanels();
+    closeCssDebugPickPopover();
+    cssDebugPendingPick = { element, sessionId };
+    const popover = document.createElement('div');
+    popover.id = CSS_DEBUG_PICK_POPOVER_ID;
+    popover.innerHTML = [
+      '<span>' + escapeHtml(describeSelection(selectionPayloadFor(element, '', activePanelSessionId))) + '</span>',
+      '<button type="button" data-pick-action="add" data-primary="true">添加</button>',
+      '<button type="button" data-pick-action="replace">替换</button>',
+      '<button type="button" data-pick-action="close" aria-label="关闭">×</button>'
+    ].join('');
+    document.body.appendChild(popover);
+    ['pointerdown','mousedown','mouseup','click','dblclick','mousemove'].forEach((type) => {
+      popover.addEventListener(type, (event) => event.stopPropagation());
+    });
+    popover.querySelector('[data-pick-action="add"]').addEventListener('click', () => {
+      const pending = cssDebugPendingPick;
+      closeCssDebugPickPopover();
+      if (!pending || !cssDebugSession) return;
+      cssDebugSession.pickMode = 'append';
+      openCssDebugPanel(pending.element, pending.sessionId);
+    });
+    popover.querySelector('[data-pick-action="replace"]').addEventListener('click', () => {
+      const pending = cssDebugPendingPick;
+      closeCssDebugPickPopover();
+      if (!pending || !cssDebugSession) return;
+      restoreCssDebugTargetsBeforeReplace();
+      cssDebugSession.pickMode = 'replace-now';
+      openCssDebugPanel(pending.element, pending.sessionId);
+    });
+    popover.querySelector('[data-pick-action="close"]').addEventListener('click', () => {
+      closeCssDebugPickPopover();
+      updateCssDebugOverlay();
+    });
+    placeCssDebugPickPopover(popover, element);
+    highlightElement(element);
+  }
+
   function openCssDebugPanel(element, sessionId) {
-    element = elementFromNode(element);
+    element = cssDebugSmartTargetElement(elementFromNode(element));
     if (!element) return;
     const isNewSession = !cssDebugSession;
     if (!cssDebugSession) {
@@ -1610,11 +1988,22 @@ ${taskPanelClientSource}
     const existingTarget = cssDebugSession ? cssDebugSession.targets.get(stableKey) : null;
     if (existingTarget) {
       cssDebugSession.activeTargetId = stableKey;
+      cssDebugSession.pickMode = 'replace';
       activeElement = existingTarget.element;
       highlightElement(existingTarget.element);
       updateCssDebugMiniBar();
       updateCssDebugOverlay();
       return;
+    }
+    const appendMode = cssDebugSession?.pickMode === 'append';
+    const replaceNow = cssDebugSession?.pickMode === 'replace-now';
+    if (cssDebugSession && !appendMode && !replaceNow) {
+      openCssDebugPickPopover(element, sessionId);
+      return;
+    }
+    if (cssDebugSession && !appendMode) {
+      cssDebugSession.targets.clear();
+      selectedTargets = [];
     }
     const target = {
       id: stableKey,
@@ -1630,12 +2019,14 @@ ${taskPanelClientSource}
       interactions: [],
       primaryInteraction: null,
       drag: null,
-      showBoxModel: false
+      showBoxModel: false,
+      scopeGuard: resolveCssDebugBoundary(element)
     };
     if (!cssDebugSession) {
       cssDebugSession = {
         activeTargetId: stableKey,
         targets: new Map([[stableKey, target]]),
+        pickMode: 'replace',
         sessionInfo: {
           id: activePanelSessionId,
           url: location.href,
@@ -1648,7 +2039,9 @@ ${taskPanelClientSource}
     } else {
       cssDebugSession.targets.set(stableKey, target);
       cssDebugSession.activeTargetId = stableKey;
-      selectedTargets.push(targetFromSelection(selection, ''));
+      cssDebugSession.pickMode = 'replace';
+      if (appendMode) selectedTargets.push(targetFromSelection(selection, ''));
+      else selectedTargets = [targetFromSelection(selection, '')];
     }
     highlightElement(element);
     document.documentElement.setAttribute('data-ui-inspect-css-debug', 'true');
@@ -1689,6 +2082,8 @@ ${taskPanelClientSource}
     if (label) {
       if (sent) {
         label.textContent = 'CSS 调试 · 已发送 · ' + changed + ' changed';
+      } else if (cssDebugSession?.pickMode === 'append') {
+        label.textContent = 'CSS 调试 · 添加元素中 · ' + targets + ' targets';
       } else if (targets > 1) {
         label.textContent = 'CSS 调试 · ' + targets + ' targets · ' + changed + ' changed';
       } else {
@@ -1737,6 +2132,37 @@ ${taskPanelClientSource}
     updateCssDebugMiniBar();
   }
 
+  function closeCssDebugControlsDrawer() {
+    const drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
+    if (!drawer) return;
+    const cleanup = drawer._cssDebugKeydownHandler;
+    if (cleanup) document.removeEventListener('keydown', cleanup, true);
+    drawer.remove();
+  }
+
+  function closeCssDebugFloatingPanels(except) {
+    if (except !== 'controls') closeCssDebugControlsDrawer();
+    if (except !== 'targets') {
+      const popover = document.getElementById(CSS_DEBUG_TARGETS_POPOVER_ID);
+      if (popover) popover.remove();
+    }
+    if (except !== 'send') {
+      const dialog = document.getElementById(CSS_DEBUG_SEND_DIALOG_ID);
+      if (dialog) dialog.remove();
+    }
+    if (except !== 'pick') closeCssDebugPickPopover();
+  }
+
+  function requestCssDebugAppendTarget() {
+    if (!cssDebugSession) return;
+    closeCssDebugFloatingPanels();
+    cssDebugSession.pickMode = 'append';
+    selectionMode = 'css-debug';
+    setEnabled(true);
+    updateCssDebugOverlay();
+    showToast('添加元素：下一次点击会追加到当前 CSS 调试会话。', 'scan');
+  }
+
   function toggleCssDebugControlsDrawer() {
     if (cssDebugSession && cssDebugSession.sent) {
       showToast('CSS diff 已发送，无法再修改。', 'idle');
@@ -1744,11 +2170,10 @@ ${taskPanelClientSource}
     }
     let drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
     if (drawer) {
-      const cleanup = drawer._cssDebugKeydownHandler;
-      if (cleanup) document.removeEventListener('keydown', cleanup, true);
-      drawer.remove();
+      closeCssDebugControlsDrawer();
       return;
     }
+    closeCssDebugFloatingPanels('controls');
     drawer = document.createElement('div');
     drawer.id = CSS_DEBUG_CONTROLS_DRAWER_ID;
     drawer.innerHTML = [
@@ -1773,8 +2198,7 @@ ${taskPanelClientSource}
     });
 
     drawer.querySelector('[data-drawer-action="close"]').addEventListener('click', () => {
-      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
-      drawer.remove();
+      closeCssDebugControlsDrawer();
     });
 
     function handleCssDebugKeydown(event) {
@@ -1842,8 +2266,7 @@ ${taskPanelClientSource}
       resetAllCssDebugTargets();
       removeCssDebugOverlay();
       document.documentElement.removeAttribute('data-ui-inspect-css-debug');
-      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
-      drawer.remove();
+      closeCssDebugControlsDrawer();
       const bar = cssDebugMiniBar();
       if (bar) bar.remove();
       cssDebugSession = null;
@@ -1852,10 +2275,7 @@ ${taskPanelClientSource}
       showToast('已恢复全部元素的 inline style，重新开始选择。', 'idle');
     });
     drawer.querySelector('[data-action="select"]').addEventListener('click', () => {
-      selectionMode = 'css-debug';
-      removeCssDebugOverlay();
-      setEnabled(true);
-      showToast('点击页面元素添加到当前 CSS 调试会话。', 'scan');
+      requestCssDebugAppendTarget();
     });
     drawer.querySelector('[data-action="toggle-box-model"]').addEventListener('click', () => {
       const target = cssDebugActiveTarget();
@@ -1884,6 +2304,7 @@ ${taskPanelClientSource}
       popover.remove();
       return;
     }
+    closeCssDebugFloatingPanels('targets');
     popover = document.createElement('div');
     popover.id = CSS_DEBUG_TARGETS_POPOVER_ID;
     popover.innerHTML = '<div class="ui-inspect-popover-head"><span>目标列表</span><button type="button" data-popover-action="close" aria-label="关闭">×</button></div><div class="ui-inspect-popover-list"></div>';
@@ -1940,6 +2361,7 @@ ${taskPanelClientSource}
       dialog.remove();
       return;
     }
+    closeCssDebugFloatingPanels('send');
     const changed = cssDebugChangedCount();
     dialog = document.createElement('div');
     dialog.id = CSS_DEBUG_SEND_DIALOG_ID;
@@ -1978,11 +2400,7 @@ ${taskPanelClientSource}
         updateCssDebugMiniBar();
         setEnabled(false);
         removeCssDebugOverlay();
-        const sentDrawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
-        if (sentDrawer) {
-          if (sentDrawer._cssDebugKeydownHandler) document.removeEventListener('keydown', sentDrawer._cssDebugKeydownHandler, true);
-          sentDrawer.remove();
-        }
+        closeCssDebugFloatingPanels();
         showToast('CSS diff 已发送（' + payload.cssDebug.changedTargetCount + ' 个元素）', 'sent');
       }).catch((err) => {
         setDianaState('failed', 2200);
@@ -2210,6 +2628,7 @@ ${sessionClientSource}
   }
 
   installStyle();
+  installCssDebugRuntimeStyle();
   installRuntimeCapture();
   ensureToggle();
   document.addEventListener('pointermove', moveDiana, true);
