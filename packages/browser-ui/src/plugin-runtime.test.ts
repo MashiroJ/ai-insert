@@ -26,6 +26,11 @@ describe('clientSource', () => {
     expect(result.trimEnd().endsWith('})();')).toBe(true);
   });
 
+  it('produces parseable JavaScript', () => {
+    const result = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
+    expect(() => new Function(result)).not.toThrow();
+  });
+
   it('keeps the default Diana sprite URL', () => {
     const result = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
     expect(result).toContain('/@ui-inspect/diana.webp');
