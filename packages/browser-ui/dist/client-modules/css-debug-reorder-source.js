@@ -1,5 +1,5 @@
 // Generated browser client source fragment for CSS Debug.
-export const cssDebugReorderClientSource = String.raw `
+export const cssDebugReorderClientSource = `
   function findSwappableSiblings(element) {
     const parent = element.parentElement;
     if (!parent) return [];

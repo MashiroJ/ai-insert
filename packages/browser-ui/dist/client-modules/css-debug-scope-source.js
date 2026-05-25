@@ -1,5 +1,5 @@
 // Generated browser client source fragment for CSS Debug.
-export const cssDebugScopeClientSource = String.raw `
+export const cssDebugScopeClientSource = `
   function resolveCssDebugBoundary(el) {
     if (!el || !el.getBoundingClientRect) return null;
     let current = el.parentElement;

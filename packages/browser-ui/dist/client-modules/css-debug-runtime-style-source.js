@@ -1,5 +1,5 @@
 // Generated browser client source fragment for CSS Debug.
-export const cssDebugRuntimeStyleClientSource = String.raw `
+export const cssDebugRuntimeStyleClientSource = `
   function installCssDebugRuntimeStyle() {
     if (document.getElementById('ui-inspect-css-runtime-style')) return;
     const style = document.createElement('style');
