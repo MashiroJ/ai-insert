@@ -3,4 +3,13 @@ export interface EnsureDaemonOptions {
     project?: string;
     timeoutMs?: number;
 }
-export declare function ensureDaemon({ daemonUrl, project, timeoutMs }: EnsureDaemonOptions): Promise<void>;
+export interface EnsureDaemonWarning {
+    versionMismatch: true;
+    cliVersion: string;
+    daemonVersion: string;
+    daemonUrl: string;
+}
+export interface EnsureDaemonResult {
+    warnings?: EnsureDaemonWarning[];
+}
+export declare function ensureDaemon({ daemonUrl, project, timeoutMs }: EnsureDaemonOptions): Promise<EnsureDaemonResult>;

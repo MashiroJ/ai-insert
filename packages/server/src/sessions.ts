@@ -182,6 +182,8 @@ function normalizeCssDebugTargets(value: unknown, fallback: UiInspectSelection):
       note: typeof input.note === 'string' ? input.note : undefined,
       sourceHints: Array.isArray(input.sourceHints) ? input.sourceHints : undefined,
       styleSourceHints: normalizeStyleSourceHints(input.styleSourceHints),
+      layoutHints: Array.isArray(input.layoutHints) ? input.layoutHints : undefined,
+      specificityWarnings: Array.isArray(input.specificityWarnings) ? input.specificityWarnings : undefined,
     };
   }).filter((target) => Object.keys(target.changedStyles).length > 0);
 }

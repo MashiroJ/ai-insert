@@ -189,6 +189,23 @@ export async function route(req, res, state, closeServer) {
                     cssDebug,
                 });
                 Object.assign(cssDebug, enriched);
+                // Sync inferred template line from best cssDebug target back to main selection
+                if (selection.source.line == null && enriched.targets) {
+                    const bestTarget = findBestTemplateLineTarget(enriched.targets, selection.id);
+                    if (bestTarget) {
+                        selection.source.line = bestTarget.selection.source.line;
+                        selection.source.column = bestTarget.selection.source.column;
+                        if (bestTarget.selection.sourceHints) {
+                            const templateHints = bestTarget.selection.sourceHints.filter((h) => h.kind === 'template-file');
+                            if (templateHints.length > 0) {
+                                selection.sourceHints = [
+                                    ...(selection.sourceHints ?? []),
+                                    ...templateHints,
+                                ];
+                            }
+                        }
+                    }
+                }
             }
             catch {
                 // Hint building is best-effort; never fail task creation.
@@ -207,5 +224,25 @@ export async function route(req, res, state, closeServer) {
         return;
     }
     sendJson(res, 404, { error: 'not found' });
+}
+function findBestTemplateLineTarget(targets, selectionId) {
+    const lineTargets = targets.filter((target) => target.selection.source.line != null);
+    const selectionTarget = lineTargets.find((target) => target.selection.id === selectionId);
+    if (selectionTarget)
+        return selectionTarget;
+    return lineTargets.reduce((best, target) => {
+        if (!best)
+            return target;
+        return templateLineConfidence(target) > templateLineConfidence(best) ? target : best;
+    }, undefined);
+}
+function templateLineConfidence(target) {
+    const line = target.selection.source.line;
+    const hints = target.selection.sourceHints ?? [];
+    return hints.reduce((best, hint) => {
+        if (hint.kind !== 'template-file' || hint.line !== line)
+            return best;
+        return Math.max(best, hint.confidence);
+    }, 0);
 }
 //# sourceMappingURL=routes.js.map

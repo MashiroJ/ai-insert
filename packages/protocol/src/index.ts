@@ -278,6 +278,26 @@ export interface UiInspectStyleSourceHint {
   snippet?: string;
 }
 
+export interface UiInspectLayoutHint {
+  targetId: string;
+  appliesTo: 'selected-element' | 'parent';
+  suggestedProperty: string;
+  alternativeProperties: string[];
+  confidence: number;
+  reason: string;
+  sourceHintId?: string;
+}
+
+export interface UiInspectSpecificityWarning {
+  targetId: string;
+  file: string;
+  property: string;
+  selector: string;
+  line: number | null;
+  severity: 'info' | 'warning';
+  reason: string;
+}
+
 export interface UiInspectCssDebugTarget {
   id: string;
   selection: UiInspectSelection;
@@ -293,6 +313,8 @@ export interface UiInspectCssDebugTarget {
   note?: string;
   sourceHints?: UiInspectSourceHint[];
   styleSourceHints?: UiInspectStyleSourceHint[];
+  layoutHints?: UiInspectLayoutHint[];
+  specificityWarnings?: UiInspectSpecificityWarning[];
 }
 
 export interface UiInspectCssDebugPayload {
@@ -314,6 +336,8 @@ export interface UiInspectCssDebugPayload {
   note?: string;
   sourceHints?: UiInspectSourceHint[];
   styleSourceHints?: UiInspectStyleSourceHint[];
+  layoutHints?: UiInspectLayoutHint[];
+  specificityWarnings?: UiInspectSpecificityWarning[];
   session: UiInspectCssDebugSessionInfo;
 }
 

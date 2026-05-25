@@ -1,15 +1,95 @@
 import { DEFAULT_DAEMON_PORT } from '@ui-inspect/protocol';
-import { fetchHealth } from '@ui-inspect/server';
+import { fetchHealth, shutdownDaemon } from '@ui-inspect/server';
 import { spawn } from 'node:child_process';
+import { getVersion } from './version.js';
 const CONSECUTIVE_HEALTH_CHECKS = 2;
 const HEALTH_CHECK_INTERVAL_MS = 100;
 export async function ensureDaemon({ daemonUrl, project, timeoutMs = 2500 }) {
     const parsed = parseLocalDaemonUrl(daemonUrl);
     if (!parsed) {
+        // Non-local daemon: cannot auto-start, try health check
+        if (await isHealthyWithRetry(daemonUrl, CONSECUTIVE_HEALTH_CHECKS, HEALTH_CHECK_INTERVAL_MS)) {
+            // Non-local daemon is healthy — check version
+            const cliVersion = getVersion();
+            try {
+                const health = await fetchHealth(daemonUrl);
+                if (health.version !== cliVersion) {
+                    return {
+                        warnings: [{
+                                versionMismatch: true,
+                                cliVersion,
+                                daemonVersion: health.version,
+                                daemonUrl,
+                            }],
+                    };
+                }
+            }
+            catch { /* ignore */ }
+            return {};
+        }
         throw new Error(`ui-inspect daemon is not running at ${daemonUrl}. Auto-start only supports localhost daemon URLs.`);
     }
-    if (await isHealthyWithRetry(daemonUrl, CONSECUTIVE_HEALTH_CHECKS, HEALTH_CHECK_INTERVAL_MS))
-        return;
+    if (await isHealthyWithRetry(daemonUrl, CONSECUTIVE_HEALTH_CHECKS, HEALTH_CHECK_INTERVAL_MS)) {
+        const warning = await checkVersionAndRestart(daemonUrl, parsed, project, timeoutMs);
+        if (warning)
+            return { warnings: [warning] };
+        return {};
+    }
+    await spawnAndWait(daemonUrl, parsed, project, timeoutMs);
+    return {};
+}
+async function checkVersionAndRestart(daemonUrl, parsed, project, timeoutMs = 2500) {
+    const cliVersion = getVersion();
+    let daemonVersion;
+    try {
+        const health = await fetchHealth(daemonUrl);
+        daemonVersion = health.version;
+    }
+    catch {
+        return null;
+    }
+    if (daemonVersion === cliVersion)
+        return null;
+    // Version mismatch: attempt shutdown + restart for local daemon
+    try {
+        await shutdownDaemon(daemonUrl);
+    }
+    catch {
+        // Shutdown failed — leave running, return warning
+        return {
+            versionMismatch: true,
+            cliVersion,
+            daemonVersion,
+            daemonUrl,
+        };
+    }
+    try {
+        await delay(100);
+        await spawnAndWait(daemonUrl, parsed, project, timeoutMs);
+        // Restart succeeded, verify version now matches
+        try {
+            const health = await fetchHealth(daemonUrl);
+            if (health.version === cliVersion)
+                return null;
+        }
+        catch { /* ignore */ }
+        return {
+            versionMismatch: true,
+            cliVersion,
+            daemonVersion,
+            daemonUrl,
+        };
+    }
+    catch {
+        return {
+            versionMismatch: true,
+            cliVersion,
+            daemonVersion,
+            daemonUrl,
+        };
+    }
+}
+async function spawnAndWait(daemonUrl, parsed, project, timeoutMs = 2500) {
     const entry = process.argv[1];
     spawn(process.execPath, [entry, 'daemon', '--host', parsed.host, '--port', String(parsed.port)], {
         cwd: project ?? process.cwd(),

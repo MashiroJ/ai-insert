@@ -57,6 +57,8 @@ export function buildCssDebugStyleSourceHints(input) {
                 continue;
             if (file.relative.endsWith('.vue')) {
                 hints.push(...scanVueSfc(content, file.relative, target, candidateSelectors, changedProps));
+                // Vue SFC template line inference
+                inferTemplateLine(content, file.relative, target);
             }
             else if (isCssLikeFile(file.relative)) {
                 hints.push(...scanCssFile(content, file.relative, target, candidateSelectors, changedProps));
@@ -69,6 +71,10 @@ export function buildCssDebugStyleSourceHints(input) {
         const capped = ranked.slice(0, maxHintsPerTarget);
         target.styleSourceHints = capped;
         allHints.push(...capped);
+        // Generate layoutHints for move/transform interactions
+        target.layoutHints = buildLayoutHints(target);
+        // Generate specificityWarnings
+        target.specificityWarnings = buildSpecificityWarnings(target);
     }
     if (allHints.length > 0) {
         payload.styleSourceHints = allHints.slice(0, maxTotalHints);
@@ -411,6 +417,416 @@ function buildHintFromRule(rule, relativePath, target, changedProps, adjustedSta
         reason: reasonParts.join(' '),
         snippet: rule.snippet,
     };
+}
+function inferTemplateLine(content, relativePath, target) {
+    const sel = target.selection;
+    // Only infer when browser did not provide a line
+    if (sel.source.line != null)
+        return;
+    const blocks = parseVueSfcBlocks(content);
+    const templateBlock = blocks.find((b) => b.tag === 'template');
+    if (!templateBlock)
+        return;
+    const matches = matchTemplateNode(templateBlock, target);
+    if (matches.length === 0)
+        return;
+    const best = matches[0]; // already sorted by confidence desc
+    if (best.confidence < 0.7)
+        return;
+    const absoluteLine = templateBlock.startLine + best.line;
+    sel.source.line = absoluteLine;
+    sel.source.column = best.column;
+    // Add template-file source hint
+    const hints = sel.sourceHints ?? [];
+    hints.push({
+        kind: 'template-file',
+        file: relativePath,
+        line: absoluteLine,
+        column: best.column,
+        confidence: best.confidence,
+        reason: `Inferred from template: ${best.matchedBy}`,
+        metadata: { selector: best.selector, matchedBy: best.matchedBy },
+    });
+    sel.sourceHints = hints;
+}
+/**
+ * Build a map of parent class → node scope (start/end line) within the template.
+ * For each class found on a tag like `<div class="brand-icon">`, track where that
+ * node opens and closes. This lets us scope Priority 5 tag-only matches to only
+ * match inside the correct parent node.
+ */
+function buildParentScopes(lines, parentClasses) {
+    const scopes = new Map();
+    // Stack of open nodes: each entry is { tag, classes, openLine }
+    const stack = [];
+    // Self-closing tags
+    const SELF_CLOSING = new Set([
+        'img', 'input', 'br', 'hr', 'area', 'base', 'col', 'embed',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+    ]);
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineNum = i + 1; // 1-indexed
+        // Find all opening tags on this line
+        const openRegex = /<([\w-]+)([^>]*?)(\/?)>/g;
+        let m;
+        while ((m = openRegex.exec(line)) !== null) {
+            const tag = m[1].toLowerCase();
+            const attrs = m[2];
+            const selfClose = m[3] === '/' || SELF_CLOSING.has(tag);
+            const classes = extractTemplateLineClasses(m[0]);
+            if (!selfClose) {
+                stack.push({ tag, classes, openLine: lineNum });
+            }
+            else {
+                // Self-closing: check if it has a parent class we care about
+                for (const cls of classes) {
+                    if (parentClasses.has(cls)) {
+                        scopes.set(cls, { startLine: lineNum, endLine: lineNum });
+                    }
+                }
+            }
+        }
+        // Find all closing tags on this line
+        const closeRegex = /<\/([\w-]+)>/g;
+        while ((m = closeRegex.exec(line)) !== null) {
+            const closeTag = m[1].toLowerCase();
+            // Pop stack until we find the matching open tag
+            while (stack.length > 0) {
+                const top = stack.pop();
+                for (const cls of top.classes) {
+                    if (parentClasses.has(cls)) {
+                        scopes.set(cls, { startLine: top.openLine, endLine: lineNum });
+                    }
+                }
+                if (top.tag === closeTag)
+                    break;
+            }
+        }
+    }
+    // Handle any remaining open tags (malformed template)
+    while (stack.length > 0) {
+        const top = stack.pop();
+        for (const cls of top.classes) {
+            if (parentClasses.has(cls) && !scopes.has(cls)) {
+                scopes.set(cls, { startLine: top.openLine, endLine: lines.length });
+            }
+        }
+    }
+    return scopes;
+}
+function matchTemplateNode(block, target) {
+    const lines = block.content.split('\n');
+    const el = target.selectedElement;
+    const elClasses = el.className ? el.className.split(/\s+/).filter(Boolean) : [];
+    const elTag = el.tagName?.toLowerCase() ?? '';
+    const elText = (el.text ?? '').trim();
+    const parentClasses = target.layoutContext?.parent?.className
+        ? target.layoutContext.parent.className.split(/\s+/).filter(Boolean)
+        : [];
+    // Collect parent classes from parentChain (covers the real logo scenario:
+    // img without class inside div.brand-icon)
+    const parentChain = target.selection.context?.parentChain ?? [];
+    const parentChainClasses = [];
+    for (const p of parentChain) {
+        if (p.attributes?.class) {
+            parentChainClasses.push(...p.attributes.class.split(/\s+/).filter(Boolean));
+        }
+        if (p.selector) {
+            parentChainClasses.push(...extractClassesFromSelector(p.selector));
+        }
+    }
+    const allParentClasses = new Set([...parentClasses, ...parentChainClasses]);
+    // Build template node scope map: for each parent class, find the line ranges
+    // where that class's node is open. This prevents matching <img> outside the
+    // parent class's scope.
+    const parentScopes = buildParentScopes(lines, allParentClasses);
+    const matches = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineNum = i + 1; // 1-indexed within block content
+        // Extract classes from this template line
+        const classMatches = extractTemplateLineClasses(line);
+        // Extract tags from this template line
+        const tags = extractTemplateLineTags(line);
+        // Priority 1: Full class chain match (parent-class + element-class + tag)
+        if (elClasses.length > 0 && allParentClasses.size > 0) {
+            for (const pCls of allParentClasses) {
+                for (const cls of elClasses) {
+                    if (classMatches.includes(cls) && classMatches.includes(pCls)) {
+                        matches.push({
+                            line: lineNum,
+                            column: line.indexOf(cls) + 1,
+                            confidence: 0.95,
+                            matchedBy: `full-chain:.${pCls} .${cls}`,
+                            selector: `.${pCls} .${cls}`,
+                        });
+                    }
+                }
+            }
+        }
+        // Priority 2: Element class + tag
+        if (elClasses.length > 0) {
+            for (const cls of elClasses) {
+                if (classMatches.includes(cls)) {
+                    const tagMatch = tags.includes(elTag) || elTag === '';
+                    matches.push({
+                        line: lineNum,
+                        column: line.indexOf(cls) + 1,
+                        confidence: tagMatch ? 0.90 : 0.85,
+                        matchedBy: tagMatch ? `class+tag:.${cls} ${elTag}` : `class:.${cls}`,
+                        selector: tagMatch ? `.${cls} ${elTag}` : `.${cls}`,
+                    });
+                }
+            }
+        }
+        // Priority 3: Element class only (without tag)
+        if (elClasses.length > 0) {
+            for (const cls of elClasses) {
+                if (classMatches.includes(cls)) {
+                    matches.push({
+                        line: lineNum,
+                        column: line.indexOf(cls) + 1,
+                        confidence: 0.80,
+                        matchedBy: `class:.${cls}`,
+                        selector: `.${cls}`,
+                    });
+                }
+            }
+        }
+        // Priority 4: Text content match
+        if (elText.length > 0 && elText.length <= 80) {
+            const trimmed = line.trim();
+            if (trimmed.includes(elText) && !trimmed.startsWith('//') && !trimmed.startsWith('/*')) {
+                matches.push({
+                    line: lineNum,
+                    column: trimmed.indexOf(elText) + 1,
+                    confidence: 0.75,
+                    matchedBy: `text:${elText.slice(0, 30)}`,
+                    selector: elTag ? `${elTag}:contains("${elText.slice(0, 20)}")` : '',
+                });
+            }
+        }
+        // Priority 5: Parent class + tag match scoped inside parent node
+        // Only match if the tag line is inside a parent class node's scope
+        if (allParentClasses.size > 0 && elTag && tags.includes(elTag)) {
+            for (const pCls of allParentClasses) {
+                const scope = parentScopes.get(pCls);
+                if (scope && lineNum >= scope.startLine && lineNum <= scope.endLine) {
+                    matches.push({
+                        line: lineNum,
+                        column: line.indexOf(elTag) + 1,
+                        confidence: 0.75,
+                        matchedBy: `parent-class+tag:.${pCls} ${elTag}`,
+                        selector: `.${pCls} ${elTag}`,
+                    });
+                }
+            }
+        }
+    }
+    // Sort by confidence descending, deduplicate by line
+    const seen = new Set();
+    return matches
+        .sort((a, b) => b.confidence - a.confidence)
+        .filter((m) => {
+        if (seen.has(m.line))
+            return false;
+        seen.add(m.line);
+        return true;
+    });
+}
+function extractTemplateLineClasses(line) {
+    const classes = [];
+    const regex = /class=["']([^"']+)["']/g;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+        classes.push(...match[1].split(/\s+/).filter(Boolean));
+    }
+    // Also match :class bindings
+    const bindRegex = /:class=["']([^"']+)["']/g;
+    while ((match = bindRegex.exec(line)) !== null) {
+        // Extract static class names from binding expressions
+        const staticClasses = match[1].match(/['"]([\w-]+)['"]/g);
+        if (staticClasses) {
+            classes.push(...staticClasses.map((c) => c.replace(/['"]/g, '')));
+        }
+    }
+    return classes;
+}
+function extractTemplateLineTags(line) {
+    const tags = [];
+    const regex = /<([\w-]+)/g;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+        if (!match[1].startsWith('/')) {
+            tags.push(match[1].toLowerCase());
+        }
+    }
+    return tags;
+}
+// ---------------------------------------------------------------------------
+// Layout hints
+// ---------------------------------------------------------------------------
+function buildLayoutHints(target) {
+    const hints = [];
+    const interaction = target.primaryInteraction;
+    if (!interaction)
+        return hints;
+    const changedProps = Object.keys(target.changedStyles);
+    const parentStyles = target.layoutContext?.parent?.styles ?? {};
+    const parentDisplay = parentStyles.display ?? '';
+    const elementStyles = target.originalStyles ?? {};
+    const POSITIONED_VALUES = new Set(['relative', 'absolute', 'fixed', 'sticky']);
+    const elementPosition = elementStyles.position ?? '';
+    const parentPosition = parentStyles.position ?? '';
+    const hasPosition = POSITIONED_VALUES.has(elementPosition) || POSITIONED_VALUES.has(parentPosition);
+    const bestStyleHint = target.styleSourceHints?.[0];
+    if (interaction.type === 'move' || changedProps.includes('transform')) {
+        if (parentDisplay === 'flex' || parentDisplay === 'inline-flex') {
+            const deltaX = interaction.delta?.x ?? 0;
+            const deltaY = interaction.delta?.y ?? 0;
+            const mainProp = Math.abs(deltaX) >= Math.abs(deltaY) ? 'margin-left' : 'margin-top';
+            hints.push({
+                targetId: target.id,
+                appliesTo: 'selected-element',
+                suggestedProperty: mainProp,
+                alternativeProperties: ['align-self', 'justify-content', 'align-items'],
+                confidence: 0.78,
+                reason: `Parent is flex container. Prefer ${mainProp} or alignment properties over transform.`,
+                sourceHintId: bestStyleHint?.id,
+            });
+        }
+        else if (parentDisplay === 'grid' || parentDisplay === 'inline-grid') {
+            hints.push({
+                targetId: target.id,
+                appliesTo: 'selected-element',
+                suggestedProperty: 'justify-self',
+                alternativeProperties: ['align-self', 'margin-left', 'margin-top'],
+                confidence: 0.78,
+                reason: 'Parent is grid container. Prefer justify-self/align-self over transform.',
+                sourceHintId: bestStyleHint?.id,
+            });
+        }
+        else if (hasPosition) {
+            hints.push({
+                targetId: target.id,
+                appliesTo: 'selected-element',
+                suggestedProperty: 'left',
+                alternativeProperties: ['top', 'margin-left', 'margin-top'],
+                confidence: 0.76,
+                reason: 'Element or parent has position. Prefer left/top for positioned elements.',
+                sourceHintId: bestStyleHint?.id,
+            });
+        }
+        else {
+            hints.push({
+                targetId: target.id,
+                appliesTo: 'selected-element',
+                suggestedProperty: 'margin-left',
+                alternativeProperties: ['margin-top', 'position + left/top'],
+                confidence: 0.70,
+                reason: 'Prefer margin-based positioning over transform for persistent layout changes.',
+                sourceHintId: bestStyleHint?.id,
+            });
+        }
+    }
+    if (interaction.type === 'resize' || changedProps.some((p) => SIZE_PROPERTIES.has(p))) {
+        hints.push({
+            targetId: target.id,
+            appliesTo: 'selected-element',
+            suggestedProperty: 'width',
+            alternativeProperties: ['height', 'max-width', 'max-height'],
+            confidence: 0.85,
+            reason: 'Resize interaction. Set width/height directly.',
+            sourceHintId: bestStyleHint?.id,
+        });
+    }
+    if (changedProps.some((p) => TYPOGRAPHY_PROPERTIES.has(p))) {
+        hints.push({
+            targetId: target.id,
+            appliesTo: 'selected-element',
+            suggestedProperty: changedProps.find((p) => TYPOGRAPHY_PROPERTIES.has(p)) ?? 'font-size',
+            alternativeProperties: [],
+            confidence: 0.80,
+            reason: 'Typography change. Apply to current element or typography-related selector.',
+            sourceHintId: bestStyleHint?.id,
+        });
+    }
+    return hints;
+}
+// ---------------------------------------------------------------------------
+// Specificity warnings
+// ---------------------------------------------------------------------------
+function buildSpecificityWarnings(target) {
+    const warnings = [];
+    const styleHints = target.styleSourceHints ?? [];
+    if (styleHints.length < 2)
+        return warnings;
+    const changedProps = Object.keys(target.changedStyles);
+    // Group style hints by file
+    const byFile = new Map();
+    for (const hint of styleHints) {
+        const group = byFile.get(hint.file) ?? [];
+        group.push(hint);
+        byFile.set(hint.file, group);
+    }
+    for (const [file, hints] of byFile) {
+        // Find changed properties that are actually declared by multiple rule-based hints.
+        // Only consider hints where the CSS rule actually declares the changed property,
+        // indicated by matchedBy containing "property:<prop>" (set in buildHintFromRule).
+        for (const prop of changedProps) {
+            const declaringHints = hints.filter((h) => {
+                if (h.kind === 'fallback-source' || h.kind === 'template-class')
+                    return false;
+                if (!h.selector)
+                    return false;
+                return h.matchedBy.some((m) => m === `property:${prop}`);
+            });
+            if (declaringHints.length < 2)
+                continue;
+            for (let i = 0; i < declaringHints.length - 1; i++) {
+                const earlier = declaringHints[i];
+                const later = declaringHints[i + 1];
+                const earlierLine = earlier.line ?? 0;
+                const laterLine = later.line ?? 0;
+                if (earlierLine > 0 && laterLine > earlierLine) {
+                    warnings.push({
+                        targetId: target.id,
+                        file,
+                        property: prop,
+                        selector: later.selector ?? '?',
+                        line: laterLine,
+                        severity: 'warning',
+                        reason: `Rule at line ${laterLine} ("${later.selector}") may override "${earlier.selector}" (line ${earlierLine}) for property "${prop}".`,
+                    });
+                }
+            }
+        }
+        // Check scoped + global overlap
+        const scoped = hints.filter((h) => h.kind === 'vue-sfc-style-rule');
+        const global_ = hints.filter((h) => h.kind === 'style-rule');
+        if (scoped.length > 0 && global_.length > 0) {
+            for (const prop of changedProps) {
+                const s = scoped.find((h) => hintDeclaresProperty(h, prop));
+                const g = global_.find((h) => hintDeclaresProperty(h, prop));
+                if (s && g) {
+                    warnings.push({
+                        targetId: target.id,
+                        file,
+                        property: prop,
+                        selector: `${s.selector} (scoped)`,
+                        line: s.line,
+                        severity: 'info',
+                        reason: `Both scoped ("${s.selector}") and global ("${g.selector}") rules match this element for "${prop}". Verify which takes effect.`,
+                    });
+                }
+            }
+        }
+    }
+    return warnings;
+}
+function hintDeclaresProperty(hint, property) {
+    return hint.matchedBy.some((m) => m === `property:${property}`);
 }
 function makeFallbackHint(relativePath, target, changedProps) {
     return {

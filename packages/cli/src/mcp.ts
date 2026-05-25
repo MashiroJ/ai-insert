@@ -300,7 +300,7 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
         'Use reply_to_user only for mid-task progress, user confirmation, or intentional one-off replies that should not continue waiting. Do not use reply_to_user as the final completion step for browser tasks when you can call complete_frontend_request.',
         'For batch mode, use targetsSummary for per-target notes. When you need the full targets array or per-target source code, use responseMode: "full" or call get_frontend_source.',
         'For troubleshoot mode, inspect diagnostics and runtimeSummary before changing code. Treat logs as user-confirmed context, not as complete truth.',
-        'For css-debug mode, first read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note, then combine them with sourceHints before editing. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag, so combine it with layoutContext to decide whether the source change belongs in positioning, spacing, margins, layout containers, or component styles instead of blindly persisting transform. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. When cssDebug.styleSourceHints is present, inspect it before editing: it ranks candidate source rules by confidence and explains which file/line/selector to change. For transform created by dragging, do not blindly write inline transform into source; prefer layout or spacing hints unless source already uses transform intentionally. For multi-target CSS Debug, apply each target\'s changes through its own styleSourceHints. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
+        'For css-debug mode, first read targetsSummary and cssDebug.targets[*].changedStyles, styleSourceHints, layoutHints, and specificityWarnings. Then read changedStyles, computedEffects, layoutContext, interactions, primaryInteraction, originalStyles, previewStyles, and the user note. Treat changedStyles as the user-intended edits; treat primaryInteraction as the strongest signal of the user drag intent. For move interactions, transform is a preview expression of that drag — do not default to writing transform into source code. When layoutHints is present, prefer its suggestedProperty (e.g. margin-left, align-self, justify-self) as the persistent source change. When specificityWarnings is present, verify that your edits will not be overridden by a later rule. Treat computedEffects and layoutContext as evidence about side effects on the selected element, parent, siblings, and children. Prefer changing project source styles or component styles instead of copying browser preview inline styles directly. When cssDebug.styleSourceHints is present, inspect it before editing: it ranks candidate source rules by confidence and explains which file/line/selector to change. For transform created by dragging, do not blindly write inline transform into source; prefer layout or spacing hints unless source already uses transform intentionally. For multi-target CSS Debug, apply each target\'s changes through its own styleSourceHints, layoutHints, and specificityWarnings. Consider layout impact before editing, then call complete_frontend_request so the browser panel reflects completion and the next browser task can be received.',
         'When sourceHints contains multiple candidates, prefer higher confidence project files and read source before assuming selection.source is exact.',
         'When compact responses omit source.content, use get_frontend_source if you need the full source before editing.',
         'If an MCP host stores large tool output in a file, read that file and continue processing the returned request.',
@@ -317,12 +317,13 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
     try {
       if (name === 'start_ui_inspect') {
         const project = resolveProjectRoot(args.project);
-        await ensureDaemon({ daemonUrl, project });
+        const daemonResult = await ensureDaemon({ daemonUrl, project });
         const integration = ensureProjectIntegration({ project });
         return textResult({
           ok: true,
           daemon: await fetchHealth(daemonUrl),
           integration,
+          warnings: daemonResult.warnings,
           devServer: {
             skipped: true,
             started: false,
@@ -508,7 +509,7 @@ async function waitForFrontendRequest({
         source,
         targetSources,
         contextSummary: summarizeSelection(session.selection),
-        targetsSummary: summarizeTargets(session.targets || []),
+        targetsSummary: summarizeTargets(session.targets || [], session.cssDebug),
         batchContext: buildBatchContext(session.targets || []),
         sourceHintSummary: summarizeSourceHints(session.selection, session.targets || []),
         runtimeSummary: summarizeDiagnostics(session.diagnostics || session.selection?.diagnostics),
@@ -550,12 +551,42 @@ function summarizeSelection(selection: UiInspectSelection | null): string {
   return parts.join('\n');
 }
 
-function summarizeTargets(targets: NonNullable<UiInspectSession['targets']>): string {
+function summarizeTargets(targets: NonNullable<UiInspectSession['targets']>, cssDebug?: unknown): string {
   if (!targets.length) return 'No targets.';
+  const debugTargets = cssDebug && typeof cssDebug === 'object'
+    ? (cssDebug as Record<string, unknown>).targets as Array<Record<string, unknown>> | undefined
+    : undefined;
   return targets.map((target, index) => {
     const selection = target.selection;
     const note = target.note ? ` | note: ${target.note}` : '';
-    return `${index + 1}. ${selectionTitle(selection)} | ${sourceLabel(selection) || selection.dom?.selector || 'no source'}${note}`;
+    let line = `${index + 1}. ${selectionTitle(selection)} | ${sourceLabel(selection) || selection.dom?.selector || 'no source'}${note}`;
+
+    // Enrich with CSS debug target data if available
+    const debugTarget = debugTargets?.find(
+      (t) => t.id === target.id || (t.selection as Record<string, unknown>)?.id === selection.id,
+    );
+    if (debugTarget) {
+      const changed = debugTarget.changedStyles as Record<string, { originalValue?: string; previewValue?: string }> | undefined;
+      if (changed && typeof changed === 'object') {
+        const entries = Object.entries(changed)
+          .map(([prop, val]) => `${prop} ${val.originalValue ?? 'auto'} -> ${val.previewValue ?? 'auto'}`)
+          .join(', ');
+        if (entries) line += ` | changed: ${entries}`;
+      }
+      const styleHints = debugTarget.styleSourceHints as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(styleHints) && styleHints.length > 0) {
+        const best = styleHints[0];
+        const hintLine = best.line ? `:${best.line}` : '';
+        const sel = best.selector ? ` ${best.selector}` : '';
+        line += `\n   style: ${best.file}${hintLine}${sel} confidence=${best.confidence}`;
+      }
+      const layoutHints = debugTarget.layoutHints as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(layoutHints) && layoutHints.length > 0) {
+        const best = layoutHints[0];
+        line += `\n   layout: ${best.suggestedProperty} confidence=${best.confidence}`;
+      }
+    }
+    return line;
   }).join('\n');
 }
 
@@ -641,6 +672,9 @@ function compactSelection(selection: UiInspectSelection | null): unknown {
     componentName: component?.name || selection.vue?.componentName || null,
     sourceFile: selection.source?.file || null,
     sourceLine: selection.source?.line ?? null,
+    sourceColumn: selection.source?.column ?? null,
+    sourceLineConfidence: selection.sourceHints?.find((h) => h.kind === 'template-file')?.confidence ?? null,
+    sourceLineReason: selection.sourceHints?.find((h) => h.kind === 'template-file')?.reason ?? null,
   };
 }
 
@@ -657,9 +691,36 @@ function summarizeCssDebug(cssDebug: unknown): string {
       const dom = sel?.dom as Record<string, unknown> | undefined;
       const tag = dom?.tagName ?? '?';
       const text = String(dom?.text ?? '').slice(0, 30);
-      const changed = t.changedStyles as Record<string, unknown> | undefined;
-      const props = changed ? Object.keys(changed).join(', ') : '';
+      const changed = t.changedStyles as Record<string, { originalValue?: unknown; previewValue?: unknown }> | undefined;
+      const props = changed
+        ? Object.entries(changed).map(([p, v]) => `${p} ${String(v?.originalValue ?? 'auto')} -> ${String(v?.previewValue ?? 'auto')}`).join(', ')
+        : '';
       parts.push(`  ${tag}: ${text} → ${props}`);
+
+      // Per-target styleSourceHints
+      const styleHints = t.styleSourceHints as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(styleHints) && styleHints.length > 0) {
+        const best = styleHints[0];
+        const hintLine = best.line ? `:${best.line}` : '';
+        const sel_ = best.selector ? ` ${best.selector}` : '';
+        parts.push(`    style: ${best.file}${hintLine}${sel_} confidence=${best.confidence}`);
+      }
+
+      // Per-target layoutHints
+      const layoutHints = t.layoutHints as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(layoutHints) && layoutHints.length > 0) {
+        for (const lh of layoutHints.slice(0, 2)) {
+          parts.push(`    layout: ${lh.suggestedProperty} confidence=${lh.confidence} reason=${lh.reason}`);
+        }
+      }
+
+      // Per-target specificityWarnings
+      const specWarnings = t.specificityWarnings as Array<Record<string, unknown>> | undefined;
+      if (Array.isArray(specWarnings) && specWarnings.length > 0) {
+        for (const sw of specWarnings.slice(0, 2)) {
+          parts.push(`    specificity: ${sw.severity} ${sw.selector} line=${sw.line} property=${sw.property} reason=${sw.reason}`);
+        }
+      }
     }
   } else {
     const changed = payload.changedStyles;
@@ -692,7 +753,7 @@ function summarizeCssDebug(cssDebug: unknown): string {
   return parts.length ? parts.join('; ') : '';
 }
 
-function compactCssDebug(cssDebug: unknown): unknown {
+function compactCssDebug(cssDebug: unknown, topLevelSelectionId?: string): unknown {
   if (!cssDebug || typeof cssDebug !== 'object') return undefined;
   const payload = cssDebug as Record<string, unknown>;
   const result: Record<string, unknown> = {
@@ -702,26 +763,33 @@ function compactCssDebug(cssDebug: unknown): unknown {
     interactions: Array.isArray(payload.interactions) ? payload.interactions.slice(-8) : payload.interactions,
     primaryInteraction: payload.primaryInteraction,
     note: payload.note,
-    sourceHints: payload.sourceHints,
     styleSourceHints: payload.styleSourceHints,
   };
   if (typeof payload.batch === 'boolean') result.batch = payload.batch;
   if (typeof payload.primaryTargetId === 'string') result.primaryTargetId = payload.primaryTargetId;
   if (typeof payload.changedTargetCount === 'number') result.changedTargetCount = payload.changedTargetCount;
   if (Array.isArray(payload.targets)) {
-    result.targets = (payload.targets as Record<string, unknown>[]).map((t) => ({
-      id: t.id,
-      selection: compactSelection((t.selection ?? null) as UiInspectSelection | null),
-      selectedElement: t.selectedElement,
-      changedStyles: t.changedStyles,
-      computedEffects: t.computedEffects,
-      layoutContext: t.layoutContext,
-      interactions: Array.isArray(t.interactions) ? (t.interactions as unknown[]).slice(-4) : t.interactions,
-      primaryInteraction: t.primaryInteraction,
-      note: t.note,
-      sourceHints: t.sourceHints,
-      styleSourceHints: t.styleSourceHints,
-    }));
+    result.targets = (payload.targets as Record<string, unknown>[]).map((t) => {
+      const targetSel = (t.selection ?? null) as UiInspectSelection | null;
+      const targetSelId = targetSel?.id;
+      const compacted: Record<string, unknown> = {
+        id: t.id,
+        selection: targetSelId && targetSelId === topLevelSelectionId
+          ? { selectionRef: topLevelSelectionId }
+          : compactSelection(targetSel),
+        selectedElement: t.selectedElement,
+        changedStyles: t.changedStyles,
+        computedEffects: t.computedEffects,
+        layoutContext: t.layoutContext,
+        interactions: Array.isArray(t.interactions) ? (t.interactions as unknown[]).slice(-4) : t.interactions,
+        primaryInteraction: t.primaryInteraction,
+        note: t.note,
+        styleSourceHints: t.styleSourceHints,
+        layoutHints: t.layoutHints,
+        specificityWarnings: t.specificityWarnings,
+      };
+      return compacted;
+    });
   }
   return result;
 }
@@ -755,7 +823,7 @@ export function compactFrontendRequestResult(result: unknown): Record<string, un
       ? `runtimeEvents=${(r.diagnostics as { runtimeEvents?: unknown[] })?.runtimeEvents?.length ?? 0}, truncated=${(r.diagnostics as { truncated?: boolean })?.truncated ?? false}`
       : undefined,
     cssDebugSummary: cssDebug ? summarizeCssDebug(cssDebug) : undefined,
-    cssDebug: compactCssDebug(cssDebug),
+    cssDebug: compactCssDebug(cssDebug, (r.selection as UiInspectSelection | null)?.id),
     source,
   };
 }
