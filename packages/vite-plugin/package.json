@@ -2,7 +2,8 @@
   "name": "@ui-inspect/vite-plugin",
   "version": "0.2.7",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "publishConfig": {
     "access": "public",
@@ -11,11 +12,12 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/write-cjs-proxy.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "size": "node scripts/check-size.js"
   },
