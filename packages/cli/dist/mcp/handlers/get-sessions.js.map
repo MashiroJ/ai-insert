@@ -1,0 +1,1 @@
+{"version":3,"file":"get-sessions.js","sourceRoot":"","sources":["../../../src/mcp/handlers/get-sessions.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAC;AAEnD,MAAM,CAAC,KAAK,UAAU,0BAA0B,CAAC,SAAiB;IAChE,OAAO,MAAM,aAAa,CAAC,SAAS,CAAC,CAAC;AACxC,CAAC"}

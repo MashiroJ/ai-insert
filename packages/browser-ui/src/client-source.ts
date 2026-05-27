@@ -3,19 +3,6 @@ import { dianaClientSource } from './client-modules/diana-source.js';
 import { selectionClientSource } from './client-modules/selection-source.js';
 import { styleClientSource } from './client-modules/style-source.js';
 import { taskPanelClientSource } from './client-modules/task-panel-source.js';
-import { cssDebugRuntimeStyleClientSource } from './client-modules/css-debug-runtime-style-source.js';
-import { cssDebugScopeClientSource } from './client-modules/css-debug-scope-source.js';
-import { cssDebugReorderClientSource } from './client-modules/css-debug-reorder-source.js';
-import { cssDebugStateClientSource } from './client-modules/css-debug-state-source.js';
-import { cssDebugOverlayClientSource } from './client-modules/css-debug-overlay-source.js';
-import { cssDebugValuesClientSource } from './client-modules/css-debug-values-source.js';
-import { cssDebugInteractionClientSource } from './client-modules/css-debug-interaction-source.js';
-import { cssDebugDomClientSource } from './client-modules/css-debug-dom-source.js';
-import { cssDebugControlsClientSource } from './client-modules/css-debug-controls-source.js';
-import { cssDebugPayloadClientSource } from './client-modules/css-debug-payload-source.js';
-import { cssDebugTargetSessionClientSource } from './client-modules/css-debug-target-session-source.js';
-import { cssDebugPanelsClientSource } from './client-modules/css-debug-panels-source.js';
-import { cssDebugGroupScaleClientSource } from './client-modules/css-debug-group-scale-source.js';
 import { sessionClientSource } from './client-modules/session-source.js';
 
 export interface ClientSourceOptions {
@@ -70,8 +57,6 @@ export function clientSource(options: ClientSourceOptions): string {
   let cssDebugNextElementId = 1;
 
 ${styleClientSource}
-
-${cssDebugRuntimeStyleClientSource}
 
   ${dianaClientSource}
 
@@ -267,11 +252,10 @@ ${selectionClientSource}
     menu.innerHTML = [
       '<div class="ui-inspect-menu-head"><div class="ui-inspect-menu-title">Diana</div><button type="button" class="ui-inspect-menu-close" data-action="close" aria-label="关闭">×</button></div>',
       '<div class="ui-inspect-menu-actions">',
+      '<button type="button" data-mode="single" aria-label="创建 AI 任务">' + editIcon() + '<span class="ui-inspect-menu-desc">创建 AI 任务</span></button>',
+      '<button type="button" data-mode="batch" aria-label="批量任务">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量任务</span></button>',
       '<button type="button" data-mode="source" aria-label="源码线索">' + sourceIcon() + '<span class="ui-inspect-menu-desc">源码线索</span></button>',
       '<button type="button" data-mode="troubleshoot" aria-label="问题排查：选择可能报错的组件并确认 console 日志">' + troubleshootIcon() + '<span class="ui-inspect-menu-desc">问题排查</span></button>',
-      '<button type="button" data-mode="css-debug" aria-label="CSS 调试：选择元素后实时调整样式">' + cssDebugIcon() + '<span class="ui-inspect-menu-desc">CSS 调试</span></button>',
-      '<button type="button" data-mode="single" aria-label="局部调整">' + editIcon() + '<span class="ui-inspect-menu-desc">局部调整</span></button>',
-      '<button type="button" data-mode="batch" aria-label="批量调整">' + batchIcon() + '<span class="ui-inspect-menu-desc">批量调整</span></button>',
       '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
       '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="历史记录">' + historyIcon() + '<span class="ui-inspect-menu-desc">历史记录</span></button>',
       '</div>',
@@ -572,25 +556,6 @@ ${taskPanelClientSource}
     closeButton.addEventListener('click', close);
   }
 
-${cssDebugStateClientSource}
-
-${cssDebugOverlayClientSource}
-
-${cssDebugValuesClientSource}
-
-${cssDebugScopeClientSource}
-
-
-${cssDebugReorderClientSource}
-
-${cssDebugInteractionClientSource}
-
-${cssDebugDomClientSource}
-
-${cssDebugControlsClientSource}
-
-${cssDebugPayloadClientSource}
-
   function makePanelDraggable(panel) {
     const handle = panel.querySelector('.ui-inspect-head');
     if (!handle) return;
@@ -614,12 +579,6 @@ ${cssDebugPayloadClientSource}
     handle.addEventListener('pointerup', () => { drag = null; });
     handle.addEventListener('pointercancel', () => { drag = null; });
   }
-
-${cssDebugTargetSessionClientSource}
-
-${cssDebugPanelsClientSource}
-
-${cssDebugGroupScaleClientSource}
 
   function openDebugPanel(options) {
     removePanel();

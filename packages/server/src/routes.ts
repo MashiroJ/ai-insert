@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
-  UiInspectCssDebugTarget,
   UiInspectHealthResponse,
   UiInspectMessageRole,
   UiInspectSelectionResponse,
@@ -14,7 +13,6 @@ import {
   normalizeSelection,
   normalizeTargets,
   normalizeDiagnostics,
-  normalizeCssDebugPayload,
   normalizeSessionMode,
   normalizeTaskStatus,
   upsertSessionFromSelection,
@@ -23,7 +21,6 @@ import {
 } from './sessions.js';
 import { detectEditors, detectEditor } from './editors.js';
 import { openSource } from './source.js';
-import { buildCssDebugStyleSourceHints } from './style-source-hints.js';
 import { getVersion } from './version.js';
 
 export async function route(
@@ -219,73 +216,15 @@ export async function route(
     const bodyTargets = hasBodyTargets ? normalizeTargets(raw.targets, selection) : undefined;
     const mode = normalizeSessionMode(raw?.mode);
     const diagnostics = normalizeDiagnostics(raw?.diagnostics);
-    const cssDebug = normalizeCssDebugPayload(raw?.cssDebug, selection);
-    if (mode === 'css-debug' && cssDebug) {
-      try {
-        const hintRoot = selection.source.root || state.projectRoot;
-        const enriched = buildCssDebugStyleSourceHints({
-          projectRoot: hintRoot,
-          cssDebug,
-        });
-        Object.assign(cssDebug, enriched);
-        // Sync inferred template line from best cssDebug target back to main selection
-        if (selection.source.line == null && enriched.targets) {
-          const bestTarget = findBestTemplateLineTarget(enriched.targets, selection.id);
-          if (bestTarget) {
-            selection.source.line = bestTarget.selection.source.line;
-            selection.source.column = bestTarget.selection.source.column;
-            if (bestTarget.selection.sourceHints) {
-              const templateHints = bestTarget.selection.sourceHints.filter(
-                (h) => h.kind === 'template-file',
-              );
-              if (templateHints.length > 0) {
-                selection.sourceHints = [
-                  ...(selection.sourceHints ?? []),
-                  ...templateHints,
-                ];
-              }
-            }
-          }
-        }
-      } catch {
-        // Hint building is best-effort; never fail task creation.
-      }
-    }
-    const cssDebugTargets = Array.isArray(cssDebug?.targets) && cssDebug.targets.length > 0
-      ? normalizeTargets(cssDebug.targets.map((t) => ({ id: t.id, note: t.note ?? '', selection: t.selection ?? selection, cssDebug: t })), selection)
-      : undefined;
-    const targets = bodyTargets ?? cssDebugTargets ?? normalizeTargets(undefined, selection);
+    const targets = bodyTargets ?? normalizeTargets(undefined, selection);
     state.setProjectRoot(selection.source.root);
     state.currentSelection = selection;
     state.currentSelectionReceivedAt = Date.now();
-    upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics, cssDebug);
+    upsertSessionFromSelection(state.currentSelection, state, targets, mode, diagnostics);
     emitSession(state.currentSelection.sessionId, state);
     sendJson(res, 200, { ok: true, selection: state.currentSelection });
     return;
   }
 
   sendJson(res, 404, { error: 'not found' });
-}
-
-function findBestTemplateLineTarget(
-  targets: UiInspectCssDebugTarget[],
-  selectionId: string,
-): UiInspectCssDebugTarget | undefined {
-  const lineTargets = targets.filter((target) => target.selection.source.line != null);
-  const selectionTarget = lineTargets.find((target) => target.selection.id === selectionId);
-  if (selectionTarget) return selectionTarget;
-
-  return lineTargets.reduce<UiInspectCssDebugTarget | undefined>((best, target) => {
-    if (!best) return target;
-    return templateLineConfidence(target) > templateLineConfidence(best) ? target : best;
-  }, undefined);
-}
-
-function templateLineConfidence(target: UiInspectCssDebugTarget): number {
-  const line = target.selection.source.line;
-  const hints = target.selection.sourceHints ?? [];
-  return hints.reduce((best, hint) => {
-    if (hint.kind !== 'template-file' || hint.line !== line) return best;
-    return Math.max(best, hint.confidence);
-  }, 0);
 }

@@ -9,18 +9,22 @@ import { extractAfterRequestId, extractContext, extractTimeoutMs, extractSinceTi
 
 export function normalizeCompleteFrontendRequestArgs(
   args: ToolArgs,
-  defaultSessionId: string
+  defaultSinceTimestamp: number
 ): NormalizedCompleteFrontendRequestArgs {
-  const sessionId = typeof args.sessionId === 'string' ? args.sessionId : defaultSessionId;
-  const content = typeof args.content === 'string' ? args.content : '';
-  const afterRequestId = typeof args.afterRequestId === 'string' 
-    ? args.afterRequestId 
+  const sessionId = typeof args.sessionId === 'string' ? args.sessionId.trim() : '';
+  const content = typeof args.content === 'string' ? args.content.trim() : '';
+  const afterRequestId = typeof args.afterRequestId === 'string'
+    ? args.afterRequestId.trim()
     : (() => { throw new Error('afterRequestId is required'); })();
 
-  let status: CompleteFrontendRequestStatus = 'done';
-  if (typeof args.status === 'string' && ['done', 'failed'].includes(args.status)) {
-    status = args.status as CompleteFrontendRequestStatus;
+  if (typeof args.status === 'string' && !['done', 'failed'].includes(args.status)) {
+    throw new Error('status must be done or failed');
   }
+
+  const status: CompleteFrontendRequestStatus =
+    typeof args.status === 'string' && ['done', 'failed'].includes(args.status)
+      ? (args.status as CompleteFrontendRequestStatus)
+      : 'done';
 
   return {
     sessionId,
@@ -29,7 +33,7 @@ export function normalizeCompleteFrontendRequestArgs(
     status,
     context: extractContext(args),
     timeoutMs: extractTimeoutMs(args),
-    sinceTimestamp: extractSinceTimestamp(args),
+    sinceTimestamp: extractSinceTimestamp(args, defaultSinceTimestamp),
   };
 }
 

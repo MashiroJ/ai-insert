@@ -42,7 +42,8 @@ export async function runMcpStdio({ daemonUrl }: RunMcpOptions): Promise<void> {
     }
 
     try {
-      const result = await handler(args, daemonUrl);
+      const handlerFn = handler as (args: unknown, daemonUrl: string) => Promise<unknown>;
+      const result = await handlerFn(args, daemonUrl);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -63,3 +64,4 @@ export * from './tool-defs.js';
 export * from './project-root.js';
 export * from './wait.js';
 export * from './compact.js';
+export * from './complete.js';
