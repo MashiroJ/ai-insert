@@ -15,11 +15,6 @@ export function clientSource(options) {
   const PANEL_ID = 'ui-inspect-panel';
   const TOAST_ID = 'ui-inspect-toast';
   const BATCH_SIDEBAR_ID = 'ui-inspect-batch-sidebar';
-  const CSS_DEBUG_OVERLAY_ID = 'ui-inspect-css-selection-overlay';
-  const CSS_DEBUG_BOUNDARY_OVERLAY_ID = 'ui-inspect-css-boundary-overlay';
-  const CSS_DEBUG_PREVIEW_OVERLAY_ID = 'ui-inspect-css-preview-overlay';
-  const CSS_DEBUG_PICK_POPOVER_ID = 'ui-inspect-css-pick-popover';
-  const CSS_DEBUG_SWAP_OVERLAY_ID = 'ui-inspect-css-swap-overlay';
   const LAST_SESSION_KEY = 'ui-inspect:last-session';
   const DIANA_POSITION_KEY = 'ui-inspect:diana-position';
   const SOURCE_EDITOR_KEY = 'ui-inspect:source-editor';
@@ -44,10 +39,6 @@ export function clientSource(options) {
   let selectedRuntimeEventIds = new Set();
   let troubleshootRuntimeSnapshot = [];
   let runtimePrivacyConfirmed = false;
-  let cssDebugSession = null;
-  let cssDebugPendingPick = null;
-  let cssDebugElementIds = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
-  let cssDebugNextElementId = 1;
 
 ${styleClientSource}
 
@@ -75,7 +66,7 @@ ${styleClientSource}
 ${runtimeMonitorClientSource({ eventLimit: 20, textLimit: 2000 })}
 
   function isOwnNode(el) {
-    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || el.id === CSS_DEBUG_OVERLAY_ID || el.id === CSS_DEBUG_BOUNDARY_OVERLAY_ID || el.id === CSS_DEBUG_PREVIEW_OVERLAY_ID || el.id === CSS_DEBUG_PICK_POPOVER_ID || el.id === CSS_DEBUG_MINI_BAR_ID || el.id === CSS_DEBUG_CONTROLS_DRAWER_ID || el.id === CSS_DEBUG_TARGETS_POPOVER_ID || el.id === CSS_DEBUG_SEND_DIALOG_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID) || el.closest('#' + CSS_DEBUG_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_BOUNDARY_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_PREVIEW_OVERLAY_ID) || el.closest('#' + CSS_DEBUG_PICK_POPOVER_ID) || el.closest('#' + CSS_DEBUG_MINI_BAR_ID) || el.closest('#' + CSS_DEBUG_CONTROLS_DRAWER_ID) || el.closest('#' + CSS_DEBUG_TARGETS_POPOVER_ID) || el.closest('#' + CSS_DEBUG_SEND_DIALOG_ID))));
+    return el && (el.id === STYLE_ID || el.id === BOX_ID || el.id === TOGGLE_ID || el.id === MENU_ID || el.id === PANEL_ID || el.id === TOAST_ID || el.id === BATCH_SIDEBAR_ID || (el.closest && (el.closest('#' + PANEL_ID) || el.closest('#' + MENU_ID) || el.closest('#' + TOGGLE_ID) || el.closest('#' + TOAST_ID) || el.closest('#' + BATCH_SIDEBAR_ID))));
   }
 
   function elementFromNode(node) {
@@ -178,7 +169,7 @@ ${selectionClientSource}
       return 'UI Inspect 本地服务未连接。请先在 AI 对话里执行：启用 ui-inspect。';
     }
     if (action === 'source') return '打开源码失败：' + message;
-    if (action === 'history') return '暂时无法读取历史会话，本地服务可能还没启动。';
+    if (action === 'history') return '暂时无法读取任务记录，本地服务可能还没启动。';
     return '发送失败：' + message;
   }
 
@@ -197,22 +188,7 @@ ${selectionClientSource}
   }
 
   function closeDebugPanel() {
-    resetAllCssDebugTargets();
-    removeCssDebugOverlay();
-    document.documentElement.removeAttribute('data-ui-inspect-css-debug');
     removePanel();
-    const miniBar = document.getElementById(CSS_DEBUG_MINI_BAR_ID);
-    if (miniBar) miniBar.remove();
-    const drawer = document.getElementById(CSS_DEBUG_CONTROLS_DRAWER_ID);
-    if (drawer) {
-      if (drawer._cssDebugKeydownHandler) document.removeEventListener('keydown', drawer._cssDebugKeydownHandler, true);
-      drawer.remove();
-    }
-    const popover = document.getElementById(CSS_DEBUG_TARGETS_POPOVER_ID);
-    if (popover) popover.remove();
-    const sendDialog = document.getElementById(CSS_DEBUG_SEND_DIALOG_ID);
-    if (sendDialog) sendDialog.remove();
-    closeCssDebugPickPopover();
     setEnabled(false);
     activePanelSessionId = null;
     activeSessionData = null;
@@ -220,7 +196,6 @@ ${selectionClientSource}
     selectedTargets = [];
     selectedRuntimeEventIds = new Set();
     troubleshootRuntimeSnapshot = [];
-    cssDebugSession = null;
     if (Array.isArray(runtimeEvents)) runtimeEvents.length = 0;
     selectionMode = 'batch';
     activeTaskMode = 'batch';
@@ -250,7 +225,7 @@ ${selectionClientSource}
       '<button type="button" data-mode="source" aria-label="源码线索">' + sourceIcon() + '<span class="ui-inspect-menu-desc">源码线索</span></button>',
       '<button type="button" data-mode="troubleshoot" aria-label="问题排查：选择可能报错的组件并确认 console 日志">' + troubleshootIcon() + '<span class="ui-inspect-menu-desc">问题排查</span></button>',
       '<span class="ui-inspect-menu-divider" aria-hidden="true"></span>',
-      '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="历史记录">' + historyIcon() + '<span class="ui-inspect-menu-desc">历史记录</span></button>',
+      '<button type="button" class="ui-inspect-menu-secondary" data-action="history" aria-label="任务记录">' + historyIcon() + '<span class="ui-inspect-menu-desc">任务记录</span></button>',
       '</div>',
     ].join('');
     document.body.appendChild(menu);
@@ -301,10 +276,6 @@ ${selectionClientSource}
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 2 1.8 2h4.4L16 2"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 17v3"/><path d="M4 13H2"/><path d="M22 13h-2"/><path d="m5 5 2 2"/><path d="m19 5-2 2"/><rect x="6" y="5" width="12" height="13" rx="6"/></svg>';
   }
 
-  function cssDebugIcon() {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M6 16l8.5-8.5a2.1 2.1 0 0 1 3 3L9 19H6z"/><path d="m13 6 5 5"/><path d="M4 4h6"/><path d="M4 8h3"/></svg>';
-  }
-
   function batchIcon() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="5" rx="1"/><rect x="4" y="15" width="16" height="5" rx="1"/><path d="M7 9v6"/><path d="M17 9v6"/></svg>';
   }
@@ -316,23 +287,21 @@ ${selectionClientSource}
   function beginSelectionMode(mode) {
     removePanel();
     selectionMode = mode;
-    activeTaskMode = mode === 'single' ? 'single' : (mode === 'troubleshoot' ? 'troubleshoot' : (mode === 'css-debug' ? 'css-debug' : 'batch'));
-    if (mode === 'single' || mode === 'batch' || mode === 'troubleshoot' || mode === 'css-debug') {
+    activeTaskMode = mode === 'single' ? 'single' : (mode === 'troubleshoot' ? 'troubleshoot' : 'batch');
+    if (mode === 'single' || mode === 'batch' || mode === 'troubleshoot') {
       activePanelSessionId = 'session-' + Date.now();
       activeSessionData = null;
       selectedTargets = [];
       selectedRuntimeEventIds = new Set();
       runtimePrivacyConfirmed = false;
-      cssDebugSession = null;
     }
     setEnabled(true);
     if (mode === 'source') showToast('点击页面元素，Diana 会先确认源码线索。');
     if (mode === 'troubleshoot') showToast('点击可能报错的组件，Diana 会附带可确认的 console 线索。');
-    if (mode === 'css-debug') showToast('点击一个元素，Diana 会打开 CSS 调试面板。');
-    if (mode === 'single') showToast('点击一个需要局部调整的元素。');
+    if (mode === 'single') showToast('点击页面元素，创建一个 AI 修改任务。');
     if (mode === 'batch') {
       batchSidebarCollapsed = window.innerWidth <= 520;
-      showToast('批量调整已打开，连续点击页面元素即可添加目标。');
+      showToast('批量任务已打开，连续点击页面元素即可添加目标。');
       openBatchSidebar();
     }
   }
@@ -595,11 +564,6 @@ ${taskPanelClientSource}
       } else {
         addSelectedTarget(draft, '');
       }
-      if (activeTaskMode === 'troubleshoot') {
-        selectedRuntimeEventIds = new Set();
-        troubleshootRuntimeSnapshot = [];
-        if (Array.isArray(runtimeEvents)) runtimeEvents.length = 0;
-      }
     }
     if (activeElement) highlightElement(activeElement);
     if (!selectedTargets.length && activeSessionData?.selection) selectedTargets = targetsFromSession(activeSessionData);
@@ -621,8 +585,8 @@ ${taskPanelClientSource}
       '<label class="ui-inspect-field-label" for="ui-inspect-instruction">' + (isTroubleshoot ? '发生了什么？' : (activeTaskMode === 'single' ? '你想怎么改？' : '整体需求，可选')) + '</label>',
       '<textarea id="ui-inspect-instruction" placeholder="' + (isTroubleshoot ? '例如：点击提交后无响应，控制台有红色报错' : (activeTaskMode === 'single' ? '例如：把这个输入框宽一点，和下面输入框对齐' : '例如：这组输入框更紧凑，风格统一')) + '"></textarea>',
       '<div class="ui-inspect-actions">',
-      '<div class="ui-inspect-actions-left"><button type="button" data-action="history">历史记录</button></div>',
-      '<div class="ui-inspect-actions-right"><button type="button" data-action="copy-logs">复制日志</button><button type="button" data-action="select">' + (activeTaskMode === 'single' || isTroubleshoot ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">发送</button></div>',
+      '<div class="ui-inspect-actions-left"><button type="button" data-action="history">任务记录</button></div>',
+      '<div class="ui-inspect-actions-right"><button type="button" data-action="copy-logs">复制日志</button><button type="button" data-action="select">' + (activeTaskMode === 'single' || isTroubleshoot ? '重选' : '继续选择') + '</button><button type="button" data-primary="true" data-action="send">' + (isTroubleshoot ? '发送组件线索' : '创建 AI 任务') + '</button></div>',
       '</div>'
     ].join('');
     document.body.appendChild(panel);
@@ -690,7 +654,7 @@ ${taskPanelClientSource}
     }
     const hasTargetNote = selectedTargets.some((item) => (item.note || '').trim());
     if (activeTaskMode !== 'troubleshoot' && !instruction && !hasTargetNote) {
-      if (target) target.textContent = activeTaskMode === 'single' ? '请描述你想怎么改这个元素。' : '请填写整体需求，或给至少一个目标写要求。';
+      if (target) target.textContent = activeTaskMode === 'single' ? '请描述要交给 AI 的修改任务。' : '请填写整体需求，或给至少一个目标写要求。';
       return;
     }
     if (activeTaskMode === 'troubleshoot' && selectedRuntimeEventIds.size > 0 && !container.querySelector('[data-action="privacy-confirm"]')?.checked) {
@@ -741,22 +705,12 @@ ${sessionClientSource}
   }
 
   installStyle();
-  installCssDebugRuntimeStyle();
   installRuntimeCapture();
   ensureToggle();
   document.addEventListener('pointermove', moveDiana, true);
   document.addEventListener('pointerup', endDianaDrag, true);
   document.addEventListener('pointercancel', endDianaDrag, true);
   window.addEventListener('resize', refreshDianaPosition);
-  window.addEventListener('resize', updateCssDebugOverlay);
-  window.addEventListener('scroll', updateCssDebugOverlay, true);
-
-  // CSS Debug: intercept page clicks to add/switch targets directly
-  document.addEventListener('click', function(event) {
-    if (!cssDebugSession || cssDebugSession.sent) return;
-    if (!document.documentElement.hasAttribute('data-ui-inspect-css-debug')) return;
-    handleCssDebugPageClick(event);
-  }, true);
 })();`;
 }
 //# sourceMappingURL=client-source.js.map

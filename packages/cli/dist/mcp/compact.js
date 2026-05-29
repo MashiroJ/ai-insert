@@ -23,12 +23,6 @@ export function compactFrontendRequestResult(result) {
     if (result.diagnostics) {
         compact.diagnosticsSummary = summarizeDiagnostics(result.diagnostics);
     }
-    if (result.cssDebugSummary) {
-        compact.cssDebugSummary = result.cssDebugSummary;
-    }
-    if (result.cssDebug) {
-        compact.cssDebug = result.cssDebug;
-    }
     return compact;
 }
 function summarizeDiagnostics(diagnostics) {

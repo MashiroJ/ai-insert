@@ -92,10 +92,10 @@ export const TOOL_DEFS = [
   },
   {
     name: 'get_frontend_sessions',
-    description: 'List ui-inspect debug sessions and their user/assistant messages.',
+    description: 'List ui-inspect browser task records and their user/assistant messages.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: {
-      title: 'List frontend debug sessions',
+      title: 'List frontend task records',
       readOnlyHint: true,
       idempotentHint: true,
       openWorldHint: false,
@@ -135,7 +135,7 @@ export const TOOL_DEFS = [
       properties: {
         content: {
           type: 'string',
-          description: 'Reply shown in the browser debug panel.',
+          description: 'Reply shown in the browser task panel.',
         },
       },
       required: ['content'],
