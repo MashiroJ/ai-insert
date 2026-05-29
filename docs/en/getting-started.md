@@ -4,6 +4,15 @@ This guide explains how to connect ui-inspect to your MCP client and frontend pr
 
 ## 1. Configure MCP
 
+You can let ui-inspect configure the agent and project integration automatically:
+
+```bash
+npx -y @ui-inspect/cli@latest setup --dry-run
+npx -y @ui-inspect/cli@latest setup
+```
+
+`setup` can configure project integration, MCP config, and supported agent hooks. It does not write `AGENTS.md`; ui-inspect keeps the agent playbook in MCP instructions. The manual setup below is still useful when you want full control.
+
 JSON config:
 
 ```json

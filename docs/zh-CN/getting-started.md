@@ -4,6 +4,15 @@
 
 ## 1. 配置 MCP
 
+你也可以让 ui-inspect 自动配置 agent 和项目接入：
+
+```bash
+npx -y @ui-inspect/cli@latest setup --dry-run
+npx -y @ui-inspect/cli@latest setup
+```
+
+`setup` 会尽量配置项目侧集成、MCP 配置，以及支持的 agent hooks。它不会写入 `AGENTS.md`，ui-inspect 会把 agent 侧说明放在 MCP instructions 里。下面的手动配置仍适合想完全掌控改动的场景。
+
 JSON 配置：
 
 ```json

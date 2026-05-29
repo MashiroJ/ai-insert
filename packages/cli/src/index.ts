@@ -14,6 +14,7 @@ import {
 } from '@ui-inspect/server';
 import { completeFrontendRequestFlow, normalizeCompleteFrontendRequestArgs, runMcpStdio, waitForFrontendRequest } from './mcp.js';
 import { updateProjectIntegrationPackages, type UpdateProjectIntegrationResult } from './project-setup.js';
+import { setupUiInspect, type SetupAgent, type SetupTarget } from './setup.js';
 import { getVersion } from './version.js';
 
 ensureLocalNoProxy();
@@ -91,6 +92,18 @@ try {
   } else if (command === 'clear') {
     await clearSelection(daemonUrl());
     process.stdout.write('Selection cleared.\n');
+  } else if (command === 'setup') {
+    const project = resolve(stringFlag('--project') ?? process.cwd());
+    const target = setupTarget(args[1]);
+    const result = setupUiInspect({
+      project,
+      target: target === 'doctor' ? 'all' : target,
+      agent: setupAgentFlag(),
+      dryRun: hasFlag('--dry-run') || target === 'doctor',
+      hooks: !hasFlag('--no-hooks'),
+      mcp: !hasFlag('--no-mcp'),
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } else if (command === 'update') {
     const project = resolve(stringFlag('--project') ?? process.cwd());
     const dryRun = hasFlag('--dry-run');
@@ -176,6 +189,7 @@ function printHelp(): void {
   ui-inspect complete --session-id <id> --after-request-id <id> --content <text> [--status done|failed] [--timeout-ms <ms>] [--context <lines>] [--response-mode compact|full] [--daemon-url <url>]
   ui-inspect source [--context 80] [--json] [--daemon-url <url>]
   ui-inspect clear [--daemon-url <url>]
+  ui-inspect setup [all|agent|project|doctor] [--agent auto|claude|cursor|codex|opencode|none] [--project <path>] [--dry-run] [--no-hooks] [--no-mcp]
   ui-inspect update [--project <path>] [--dry-run] [--json] [--tag latest] [--self]
 `);
 }
@@ -201,6 +215,18 @@ async function currentSessionId(): Promise<string> {
   const sessionId = payload.selection?.sessionId;
   if (!payload.active || !sessionId) throw new Error('--session-id is required when there is no active selection');
   return sessionId;
+}
+
+function setupTarget(value: string | undefined): SetupTarget | 'doctor' {
+  if (!value || value.startsWith('--')) return 'all';
+  if (value === 'all' || value === 'agent' || value === 'project' || value === 'doctor') return value;
+  throw new Error('setup target must be all, agent, project, or doctor');
+}
+
+function setupAgentFlag(): SetupAgent {
+  const agent = stringFlag('--agent') ?? 'auto';
+  if (agent === 'auto' || agent === 'claude' || agent === 'cursor' || agent === 'codex' || agent === 'opencode' || agent === 'none') return agent;
+  throw new Error('--agent must be auto, claude, cursor, codex, opencode, or none');
 }
 
 interface SelfUpdateResult {

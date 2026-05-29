@@ -115,6 +115,18 @@ ui-inspect complete --session-id <id> --after-request-id <id> --content "Done"
 ui-inspect clear
 ```
 
+Setup commands:
+
+```bash
+ui-inspect setup --dry-run
+ui-inspect setup
+ui-inspect setup project
+ui-inspect setup agent --agent claude
+ui-inspect setup doctor
+```
+
+`setup` can configure the frontend project integration, project-level MCP config, and supported agent hooks. It does not write agent instruction markdown; runtime guidance comes from MCP instructions. `doctor` is a dry-run inspection mode.
+
 ## Local Data
 
 Session history is stored in the target project:

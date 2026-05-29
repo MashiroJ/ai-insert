@@ -21,9 +21,10 @@
     "!dist/**/*.test.*.map"
   ],
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.0",
     "@ui-inspect/protocol": "workspace:*",
     "@ui-inspect/server": "workspace:*",
     "@ui-inspect/vite-plugin": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.24.0"
+    "jsonc-parser": "^3.3.1"
   }
 }

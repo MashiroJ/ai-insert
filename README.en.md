@@ -46,6 +46,16 @@ ui-inspect gives the browser a way to speak to your agent with real, actionable 
 
 ## Quick Start
 
+### 0. Automatic setup
+
+From your frontend project root:
+
+```bash
+npx -y @ui-inspect/cli@latest setup
+```
+
+The setup command detects the frontend framework, configures the project integration when it can, and installs agent-side MCP/hooks config for supported local agents. It does not write `AGENTS.md` or other agent instruction files; the agent playbook is delivered through MCP instructions. Use `--dry-run` to preview changes first.
+
 ### 1. Add the MCP server
 
 ```json
