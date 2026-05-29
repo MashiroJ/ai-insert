@@ -36,7 +36,6 @@ Next.js 项目会返回 App Router / Pages Router 识别结果、缺失项和接
 - 批量目标摘要
 - 源码候选线索
 - 用户确认过的运行时日志摘要
-- CSS 调试上下文
 
 ### `get_frontend_selection`
 
@@ -56,7 +55,7 @@ Next.js 项目会返回 App Router / Pages Router 识别结果、缺失项和接
 
 ### `get_frontend_sessions`
 
-读取最近的调试会话和消息历史。
+读取最近的浏览器任务记录和消息历史。
 
 ### `update_ui_task_status`
 
@@ -107,9 +106,12 @@ ui-inspect mcp
 ui-inspect daemon
 ui-inspect status
 ui-inspect selection --json
+ui-inspect wait --response-mode compact
+ui-inspect task-status --status working
 ui-inspect source --context 80
 ui-inspect sessions
 ui-inspect reply --content "已完成"
+ui-inspect complete --session-id <id> --after-request-id <id> --content "已完成"
 ui-inspect clear
 ```
 

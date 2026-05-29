@@ -1,8 +1,16 @@
 // Wait loop and latest request tracking
 
 import type { ToolArgs } from './types.js';
-import type { UiInspectSession, UiInspectMessage, UiInspectSessionsResponse } from '@ui-inspect/protocol';
-import { fetchSessions } from '@ui-inspect/server';
+import type {
+  UiInspectDiagnostics,
+  UiInspectMessage,
+  UiInspectSelection,
+  UiInspectSession,
+  UiInspectSourceResponse,
+  UiInspectTarget,
+} from '@ui-inspect/protocol';
+import { fetchSessions, readSelectionSource, updateSessionStatus, delay } from '@ui-inspect/server';
+import { compactFrontendRequestResult } from './compact.js';
 
 let latestFrontendRequestCache: {
   timestamp: number;
@@ -14,7 +22,48 @@ export async function waitForFrontendRequest(
   daemonUrl: string,
   sessionId: string | undefined
 ): Promise<any> {
-  throw new Error('Not implemented - will be in handlers/wait.ts');
+  const timeoutMs = extractTimeoutMs(args);
+  const context = extractContext(args);
+  const sinceTimestamp = extractSinceTimestamp(args);
+  const afterRequestId = extractAfterRequestId(args);
+  const responseMode = extractResponseMode(args);
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    const sessions = await fetchSessions(daemonUrl);
+    const request = latestFrontendRequest(
+      sessionId ? { sessions: sessions.sessions.filter((session) => session.id === sessionId) } : sessions,
+      sinceTimestamp,
+      afterRequestId,
+    );
+
+    if (request) {
+      let claimedSession = request.session;
+      try {
+        claimedSession = await updateSessionStatus(request.session.id, 'claimed', daemonUrl);
+      } catch {
+        // The request is still useful even if the browser status could not be updated.
+      }
+      const result = await buildFrontendRequestResult({
+        session: claimedSession,
+        message: request.message,
+        requestId: request.requestId,
+        daemonUrl,
+        context,
+      });
+      setLatestFrontendRequest(result);
+      return responseMode === 'compact' ? compactFrontendRequestResult(result) : result;
+    }
+
+    await delay(Math.min(1000, Math.max(50, deadline - Date.now())));
+  }
+
+  return {
+    ok: false,
+    timedOut: true,
+    timeoutMs,
+    message: `No browser request was sent within ${Math.round(timeoutMs / 1000)} seconds.`,
+  };
 }
 
 export function getLatestFrontendRequest(): any | null {
@@ -55,6 +104,10 @@ export function extractContext(args: ToolArgs): number {
     return args.context;
   }
   return 80;
+}
+
+export function extractResponseMode(args: ToolArgs): 'compact' | 'full' {
+  return args.responseMode === 'full' ? 'full' : 'compact';
 }
 
 interface FrontendRequest {
@@ -152,4 +205,166 @@ export function latestFrontendRequest(
     message: result.message,
     requestId: result.requestId,
   };
+}
+
+export async function buildFrontendRequestResult(options: {
+  session: UiInspectSession;
+  message: UiInspectMessage;
+  requestId: string;
+  daemonUrl: string;
+  context: number;
+}): Promise<any> {
+  const { session, message, requestId, context } = options;
+  const selection = session.selection;
+  const targets = normalizeResultTargets(session);
+  const source = selection ? await readSourceSafely(selection, context) : null;
+  const targetSources = await Promise.all(targets.map(async (target) => ({
+    id: target.id,
+    note: target.note,
+    source: await readSourceSafely(target.selection, context),
+  })));
+  const diagnostics = session.diagnostics ?? selection?.diagnostics ?? targets.find((target) => target.diagnostics)?.diagnostics;
+
+  return {
+    ok: true,
+    timedOut: false,
+    requestId,
+    nextCursor: { afterRequestId: requestId },
+    message,
+    session: {
+      id: session.id,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      status: session.status,
+      mode: session.mode,
+    },
+    selection: selection ? compactSelection(selection) : null,
+    targets,
+    targetCount: targets.length,
+    source,
+    targetSources,
+    batchContext: targets.length > 1 ? {
+      targetCount: targets.length,
+      notes: targets.map((target) => ({ id: target.id, note: target.note })).filter((item) => item.note),
+    } : undefined,
+    diagnostics,
+    contextSummary: summarizeRequestContext(selection, message),
+    targetsSummary: summarizeRequestTargets(targets),
+    sourceHintSummary: summarizeSourceHints(selection, targets),
+    runtimeSummary: summarizeRuntimeDiagnostics(diagnostics),
+  };
+}
+
+function normalizeResultTargets(session: UiInspectSession): UiInspectTarget[] {
+  if (Array.isArray(session.targets) && session.targets.length) return session.targets;
+  return session.selection ? [{
+    id: session.selection.id,
+    note: session.selection.note ?? '',
+    selection: session.selection,
+  }] : [];
+}
+
+async function readSourceSafely(selection: UiInspectSelection, context: number): Promise<UiInspectSourceResponse | { error: string } | null> {
+  if (!selection.source?.root || !selection.source?.file) return null;
+  try {
+    return await readSelectionSource(selection, context);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function compactSelection(selection: UiInspectSelection): Record<string, unknown> {
+  return {
+    id: selection.id,
+    sessionId: selection.sessionId,
+    url: selection.url,
+    title: selection.title,
+    timestamp: selection.timestamp,
+    instruction: selection.instruction,
+    framework: selection.framework,
+    tagName: selection.dom?.tagName,
+    selector: selection.dom?.selector,
+    text: selection.dom?.text,
+    componentName: selection.component?.name ?? selection.vue?.componentName ?? null,
+    sourceFile: selection.source?.file ?? null,
+    sourceLine: selection.source?.line ?? null,
+    sourceColumn: selection.source?.column ?? null,
+    component: selection.component ?? null,
+    vue: selection.vue ?? null,
+    source: selection.source,
+    context: selection.context,
+    sourceHints: selection.sourceHints,
+  };
+}
+
+function summarizeRequestContext(selection: UiInspectSelection | null, message: UiInspectMessage): string {
+  const parts: string[] = [];
+  if (selection) {
+    const component = selection.component?.name ?? selection.vue?.componentName;
+    if (component) parts.push(component);
+    if (selection.dom?.tagName) {
+      const selector = selection.dom.id ? `${selection.dom.tagName}#${selection.dom.id}` : selection.dom.tagName;
+      parts.push(selector);
+    }
+    const text = clean(selection.context?.accessibleName || selection.dom?.text);
+    if (text) parts.push(text.slice(0, 80));
+    if (selection.source?.file) {
+      const suffix = selection.source.line ? `:${selection.source.line}` : '';
+      parts.push(`${selection.source.file}${suffix}`);
+    }
+  }
+  const request = clean(message.content);
+  if (request) parts.push(`Request: ${request.slice(0, 160)}`);
+  return parts.length ? `Element: ${parts.join(' • ')}` : '';
+}
+
+function summarizeRequestTargets(targets: UiInspectTarget[]): string {
+  if (!targets.length) return 'No targets.';
+  return targets.map((target, index) => {
+    const selection = target.selection;
+    const title = clean(
+      selection.context?.accessibleName ||
+      selection.context?.formContext?.label ||
+      selection.context?.formContext?.placeholder ||
+      selection.dom?.text ||
+      selection.component?.name ||
+      selection.vue?.componentName ||
+      selection.dom?.tagName ||
+      'element',
+    );
+    const source = selection.source?.file
+      ? ` (${selection.source.file}${selection.source.line ? `:${selection.source.line}` : ''})`
+      : '';
+    const note = clean(target.note) ? ` — ${clean(target.note)}` : '';
+    return `${index + 1}. ${title.slice(0, 100)}${source}${note}`;
+  }).join('\n');
+}
+
+function summarizeSourceHints(selection: UiInspectSelection | null, targets: UiInspectTarget[]): string {
+  const hints = [
+    ...(selection?.sourceHints ?? []),
+    ...targets.flatMap((target) => target.sourceHints ?? target.selection.sourceHints ?? []),
+  ];
+  if (!hints.length) return 'No source hints.';
+  return hints.slice(0, 10).map((hint, index) => {
+    const loc = hint.file ? `${hint.file}${hint.line ? `:${hint.line}` : ''}` : '(no file)';
+    return `${index + 1}. ${hint.kind} ${loc} confidence=${hint.confidence}: ${hint.reason}`;
+  }).join('\n');
+}
+
+function summarizeRuntimeDiagnostics(diagnostics: UiInspectDiagnostics | undefined): string {
+  const events = diagnostics?.runtimeEvents ?? [];
+  if (!events.length) return 'No user-confirmed runtime diagnostics.';
+  const errors = events.filter((event) => event.level === 'error').length;
+  const warnings = events.filter((event) => event.level === 'warn').length;
+  const lines = [`${events.length} user-confirmed runtime events (${errors} errors, ${warnings} warnings).`];
+  for (const event of events.slice(0, 5)) {
+    lines.push(`- [${event.level}] ${event.kind}: ${clean(event.message).slice(0, 180)}`);
+  }
+  if (diagnostics?.truncated) lines.push('Diagnostics were truncated in the browser.');
+  return lines.join('\n');
+}
+
+function clean(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }

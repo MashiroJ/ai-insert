@@ -196,10 +196,9 @@ You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `tu
 ## Diana Features
 
 - Source hints: select an element and confirm component names, file paths, and source candidates.
-- Local edit: select one element, describe the change, and send it to AI.
-- Batch edit: select multiple elements, add notes per target, and send one task.
+- Create AI Task: select one element, describe the change, and send it to AI.
+- Batch Task: select multiple elements, add notes per target, and send one task.
 - Debug: select a component and confirm console diagnostics before sending.
-- CSS debug: preview style changes, drag position or size, and send a style diff.
-- History: view recent browser-to-agent sessions.
+- Task Records: view recent browser-to-agent tasks.
 
 Diagnostics are shown for confirmation before sending. ui-inspect does not automatically send cookies, localStorage, request bodies, or screenshots.

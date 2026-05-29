@@ -1,4 +1,5 @@
+import { waitForFrontendRequest } from '../wait.js';
 export async function waitForFrontendRequestHandler(args, daemonUrl) {
-    throw new Error('Not implemented');
+    return await waitForFrontendRequest((args ?? {}), daemonUrl, undefined);
 }
 //# sourceMappingURL=wait.js.map

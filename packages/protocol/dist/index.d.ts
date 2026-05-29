@@ -172,8 +172,8 @@ export interface UiInspectTarget {
  * Legacy-compatible source-location hints for stylesheet/template origins.
  *
  * These describe where a selected element's visual behavior may come from so
- * an AI coding agent can inspect project files. They are not a CSS Debug
- * editing mode and must not be used to expose runtime style-editing UI.
+ * an AI coding agent can inspect project files. They are source clues only
+ * and must not be used to expose runtime style-editing UI.
  */
 export type UiInspectStyleSourceHintKind = 'vue-sfc-style-rule' | 'style-rule' | 'template-class' | 'inline-style' | 'parent-layout-rule' | 'fallback-source';
 export interface UiInspectStyleSourceHint {

@@ -46,7 +46,7 @@ describe('clientSource', () => {
     expect(result).not.toContain('/@ui-inspect/diana.webp');
   });
 
-  it('does not include CSS debug functional code', () => {
+  it('does not include removed visual editing functional code', () => {
     const result = clientSource({ daemonUrl: 'http://127.0.0.1:17321', root: '/project' });
     expect(result).not.toContain("mode: 'css-debug'");
     expect(result).not.toContain('resetCssDebugPreview');

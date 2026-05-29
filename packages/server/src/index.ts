@@ -6,8 +6,10 @@ import {
   type UiInspectMessageRole,
   type UiInspectSelection,
   type UiInspectSelectionResponse,
+  type UiInspectSession,
   type UiInspectSessionsResponse,
   type UiInspectSourceResponse,
+  type UiInspectTaskStatus,
 } from '@ui-inspect/protocol';
 import { createServer } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
@@ -69,6 +71,32 @@ export async function fetchSessions(daemonUrl = DEFAULT_DAEMON_URL): Promise<UiI
   const resp = await fetch(`${parsed}/sessions`);
   if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
   return (await resp.json()) as UiInspectSessionsResponse;
+}
+
+export async function fetchSession(sessionId: string, daemonUrl = DEFAULT_DAEMON_URL): Promise<UiInspectSession> {
+  const parsed = parseDaemonUrl(daemonUrl);
+  const resp = await fetch(`${parsed}/sessions/${encodeURIComponent(sessionId)}`);
+  if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+  const payload = (await resp.json()) as { session?: UiInspectSession };
+  if (!payload.session) throw new Error(`session not found: ${sessionId}`);
+  return payload.session;
+}
+
+export async function updateSessionStatus(
+  sessionId: string,
+  status: UiInspectTaskStatus,
+  daemonUrl = DEFAULT_DAEMON_URL,
+): Promise<UiInspectSession> {
+  const parsed = parseDaemonUrl(daemonUrl);
+  const resp = await fetch(`${parsed}/sessions/${encodeURIComponent(sessionId)}/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!resp.ok) throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+  const payload = (await resp.json()) as { session?: UiInspectSession };
+  if (!payload.session) throw new Error(`session not found: ${sessionId}`);
+  return payload.session;
 }
 
 export async function postMessage(

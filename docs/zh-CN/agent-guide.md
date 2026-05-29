@@ -45,23 +45,3 @@
 - `sourceHints`
 
 日志是用户确认后才发送的，但仍可能包含敏感信息。不要把日志内容无意义地复制到最终回复里。
-
-## CSS 调试任务
-
-CSS 调试任务要先阅读：
-
-- `changedStyles`
-- `primaryInteraction`
-- `interactions`
-- `computedEffects`
-- `layoutContext`
-- `originalStyles`
-- `previewStyles`
-- 用户备注
-- `sourceHints`
-
-`changedStyles` 表示用户主动想要的改动。`primaryInteraction` 和 `interactions` 表示用户是通过面板、移动拖拽还是尺寸拖拽表达意图。
-
-`computedEffects` 和 `layoutContext` 只用于判断连带影响。优先修改源码里的 CSS、组件样式或 class，不要直接照搬浏览器预览 inline style。
-
-位置拖拽中的 `transform` 常常只是预览表达。应结合父级布局判断最终应改 `margin`、`gap`、`align-*`、`justify-*`、grid/flex 配置，还是保留 `transform`。

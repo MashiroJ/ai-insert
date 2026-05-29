@@ -21,7 +21,7 @@
 
 ui-inspect 是一个通用的 MCP 前端检查桥。
 
-它让你在浏览器里点选真实页面元素，然后把 AI 很难从截图或文字里猜出来的上下文交给 coding agent：DOM、selector、组件和源码线索、计算样式、CSS diff、console 诊断、多元素备注、任务会话状态。
+它让你在浏览器里点选真实页面元素，然后把 AI 很难从截图或文字里猜出来的上下文交给 coding agent：DOM、selector、组件和源码线索、计算样式、console 诊断、多元素备注、任务会话状态。
 
 它不绑定某个 IDE 或 AI 产品。Cursor、Claude Code、Codex CLI、OpenCode，以及其他支持 MCP 的 agent，都可以通过同一套工具读取这些上下文。
 
@@ -39,9 +39,8 @@ ui-inspect 是一个通用的 MCP 前端检查桥。
 | --- | --- |
 | 元素选择 | 采集 DOM、selector、尺寸、文本、计算样式、组件和源码线索 |
 | 精准源码定位 | 从浏览器选中元素后，给 agent 文件路径、模板行号、样式规则行号和附近源码上下文 |
-| 批量标注 | 连续选择多个元素，为每个目标补充独立备注后一起发送 |
+| 批量任务 | 连续选择多个元素，为每个目标补充独立备注后一起发送 |
 | 问题排查 | 发送用户确认过的 console error、warning、异常和运行时摘要 |
-| CSS Debug | 在浏览器中预览样式变化，发送 changed styles、拖拽意图、布局建议、覆盖风险和样式来源 |
 | MCP loop | agent 处理完当前浏览器任务后，可继续等待下一条 Send |
 | Diana 面板 | 浏览器悬浮入口，支持模式切换、历史记录、任务状态和消息回写 |
 
@@ -168,29 +167,10 @@ MCP 协议本身不会让 server 主动唤醒 agent；ui-inspect 采用的是长
 Agent 收到任务后，推荐先读这些字段：
 
 - `contextSummary`：快速判断用户选中了什么。
-- `targetsSummary`：批量任务和 CSS Debug 的首要入口，包含每个 target 的改动摘要。
+- `targetsSummary`：批量任务的首要入口，包含每个 target 的摘要和备注。
 - `sourceHintSummary`：源码候选、置信度和原因。
-- `cssDebugSummary`：CSS diff、样式来源、布局建议和覆盖风险摘要。
+- `runtimeSummary`：问题排查任务里用户确认过的 console 诊断摘要。
 - `source`：compact 模式下只返回文件和行号范围，需要源码内容时再调用 `get_frontend_source`。
-
-## CSS Debug
-
-CSS Debug 适合“不确定该调哪个 CSS 属性，但想先在浏览器里试一试”的场景。
-
-它支持：
-
-- 拖拽移动元素，记录 `transform` 预览意图。
-- 8 方向 resize：`nw / n / ne / w / e / sw / s / se`。
-- 从左侧或上方 resize 时自动补偿位移，尽量保持对边或对角固定。
-- 键盘微调：`Shift + Arrow` 调 margin，`Alt + Arrow` 调 padding，`Shift + Alt + Arrow` 调字体大小或字间距。
-- 盒模型可视化：在 overlay 中查看 margin 和 padding 区域。
-- 发送 CSS diff：包含主动改动、拖拽记录、布局上下文和连带计算变化。
-- 页面级多目标编辑：一次 CSS Debug 会话里可以添加多个元素，每个目标保留自己的 diff、备注和源码映射。
-- 源码智能提示：为 Vue SFC 推断 template 行号，定位匹配的 `<style>` 规则，并在 compact 响应里暴露 `file:line + selector`。
-- 布局建议：拖拽产生的 `transform` 会被视为预览表达，agent 会优先看到 margin、align-self、justify-self、left/top 等更适合落源码的候选。
-- 覆盖风险提示：同一文件中可能覆盖同一 CSS 属性的规则会以 `specificityWarnings` 提醒 agent 复查。
-
-浏览器端只预览 inline style，不会直接写源码。真正的代码修改由 MCP agent 根据 diff 和源码上下文完成。
 
 ## 支持的接入方式
 

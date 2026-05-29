@@ -2,8 +2,8 @@
 import { DEFAULT_DAEMON_PORT, DEFAULT_DAEMON_URL } from '@ui-inspect/protocol';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, } from '@ui-inspect/server';
-import { runMcpStdio } from './mcp.js';
+import { clearSelection, fetchHealth, fetchSelection, fetchSessions, postMessage, readSelectionSource, startServer, updateSessionStatus, } from '@ui-inspect/server';
+import { completeFrontendRequestFlow, normalizeCompleteFrontendRequestArgs, runMcpStdio, waitForFrontendRequest } from './mcp.js';
 import { updateProjectIntegrationPackages } from './project-setup.js';
 import { getVersion } from './version.js';
 ensureLocalNoProxy();
@@ -47,12 +47,37 @@ try {
         const payload = await fetchSessions(daemonUrl());
         process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     }
+    else if (command === 'wait') {
+        const result = await waitForFrontendRequest(waitArgs(), daemonUrl(), stringFlag('--session-id') ?? undefined);
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    }
+    else if (command === 'task-status') {
+        const status = statusFlag();
+        const sessionId = stringFlag('--session-id') ?? await currentSessionId();
+        const session = await updateSessionStatus(sessionId, status, daemonUrl());
+        process.stdout.write(`${JSON.stringify({ ok: true, session }, null, 2)}\n`);
+    }
     else if (command === 'reply') {
-        const content = stringFlag('--content') ?? args.slice(1).filter((arg) => !arg.startsWith('--')).join(' ').trim();
+        const content = stringFlag('--content') ?? positionalContent();
         if (!content)
             throw new Error('reply content is required');
-        const message = await postMessage(content, 'assistant', daemonUrl());
+        const message = await postMessage(content, 'assistant', daemonUrl(), { sessionId: stringFlag('--session-id') ?? undefined });
         process.stdout.write(`${JSON.stringify({ ok: true, message }, null, 2)}\n`);
+    }
+    else if (command === 'complete') {
+        const content = stringFlag('--content') ?? positionalContent();
+        const normalized = normalizeCompleteFrontendRequestArgs({
+            sessionId: stringFlag('--session-id'),
+            content,
+            afterRequestId: stringFlag('--after-request-id'),
+            status: stringFlag('--status') ?? 'done',
+            context: numberFlag('--context') ?? undefined,
+            timeoutMs: numberFlag('--timeout-ms') ?? undefined,
+            sinceTimestamp: numberFlag('--since-timestamp') ?? undefined,
+            responseMode: stringFlag('--response-mode') ?? undefined,
+        }, Date.now());
+        const result = await completeFrontendRequestFlow(normalized, daemonUrl());
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     }
     else if (command === 'source') {
         const context = numberFlag('--context') ?? 80;
@@ -129,6 +154,20 @@ function numberFlag(name) {
         throw new Error(`${name} must be a number`);
     return value;
 }
+function positionalContent() {
+    const values = [];
+    for (let index = 1; index < args.length; index += 1) {
+        const value = args[index];
+        if (value.startsWith('--')) {
+            const next = args[index + 1];
+            if (next && !next.startsWith('--'))
+                index += 1;
+            continue;
+        }
+        values.push(value);
+    }
+    return values.join(' ').trim();
+}
 function printHelp() {
     process.stdout.write(`Usage:
   ui-inspect daemon [--host 127.0.0.1] [--port 17321]
@@ -136,11 +175,36 @@ function printHelp() {
   ui-inspect status [--daemon-url <url>]
   ui-inspect selection [--json] [--daemon-url <url>]
   ui-inspect sessions [--daemon-url <url>]
-  ui-inspect reply --content <text> [--daemon-url <url>]
+  ui-inspect wait [--timeout-ms <ms>] [--context <lines>] [--since-timestamp <ms>] [--after-request-id <id>] [--session-id <id>] [--response-mode compact|full] [--daemon-url <url>]
+  ui-inspect task-status --status claimed|working|done|failed [--session-id <id>] [--daemon-url <url>]
+  ui-inspect reply --content <text> [--session-id <id>] [--daemon-url <url>]
+  ui-inspect complete --session-id <id> --after-request-id <id> --content <text> [--status done|failed] [--timeout-ms <ms>] [--context <lines>] [--response-mode compact|full] [--daemon-url <url>]
   ui-inspect source [--context 80] [--json] [--daemon-url <url>]
   ui-inspect clear [--daemon-url <url>]
   ui-inspect update [--project <path>] [--dry-run] [--json] [--tag latest] [--self]
 `);
+}
+function waitArgs() {
+    return {
+        timeoutMs: numberFlag('--timeout-ms') ?? undefined,
+        context: numberFlag('--context') ?? undefined,
+        sinceTimestamp: numberFlag('--since-timestamp') ?? undefined,
+        afterRequestId: stringFlag('--after-request-id') ?? undefined,
+        responseMode: stringFlag('--response-mode') ?? undefined,
+    };
+}
+function statusFlag() {
+    const status = stringFlag('--status');
+    if (status === 'claimed' || status === 'working' || status === 'done' || status === 'failed')
+        return status;
+    throw new Error('--status must be claimed, working, done, or failed');
+}
+async function currentSessionId() {
+    const payload = await fetchSelection(daemonUrl());
+    const sessionId = payload.selection?.sessionId;
+    if (!payload.active || !sessionId)
+        throw new Error('--session-id is required when there is no active selection');
+    return sessionId;
 }
 function updateSelfCli({ dryRun, tag, silent }) {
     const target = `@ui-inspect/cli@${tag}`;

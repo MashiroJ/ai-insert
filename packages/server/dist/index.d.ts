@@ -1,4 +1,4 @@
-import { type UiInspectHealthResponse, type UiInspectMessage, type UiInspectMessageRole, type UiInspectSelectionResponse, type UiInspectSessionsResponse } from '@ui-inspect/protocol';
+import { type UiInspectHealthResponse, type UiInspectMessage, type UiInspectMessageRole, type UiInspectSelectionResponse, type UiInspectSession, type UiInspectSessionsResponse, type UiInspectTaskStatus } from '@ui-inspect/protocol';
 export type { StartServerOptions } from './types.js';
 export { readSelectionSource } from './source.js';
 export { delay } from './utils.js';
@@ -9,6 +9,8 @@ export declare function startServer(options?: {
 }): Promise<void>;
 export declare function fetchSelection(daemonUrl?: string): Promise<UiInspectSelectionResponse>;
 export declare function fetchSessions(daemonUrl?: string): Promise<UiInspectSessionsResponse>;
+export declare function fetchSession(sessionId: string, daemonUrl?: string): Promise<UiInspectSession>;
+export declare function updateSessionStatus(sessionId: string, status: UiInspectTaskStatus, daemonUrl?: string): Promise<UiInspectSession>;
 export declare function postMessage(content: string, role?: UiInspectMessageRole, daemonUrl?: string, options?: {
     mode?: 'append';
     sessionId?: string;

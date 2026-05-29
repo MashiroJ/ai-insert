@@ -53,6 +53,30 @@ export async function fetchSessions(daemonUrl = DEFAULT_DAEMON_URL) {
         throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
     return (await resp.json());
 }
+export async function fetchSession(sessionId, daemonUrl = DEFAULT_DAEMON_URL) {
+    const parsed = parseDaemonUrl(daemonUrl);
+    const resp = await fetch(`${parsed}/sessions/${encodeURIComponent(sessionId)}`);
+    if (!resp.ok)
+        throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+    const payload = (await resp.json());
+    if (!payload.session)
+        throw new Error(`session not found: ${sessionId}`);
+    return payload.session;
+}
+export async function updateSessionStatus(sessionId, status, daemonUrl = DEFAULT_DAEMON_URL) {
+    const parsed = parseDaemonUrl(daemonUrl);
+    const resp = await fetch(`${parsed}/sessions/${encodeURIComponent(sessionId)}/status`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+    if (!resp.ok)
+        throw new Error(`daemon ${resp.status}: ${await resp.text()}`);
+    const payload = (await resp.json());
+    if (!payload.session)
+        throw new Error(`session not found: ${sessionId}`);
+    return payload.session;
+}
 export async function postMessage(content, role = 'assistant', daemonUrl = DEFAULT_DAEMON_URL, options = {}) {
     const parsed = parseDaemonUrl(daemonUrl);
     const resp = await fetch(`${parsed}/messages`, {

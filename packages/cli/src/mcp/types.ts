@@ -10,6 +10,8 @@ export interface ToolArgs {
   responseMode?: unknown;
 }
 
+export type FrontendRequestResponseMode = 'compact' | 'full';
+
 export const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 export const MAX_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 export const WAIT_POLL_INTERVAL_MS = 1000;
@@ -25,4 +27,5 @@ export interface NormalizedCompleteFrontendRequestArgs {
   context: number;
   timeoutMs: number;
   sinceTimestamp: number;
+  responseMode: FrontendRequestResponseMode;
 }

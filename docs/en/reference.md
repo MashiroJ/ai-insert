@@ -36,7 +36,6 @@ Successful responses usually include:
 - Batch target summary
 - Source candidates
 - User-confirmed runtime diagnostics
-- CSS debug context
 
 ### `get_frontend_selection`
 
@@ -107,9 +106,12 @@ Debug commands:
 ui-inspect daemon
 ui-inspect status
 ui-inspect selection --json
+ui-inspect wait --response-mode compact
+ui-inspect task-status --status working
 ui-inspect source --context 80
 ui-inspect sessions
 ui-inspect reply --content "Done"
+ui-inspect complete --session-id <id> --after-request-id <id> --content "Done"
 ui-inspect clear
 ```
 

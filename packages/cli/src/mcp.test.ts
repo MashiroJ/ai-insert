@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { UiInspectSelection, UiInspectSession } from '@ui-inspect/protocol';
-import { getMcpToolDefinition, latestFrontendRequest, normalizeCompleteFrontendRequestArgs, resolveProjectRoot, compactFrontendRequestResult } from './mcp.js';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { getMcpToolDefinition, latestFrontendRequest, normalizeCompleteFrontendRequestArgs, resolveProjectRoot, compactFrontendRequestResult, waitForFrontendRequest } from './mcp.js';
 
 describe('complete_frontend_request tool', () => {
   it('exposes the required completion-and-wait schema', () => {
@@ -41,6 +43,7 @@ describe('complete_frontend_request tool', () => {
       context: 80,
       timeoutMs: 600_000,
       sinceTimestamp: 70_000,
+      responseMode: 'compact',
     });
   });
 
@@ -69,6 +72,52 @@ describe('complete_frontend_request tool', () => {
       afterRequestId: 'message:msg-1',
       status: 'working',
     }, 100_000)).toThrow('status must be done or failed');
+  });
+});
+
+describe('waitForFrontendRequest flow', () => {
+  it('polls daemon sessions, claims the task, and returns a compact request', async () => {
+    const selection = makeSelection({ source: { root: '/project', file: null, line: null, column: null } });
+    const session = makeSession({ selection, targets: [{ id: selection.id, note: 'make it clearer', selection }] });
+    const seenStatuses: string[] = [];
+    const server = createServer((req, res) => {
+      if (req.method === 'GET' && req.url === '/sessions') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ sessions: [session] }));
+        return;
+      }
+      if (req.method === 'POST' && req.url === `/sessions/${session.id}/status`) {
+        let body = '';
+        req.on('data', (chunk) => { body += chunk; });
+        req.on('end', () => {
+          seenStatuses.push(JSON.parse(body).status);
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify({ session: { ...session, status: 'claimed' } }));
+        });
+        return;
+      }
+      res.statusCode = 404;
+      res.end('not found');
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address() as AddressInfo;
+      const result = await waitForFrontendRequest(
+        { sinceTimestamp: 1000, timeoutMs: 1000, responseMode: 'compact' },
+        `http://127.0.0.1:${address.port}`,
+        undefined,
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.requestId).toBe('selection:selection-1');
+      expect(result.nextCursor).toEqual({ afterRequestId: 'selection:selection-1' });
+      expect(result.targetsSummary).toContain('make it clearer');
+      expect(result.source).toBeUndefined();
+      expect(seenStatuses).toEqual(['claimed']);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 

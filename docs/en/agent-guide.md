@@ -45,23 +45,3 @@ For runtime debugging tasks, read:
 - `sourceHints`
 
 Diagnostics are sent only after user confirmation, but they may still contain sensitive information. Do not paste unnecessary log content into the final response.
-
-## CSS Debug Tasks
-
-For CSS debug tasks, read:
-
-- `changedStyles`
-- `primaryInteraction`
-- `interactions`
-- `computedEffects`
-- `layoutContext`
-- `originalStyles`
-- `previewStyles`
-- user notes
-- `sourceHints`
-
-`changedStyles` represents properties the user actively changed. `primaryInteraction` and `interactions` show whether the user used the panel, moved the element, or resized it.
-
-Use `computedEffects` and `layoutContext` to understand side effects. Prefer changing source CSS, component styles, or classes. Do not blindly copy browser preview inline styles.
-
-A drag-generated `transform` is often just an intent preview. Inspect the parent layout before deciding whether the final code should use `margin`, `gap`, `align-*`, `justify-*`, grid/flex configuration, or keep `transform`.

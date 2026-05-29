@@ -1,5 +1,6 @@
 // Complete frontend request logic
-import { extractContext, extractTimeoutMs, extractSinceTimestamp } from './wait.js';
+import { extractContext, extractTimeoutMs, extractSinceTimestamp, extractResponseMode, waitForFrontendRequest } from './wait.js';
+import { postMessage, updateSessionStatus } from '@ui-inspect/server';
 export function normalizeCompleteFrontendRequestArgs(args, defaultSinceTimestamp) {
     const sessionId = typeof args.sessionId === 'string' ? args.sessionId.trim() : '';
     const content = typeof args.content === 'string' ? args.content.trim() : '';
@@ -9,6 +10,12 @@ export function normalizeCompleteFrontendRequestArgs(args, defaultSinceTimestamp
     if (typeof args.status === 'string' && !['done', 'failed'].includes(args.status)) {
         throw new Error('status must be done or failed');
     }
+    if (!sessionId)
+        throw new Error('sessionId is required');
+    if (!content)
+        throw new Error('content is required');
+    if (!afterRequestId)
+        throw new Error('afterRequestId is required');
     const status = typeof args.status === 'string' && ['done', 'failed'].includes(args.status)
         ? args.status
         : 'done';
@@ -20,13 +27,28 @@ export function normalizeCompleteFrontendRequestArgs(args, defaultSinceTimestamp
         context: extractContext(args),
         timeoutMs: extractTimeoutMs(args),
         sinceTimestamp: extractSinceTimestamp(args, defaultSinceTimestamp),
+        responseMode: extractResponseMode(args),
     };
 }
 export async function completeFrontendRequestFlow(normalizedArgs, daemonUrl) {
-    // This will:
-    // 1. Call POST /ui-inspect/messages to complete the current request
-    // 2. Call wait_for_frontend_request with the cursor to wait for next
-    // Implementation will be in handlers/complete.ts
-    throw new Error('Not implemented - will be in handlers/complete.ts');
+    const message = await postMessage(normalizedArgs.content, 'assistant', daemonUrl, { sessionId: normalizedArgs.sessionId });
+    const session = await updateSessionStatus(normalizedArgs.sessionId, normalizedArgs.status, daemonUrl);
+    const next = await waitForFrontendRequest({
+        afterRequestId: normalizedArgs.afterRequestId,
+        context: normalizedArgs.context,
+        timeoutMs: normalizedArgs.timeoutMs,
+        sinceTimestamp: normalizedArgs.sinceTimestamp,
+        responseMode: normalizedArgs.responseMode,
+    }, daemonUrl, undefined);
+    return {
+        ok: true,
+        completed: {
+            sessionId: normalizedArgs.sessionId,
+            status: normalizedArgs.status,
+            message,
+            session,
+        },
+        next,
+    };
 }
 //# sourceMappingURL=complete.js.map

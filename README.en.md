@@ -21,7 +21,7 @@
 
 ui-inspect is a browser inspection and MCP context bridge for frontend development.
 
-When you point at a real element in the browser, ui-inspect can send your AI agent the things screenshots cannot carry: DOM structure, computed styles, component hints, source candidates, template lines, style rule lines, console diagnostics, CSS debug diffs, user notes, and session state.
+When you point at a real element in the browser, ui-inspect can send your AI agent the things screenshots cannot carry: DOM structure, computed styles, component hints, source candidates, template lines, style rule lines, console diagnostics, user notes, and session state.
 
 It does not depend on a specific AI product. Any MCP-capable coding agent can use it.
 
@@ -39,8 +39,7 @@ ui-inspect gives the browser a way to speak to your agent with real, actionable 
 | --- | --- |
 | Element selection | DOM, selector, size, computed styles, source hints |
 | Precise source hints | Component names, file candidates, template lines, style rule lines, nearby source context |
-| Batch edit | Multiple targets with notes per target |
-| CSS debug | Style diff, drag intent, layout hints, style source hints, specificity warnings |
+| Batch task | Multiple targets with notes per target |
 | Runtime debug | User-confirmed console errors, warnings, and exceptions |
 | MCP loop | Complete one browser task and keep waiting for the next Send |
 | Diana panel | Floating browser UI, tool panel, history, task status, and agent replies |
@@ -94,7 +93,7 @@ Then open the page and tell your AI agent:
 start ui-inspect
 ```
 
-You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, or `启用 ui-inspect`. The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. Diana will appear in the browser, and you can select elements or send CSS/debug tasks.
+You can also say `enable ui-inspect`, `use ui-inspect`, `launch ui-inspect`, `turn on ui-inspect`, or `启用 ui-inspect`. The agent should call `start_ui_inspect`, then `wait_for_frontend_request`. Diana will appear in the browser, and you can select elements or send AI tasks.
 
 ## Updating ui-inspect
 
@@ -144,28 +143,10 @@ start_ui_inspect
 When a task arrives, agents should read:
 
 - `contextSummary`: what the user selected.
-- `targetsSummary`: the first place to inspect batch and CSS Debug targets.
+- `targetsSummary`: the first place to inspect batch task targets.
 - `sourceHintSummary`: source candidates, confidence, and reasons.
-- `cssDebugSummary`: CSS diffs, style source hints, layout hints, and specificity warnings.
+- `runtimeSummary`: user-confirmed console diagnostics for troubleshooting tasks.
 - `source`: compact metadata for the selected source range. Use `get_frontend_source` when full source content is needed.
-
-## CSS Debug
-
-CSS Debug is for cases where the user wants to try a visual change in the browser before asking the agent to edit source code.
-
-It supports:
-
-- Dragging elements to capture movement intent.
-- 8-direction resize handles: `nw / n / ne / w / e / sw / s / se`.
-- Position compensation when resizing from the left or top.
-- Keyboard nudging: `Shift + Arrow` for margin, `Alt + Arrow` for padding, `Shift + Alt + Arrow` for font size or letter spacing.
-- Box-model overlay for margin and padding.
-- Page-level multi-target editing in one CSS Debug session.
-- Vue SFC template line inference and style rule hints with `file:line + selector`.
-- Layout hints so agents do not blindly copy `transform` previews into source.
-- Specificity warnings when matching rules may override the same changed property.
-
-The browser only previews inline styles. Source code is still changed by the MCP agent after it reads the diff and source context.
 
 ## Documentation
 
